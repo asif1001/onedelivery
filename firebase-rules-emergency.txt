@@ -1,0 +1,14 @@
+COPY AND PASTE THIS INTO FIREBASE CONSOLE RULES:
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+
+THEN CLICK "PUBLISH"
+
+Console Link: https://console.firebase.google.com/project/oil-delivery-6bcc4/firestore/rules
