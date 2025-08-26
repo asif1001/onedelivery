@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "dist/public",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -11,17 +11,15 @@
         "source": "**",
         "destination": "/index.html"
       }
-    ],
-    "headers": [
-      {
-        "source": "/service-worker.js",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache"
-          }
-        ]
-      }
     ]
+  },
+  "firestore": {
+    "database": "(default)",
+    "location": "asia-south1",
+    "rules": "default",
+    "indexes": "default"
+  },
+  "storage": {
+    "rules": "storage.rules"
   }
 }

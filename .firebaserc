@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "oneplace-b5fc3"
-  }
+    "default": "oneplace-b5fc3",
+    "prod": "oneplace-b5fc3"
+  },
+  "targets": {},
+  "etags": {}
 }
