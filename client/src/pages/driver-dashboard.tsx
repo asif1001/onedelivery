@@ -411,7 +411,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
         {/* Main Action Buttons */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card className="hover:shadow-lg transition-shadow">
             <CardContent className="p-6 text-center">
               <div className="bg-blue-500 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
@@ -465,6 +465,25 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                 data-testid="button-start-drum-supply"
               >
                 Start Drum Supply
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow">
+            <CardContent className="p-6 text-center">
+              <div className="bg-red-500 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangleIcon className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Report Issue</h3>
+              <p className="text-gray-600 mb-4">
+                Report problems or safety concerns
+              </p>
+              <Button 
+                onClick={() => setShowCreateComplaintModal(true)}
+                className="w-full bg-red-500 hover:bg-red-600"
+                data-testid="button-report-issue"
+              >
+                Report Issue
               </Button>
             </CardContent>
           </Card>
