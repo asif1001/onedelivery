@@ -14,7 +14,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
-### ✅ Project Structure Cleanup & Documentation (Latest)
+### ✅ Driver Dashboard Complaint Feature Fix (Latest - August 26, 2025)
+- **Fixed missing Report Issue button**: Added as 4th main action card in driver dashboard
+- **Visual design**: Red color scheme with AlertTriangleIcon for clear problem identification
+- **Full functionality**: Button opens complaint creation modal with photo capture
+- **Accessibility**: Proper data-testid attributes and responsive design
+- **Deployment**: Successfully pushed to GitHub and deployed via automated GitHub Actions
+
+### ✅ Project Structure Cleanup & Documentation
 - **Cleaned up project structure**: Removed 50+ outdated documentation files
 - **Created comprehensive README.md**: Complete setup, deployment, and usage instructions
 - **Added deployment scripts**: Automated Firebase and GitHub deployment scripts
