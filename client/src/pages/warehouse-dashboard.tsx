@@ -2081,110 +2081,91 @@ export default function WarehouseDashboard() {
                 </div>
 
                 {getRecentTransactionsForDisplay().length > 0 ? (
-                  <div className="space-y-3">
-                    {getRecentTransactionsForDisplay().map((transaction) => (
-                      <Card key={transaction.id} className="bg-gray-50/50 border border-gray-200">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-blue-100">
-                                {transaction.type === 'loading' ? (
-                                  <TruckIcon className="h-6 w-6 text-blue-600" />
-                                ) : transaction.type === 'supply' ? (
-                                  <Package className="h-6 w-6 text-orange-600" />
-                                ) : (
-                                  <DropletIcon className="h-6 w-6 text-green-600" />
-                                )}
-                              </div>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-3">
-                                  <Badge variant={
-                                    transaction.type === 'loading' ? 'default' :
-                                    transaction.type === 'supply' ? 'secondary' : 'outline'
-                                  } className="text-xs">
-                                    {transaction.type === 'loading' ? 'LOADING' : 
-                                     (transaction.supplyType === 'drum' || transaction.numberOfDrums) ? 'SUPPLY (DRUM)' : 'SUPPLY'}
-                                  </Badge>
-                                  <span className="font-semibold text-gray-900">
-                                    {(transaction.quantity || 0).toLocaleString()}L {transaction.oilTypeName || 'Unknown Oil'}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm text-gray-600">
-                                  <div className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    <span>
-                                      {transaction.type === 'loading' 
-                                        ? (transaction.branchName || 'Loading Location')
-                                        : (transaction.branchName || 'Unknown Location')
-                                      }
-                                      {transaction.type === 'supply' && (transaction.supplyType === 'drum' || transaction.numberOfDrums) && ' (via Drums)'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <UserIcon className="h-3 w-3" />
-                                    <span>{(() => {
-                                      // Enhanced driver name resolution (same logic as Driver Dashboard)
-                                      let driverName = transaction.driverName;
-                                      
-                                      // If driverName is missing or generic "Driver", try to get better info
-                                      if (!driverName || driverName === 'Driver') {
-                                        // Try alternative fields first
-                                        driverName = transaction.reporterName || transaction.reportedByName;
-                                        
-                                        // If still no good name and we have a driverUid, show ID for reference
-                                        if (!driverName && transaction.driverUid) {
-                                          driverName = `Driver (ID: ${transaction.driverUid.slice(-4)})`;
-                                        } else if (!driverName) {
-                                          driverName = 'Unknown Driver';
-                                        }
-                                      }
-                                      
-                                      return driverName;
-                                    })()}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="h-3 w-3" />
-                                    <span>
-                                      {transaction.createdAt ? (
-                                        transaction.createdAt.toDate ? 
-                                          transaction.createdAt.toDate().toLocaleDateString() :
-                                          new Date(transaction.createdAt).toLocaleDateString()
-                                      ) : 'Unknown date'}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {transaction.photos && Object.keys(transaction.photos).length > 0 && (
-                                <Badge variant="outline" className="text-xs">
-                                  <ImageIcon className="h-3 w-3 mr-1" />
-                                  {Object.keys(transaction.photos).length} photo{Object.keys(transaction.photos).length !== 1 ? 's' : ''}
-                                </Badge>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  setSelectedTransaction(transaction);
-                                  setShowTransactionModal(true);
-                                }}
-                                className="flex items-center gap-1"
-                              >
-                                <Eye className="h-4 w-4" />
-                                View
-                              </Button>
-                            </div>
+                  <div className="space-y-4">
+                    {getRecentTransactionsForDisplay().map((transaction, index) => (
+                      <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`px-2 py-1 text-xs font-medium rounded ${
+                              transaction.type === 'loading' ? 'bg-blue-100 text-blue-800' : 
+                              transaction.type === 'supply' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                            }`}>
+                              {transaction.type === 'loading' ? 'LOADING' : 
+                               transaction.type === 'supply' ? 
+                                 (transaction.supplyType === 'drum' || transaction.numberOfDrums) ? 'SUPPLY (DRUM)' : 'SUPPLY'
+                               : 'DELIVERY'}
+                            </span>
+                            <span className="font-medium">{transaction.oilTypeName || 'Unknown Oil Type'}</span>
                           </div>
-                        </CardContent>
-                      </Card>
+                          <div className="text-sm text-gray-600">
+                            {(transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0).toLocaleString()}L
+                            {(() => {
+                              const branchName = transaction.branchName || 'Unknown Location';
+                              if (transaction.type === 'supply') {
+                                return <> • Delivered to {branchName}</>;
+                              } else if (transaction.type === 'loading') {
+                                return <> • Loaded from {branchName}</>;
+                              }
+                              return null;
+                            })()}
+                          </div>
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            {transaction.timestamp?.toDate ? 
+                              transaction.timestamp.toDate().toLocaleString() : 
+                              transaction.createdAt ? (
+                                transaction.createdAt.toDate ? 
+                                  transaction.createdAt.toDate().toLocaleString() :
+                                  new Date(transaction.createdAt).toLocaleString()
+                              ) : 'Unknown date'
+                            }
+                          </div>
+                          <div className="text-xs text-gray-500">Driver: {(() => {
+                            // Enhanced driver name resolution with multiple fallbacks
+                            if (transaction.driverName) return transaction.driverName;
+                            if (transaction.reporterName) return transaction.reporterName;
+                            if (transaction.reportedByName) return transaction.reportedByName;
+                            
+                            return transaction.driverUid ? `Driver (ID: ${transaction.driverUid.slice(-4)})` : 'Unknown Driver';
+                          })()}</div>
+                          {(() => {
+                            const branchName = transaction.branchName || 'Unknown Location';
+                            const locationLabel = transaction.type === 'loading' ? 'Source' : 'Branch';
+                            return (
+                              <div className="text-xs text-gray-500">{locationLabel}: {branchName}</div>
+                            );
+                          })()}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {transaction.photos && Object.keys(transaction.photos).length > 0 && (
+                            <Badge variant="outline" className="text-xs">
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              {Object.keys(transaction.photos).length} photo{Object.keys(transaction.photos).length !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTransaction(transaction);
+                              setShowTransactionModal(true);
+                            }}
+                            className="flex items-center gap-2"
+                            data-testid={`button-view-transaction-${index}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="py-8 text-center">
-                    <ClipboardListIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      {recentTransactions.length === 0 ? 'No recent transactions found' : 'No transactions match the current filters'}
+                  <div className="text-center py-8 text-gray-500">
+                    <ClipboardListIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p>No recent transactions</p>
+                    <p className="text-sm">
+                      {recentTransactions.length === 0 ? 'No transactions found' : 'No transactions match the current filters'}
                     </p>
                   </div>
                 )}
