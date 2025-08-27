@@ -2235,13 +2235,13 @@ export default function WarehouseDashboard() {
 
       {/* Transaction Details Modal */}
       <Dialog open={showTransactionModal} onOpenChange={setShowTransactionModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogTitle>Transaction Details</DialogTitle>
           <DialogDescription>
             View detailed information about this transaction including photos and metadata
           </DialogDescription>
           {selectedTransaction && (
-            <div className="space-y-4">
+            <div className="space-y-4 overflow-y-auto flex-1 pr-2" style={{ maxHeight: 'calc(90vh - 120px)' }}>
               <div className="flex items-center justify-between border-b pb-3">
                 <div>
                   <h3 className="text-lg font-semibold">
