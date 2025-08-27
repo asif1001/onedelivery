@@ -2200,7 +2200,7 @@ export default function WarehouseDashboard() {
                       }
                       
                       return filteredTransactions.length > 0 ? (
-                        <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
+                        <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
                           {filteredTransactions.map((transaction, index) => (
                             <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-white bg-white shadow-sm">
                               <div className="flex-1">
@@ -2301,7 +2301,7 @@ export default function WarehouseDashboard() {
                                 ` (${filteredSearchResults.length} of ${searchedTransactions.length} shown after filtering)`
                               }
                             </div>
-                            <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
+                            <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
                               {filteredSearchResults.map((transaction, index) => (
                                 <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-white bg-white shadow-sm">
                                   <div className="flex-1">
