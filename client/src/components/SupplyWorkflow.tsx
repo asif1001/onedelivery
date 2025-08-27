@@ -13,6 +13,7 @@ import {
   DropletIcon,
   GaugeIcon,
   ArrowRightIcon,
+  ArrowLeftIcon,
   ImageIcon
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -821,24 +822,39 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                     This prevents data loss and ensures accurate record keeping.
                   </p>
                 </div>
-                <Button 
-                  onClick={handleCompleteSupply}
-                  disabled={isSubmitting || !supplyData.endMeterReading || !supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto}
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 w-full"
-                  data-testid="button-complete-supply"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <CheckIcon className="w-4 h-4 mr-2" />
-                      Complete Supply {!supplyData.endMeterReading || !supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto ? "(Missing Required Items)" : ""}
-                    </>
-                  )}
-                </Button>
+                
+                {/* Back to Step 1 and Complete Supply Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button 
+                    variant="outline"
+                    onClick={() => setCurrentStep(1)}
+                    disabled={isSubmitting}
+                    className="w-full sm:w-auto"
+                    data-testid="button-back-to-step1"
+                  >
+                    <ArrowLeftIcon className="w-4 h-4 mr-2" />
+                    Back to Step 1
+                  </Button>
+                  
+                  <Button 
+                    onClick={handleCompleteSupply}
+                    disabled={isSubmitting || !supplyData.endMeterReading || !supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto}
+                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 w-full sm:flex-1"
+                    data-testid="button-complete-supply"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckIcon className="w-4 h-4 mr-2" />
+                        Complete Supply {!supplyData.endMeterReading || !supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto ? "(Missing Required Items)" : ""}
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
