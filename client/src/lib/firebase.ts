@@ -271,10 +271,10 @@ export const downloadPhotosInDateRange = async (startDate: string, endDate: stri
       try {
         console.log(`📥 Downloading: ${photo.filename}`);
         
-        // Fetch photo with proper error handling
-        const response = await fetch(photo.url, {
+        // Use proxy endpoint to handle Firebase Storage CORS issues
+        const proxyUrl = `/api/proxy-photo?url=${encodeURIComponent(photo.url)}`;
+        const response = await fetch(proxyUrl, {
           method: 'GET',
-          mode: 'cors', // Handle CORS properly
           cache: 'no-cache',
           headers: {
             'Accept': 'image/*'

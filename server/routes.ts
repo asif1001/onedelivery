@@ -98,6 +98,49 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Photo proxy endpoint to handle Firebase Storage CORS issues
+  app.get('/api/proxy-photo', async (req, res) => {
+    try {
+      const { url } = req.query;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'Photo URL is required' });
+      }
+      
+      console.log(`🖼️ Proxying photo: ${url.substring(0, 100)}...`);
+      
+      // Fetch the image from Firebase Storage
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error(`❌ Failed to fetch photo: ${response.status} ${response.statusText}`);
+        return res.status(response.status).json({ 
+          error: `Failed to fetch photo: ${response.status} ${response.statusText}` 
+        });
+      }
+      
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const imageBuffer = await response.arrayBuffer();
+      
+      // Set appropriate headers
+      res.set({
+        'Content-Type': contentType,
+        'Content-Length': imageBuffer.byteLength.toString(),
+        'Cache-Control': 'public, max-age=3600', // Cache for 1 hour
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      });
+      
+      // Send the image buffer
+      res.send(Buffer.from(imageBuffer));
+      
+    } catch (error) {
+      console.error('❌ Photo proxy error:', error);
+      res.status(500).json({ error: 'Failed to proxy photo' });
+    }
+  });
+
   // Health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({ 
