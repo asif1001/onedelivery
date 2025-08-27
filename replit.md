@@ -14,7 +14,21 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
-### ✅ Driver Dashboard Complaint Feature Fix (Latest - August 26, 2025)
+### ✅ GitHub Repository Sync Completed (Latest - August 27, 2025)
+- **Successful force push**: All 58 commits (1492 objects, 214.43 MiB) pushed to GitHub
+- **Repository URL**: https://github.com/asif1001/onedelivery.git 
+- **Authentication setup**: GitHub Personal Access Token configured for secure operations
+- **Complete sync**: All photo ZIP fixes and warehouse CSV improvements now on GitHub
+- **Ready for deployment**: Repository fully synchronized and deployment-ready
+
+### ✅ Photo ZIP Download & Warehouse CSV Export Fixes (August 27, 2025)
+- **Fixed corrupted photo downloads**: Implemented server proxy endpoint to resolve Firebase Storage CORS issues
+- **Enhanced warehouse CSV export**: Now downloads ALL transaction logs instead of recent 10 entries
+- **Improved Old Level tracking**: Shows actual tank levels before changes with clear difference calculations (+/-)
+- **Comprehensive historical data**: Added Tank ID, Notes columns and precise timestamps for complete inventory tracking
+- **CORS resolution**: Photo downloads now use `/api/proxy-photo` endpoint to bypass browser restrictions
+
+### ✅ Driver Dashboard Complaint Feature Fix (August 26, 2025)
 - **Fixed missing Report Issue button**: Added as 4th main action card in driver dashboard
 - **Visual design**: Red color scheme with AlertTriangleIcon for clear problem identification
 - **Full functionality**: Button opens complaint creation modal with photo capture
