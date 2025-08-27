@@ -1232,8 +1232,26 @@ export default function WarehouseDashboard() {
   const downloadTransactionData = downloadInventoryTransactionReport;
 
 
-  const downloadLogData = (startDate?: string, endDate?: string) => {
-    let filteredData = getFilteredLogs();
+  const downloadLogData = async (startDate?: string, endDate?: string) => {
+    // Fetch ALL tank update logs directly from Firebase for CSV export (not limited to display data)
+    let allTankLogs = [];
+    try {
+      const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
+      const q = query(tankUpdateLogsRef, orderBy('updatedAt', 'desc'));
+      const snapshot = await getDocs(q);
+      allTankLogs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as any[];
+      
+      console.log(`📊 Fetched ${allTankLogs.length} total tank update logs from Firebase`);
+    } catch (error) {
+      console.error('Error fetching all tank logs for CSV:', error);
+      // Fallback to existing filtered data if fetch fails
+      allTankLogs = getFilteredLogs();
+    }
+
+    let filteredData = allTankLogs;
     
     // Apply date range filter if specified
     if (startDate && endDate) {
@@ -1241,37 +1259,89 @@ export default function WarehouseDashboard() {
       const end = new Date(endDate);
       end.setHours(23, 59, 59, 999); // Include full end date
       
-      filteredData = filteredData.filter(log => {
+      filteredData = allTankLogs.filter(log => {
         const logDate = log.updatedAt ? 
           (log.updatedAt.toDate ? log.updatedAt.toDate() : new Date(log.updatedAt)) :
           new Date();
         return logDate >= start && logDate <= end;
       });
+      
+      console.log(`📊 Filtered to ${filteredData.length} logs in date range ${startDate} to ${endDate}`);
+    } else if (logFilters.dateRange) {
+      // Apply existing filter logic if no specific date range provided
+      const now = new Date();
+      let filterStartDate = new Date();
+      
+      switch (logFilters.dateRange) {
+        case 'today':
+          filterStartDate.setHours(0, 0, 0, 0);
+          break;
+        case 'week':
+          filterStartDate.setDate(now.getDate() - 7);
+          break;
+        case 'month':
+          filterStartDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'quarter':
+          filterStartDate.setMonth(now.getMonth() - 3);
+          break;
+        default:
+          filterStartDate = new Date(0); // No filter
+      }
+      
+      filteredData = allTankLogs.filter(log => {
+        const logDate = log.updatedAt ? 
+          (log.updatedAt.toDate ? log.updatedAt.toDate() : new Date(log.updatedAt)) :
+          new Date();
+        return logDate >= filterStartDate;
+      });
     }
+    
     const csvContent = [
-      ['Date', 'Branch', 'Oil Type', 'Old Level (L)', 'New Level (L)', 'Change (L)', 'Updated By'].join(','),
-      ...filteredData.map(log => [
-        log.updatedAt ? (log.updatedAt.toDate ? log.updatedAt.toDate().toLocaleDateString() : new Date(log.updatedAt).toLocaleDateString()) : 'Unknown',
-        log.branchName || 'Unknown Branch',
-        log.oilTypeName || 'Unknown Oil Type',
-        log.oldLevel || 0,
-        log.newLevel || 0,
-        (log.newLevel || 0) - (log.oldLevel || 0),
-        log.updatedBy || 'Unknown User'
-      ].map(field => `"${field}"`).join(','))
+      ['Date & Time', 'Branch', 'Oil Type', 'Old Level (L)', 'New Level (L)', 'Change (L)', 'Updated By', 'Tank ID', 'Notes'].join(','),
+      ...filteredData.map(log => {
+        // Format date with time for better tracking
+        const formattedDateTime = log.updatedAt ? 
+          (log.updatedAt.toDate ? log.updatedAt.toDate().toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          }) : new Date(log.updatedAt).toLocaleString('en-GB')) : 'Unknown';
+
+        // Ensure Old Level shows the previous tank level (before the change)
+        const oldLevel = log.previousLevel || log.oldLevel || 0;
+        const newLevel = log.newLevel || 0;
+        const changeAmount = newLevel - oldLevel;
+        const changeFormatted = changeAmount >= 0 ? `+${changeAmount}` : `${changeAmount}`;
+
+        return [
+          formattedDateTime,                           // Date & Time with seconds
+          log.branchName || 'Unknown Branch',         // Branch
+          log.oilTypeName || 'Unknown Oil Type',      // Oil Type
+          oldLevel,                                    // Old Level (L) - BEFORE the change
+          newLevel,                                    // New Level (L) - AFTER the change
+          changeFormatted,                             // Change (L) with +/- sign
+          log.updatedBy || 'Unknown User',            // Updated By
+          log.tankId || 'N/A',                        // Tank ID
+          log.notes || 'N/A'                          // Notes
+        ].map(field => `"${field}"`).join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const dateRange = (startDate && endDate) ? `${startDate}_to_${endDate}` : 'all';
-    a.download = `warehouse_tank_logs_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
+    const dateRange = (startDate && endDate) ? `${startDate}_to_${endDate}` : (logFilters.dateRange || 'all');
+    a.download = `tank_level_updates_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`;
     
     const exportedCount = filteredData.length;
     toast({
-      title: "Export Complete",
-      description: `Downloaded ${exportedCount} log entries to CSV`
+      title: "Tank Update Logs Downloaded",
+      description: `Downloaded ${exportedCount} tank update log entries with complete change history`
     });
     a.click();
     window.URL.revokeObjectURL(url);
