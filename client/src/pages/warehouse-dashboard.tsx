@@ -477,19 +477,23 @@ export default function WarehouseDashboard() {
         return transactionDate >= startDate && transactionDate <= endDate;
       });
 
-      // CSV Headers as specified
+      // CSV Headers based on Firebase field mapping
       const headers = [
+        'ID No',
         'Date and Time',
-        'Session ID', 
-        'Branch',
-        'Type',
-        'Method',
+        'Order / Delivery No',
+        'Supply Type',
+        'Branch Name',
         'Oil Type',
-        'Quantity',
-        'Start Meter',
-        'End Meter', 
-        'Order/Delivery No',
-        'After Level'
+        'Branch Level Before',
+        'Start Meter reading',
+        'End Meter Reading',
+        'Qty Delivered',
+        'Total Qty Supplied',
+        'Drum Capacity',
+        'No of Drum',
+        'Branch Level After',
+        'Driver Name'
       ];
 
       // Create CSV rows
@@ -509,71 +513,46 @@ export default function WarehouseDashboard() {
           dateTime = new Date(transaction.createdAt).toLocaleString();
         }
         
-        // Determine transaction details
-        // Session ID - unique identifier for each transaction in series
-        const sessionId = transaction.sessionId || transaction.transactionId || `TXN-${transaction.id?.slice(-8)}` || 'N/A';
-        const type = transaction.type === 'loading' ? 'Loading' : 'Supply';
+        // Extract fields directly from Firebase transaction data as per mapping
         
-        // Method detection - Drum vs Loose from driver supply workflow
-        let method = 'Loose'; // Default to Loose
-        if (transaction.deliveryType) {
-          method = transaction.deliveryType;
-        } else if (transaction.supplyMethod) {
-          method = transaction.supplyMethod;
-        } else if (transaction.isDrumSupply || transaction.drumCount > 0) {
-          method = 'Drum';
-        } else if (transaction.isLooseSupply || transaction.meterReading) {
-          method = 'Loose';
-        }
+        // ID No - loadSessionId from Firebase
+        const idNo = transaction.loadSessionId || transaction.sessionId || transaction.id || 'N/A';
         
+        // Order / Delivery No - deliveryOrderNo from Firebase
+        const orderDeliveryNo = transaction.deliveryOrderNo || 'N/A';
+        
+        // Supply Type - supplyType from Firebase
+        const supplyType = transaction.supplyType || transaction.type || 'N/A';
+        
+        // Oil Type - oilTypeName from Firebase
         const oilType = transaction.oilTypeName || 'Unknown Oil Type';
-        const quantity = transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0;
         
-        // Start Meter - For drum = qty of drums supplied, for loose = meter reading
-        let startMeter = 'N/A';
-        let endMeter = 'N/A';
+        // Branch Level Before - branchTankBefore from Firebase
+        const branchLevelBefore = transaction.branchTankBefore !== undefined ? transaction.branchTankBefore : 'N/A';
         
-        if (method.toLowerCase() === 'drum') {
-          // For drum deliveries: Start Meter = quantity of drums supplied
-          startMeter = transaction.drumQuantity || transaction.drumCount || transaction.drumsSupplied || 'N/A';
-          endMeter = transaction.drumCapacity || transaction.totalDrumCapacity || 'N/A';
-        } else {
-          // For loose deliveries: meter readings
-          startMeter = transaction.startMeterReading || transaction.initialMeter || 'N/A';
-          endMeter = transaction.endMeterReading || transaction.finalMeter || 'N/A';
-        }
+        // Start Meter reading - startMeterReading from Firebase
+        const startMeterReading = transaction.startMeterReading !== undefined ? transaction.startMeterReading : 'N/A';
         
-        // Order/Delivery No - Data entered by driver during supply workflow
-        const orderNo = transaction.deliveryOrderNo || 
-                       transaction.orderNumber || 
-                       transaction.driverOrderNo || 
-                       transaction.supplyOrderNo || 
-                       transaction.orderNo || 
-                       transaction.deliveryNo || 
-                       'N/A';
+        // End Meter Reading - endMeterReading from Firebase
+        const endMeterReading = transaction.endMeterReading !== undefined ? transaction.endMeterReading : 'N/A';
         
-        // After Level - Tank current level after supply completion (new updated level)
-        let afterLevel = 'N/A';
+        // Qty Delivered - quantity from Firebase
+        const qtyDelivered = transaction.quantity || 0;
         
-        // Look for the updated tank level after supply completion
-        if (transaction.updatedTankLevel !== undefined) {
-          afterLevel = transaction.updatedTankLevel;
-        } else if (transaction.newCurrentLevel !== undefined) {
-          afterLevel = transaction.newCurrentLevel;
-        } else if (transaction.finalTankLevel !== undefined) {
-          afterLevel = transaction.finalTankLevel;
-        } else if (transaction.afterSupplyLevel !== undefined) {
-          afterLevel = transaction.afterSupplyLevel;
-        } else if (transaction.currentTankLevel !== undefined) {
-          // If this is the tank level after the transaction
-          afterLevel = transaction.currentTankLevel;
-        } else {
-          // Calculate the new level: previous level + supplied quantity
-          const previousLevel = transaction.previousTankLevel || transaction.beforeTankLevel || transaction.initialTankLevel;
-          if (previousLevel !== undefined && quantity > 0 && type === 'Supply') {
-            afterLevel = parseFloat(previousLevel) + parseFloat(quantity);
-          }
-        }
+        // Total Qty Supplied - totalLitersSupplied from Firebase
+        const totalQtySupplied = transaction.totalLitersSupplied || transaction.quantity || 0;
+        
+        // Drum Capacity - drumCapacity from Firebase
+        const drumCapacity = transaction.drumCapacity !== undefined ? transaction.drumCapacity : 'N/A';
+        
+        // No of Drum - numberOfDrums from Firebase
+        const noOfDrum = transaction.numberOfDrums !== undefined ? transaction.numberOfDrums : 'N/A';
+        
+        // Branch Level After - branchTankAfter from Firebase
+        const branchLevelAfter = transaction.branchTankAfter !== undefined ? transaction.branchTankAfter : 'N/A';
+        
+        // Driver Name - get from driverId field
+        const driverName = transaction.driverName || transaction.driverDisplayName || 'Unknown Driver';
         
         // Escape commas and quotes in CSV data
         const escapeCSV = (field) => {
@@ -584,17 +563,21 @@ export default function WarehouseDashboard() {
         };
         
         const row = [
+          escapeCSV(idNo),
           escapeCSV(dateTime),
-          escapeCSV(sessionId),
+          escapeCSV(orderDeliveryNo),
+          escapeCSV(supplyType),
           escapeCSV(branchName),
-          escapeCSV(type),
-          escapeCSV(method),
           escapeCSV(oilType),
-          quantity,
-          startMeter,
-          endMeter,
-          escapeCSV(orderNo),
-          afterLevel
+          branchLevelBefore,
+          startMeterReading,
+          endMeterReading,
+          qtyDelivered,
+          totalQtySupplied,
+          drumCapacity,
+          noOfDrum,
+          branchLevelAfter,
+          escapeCSV(driverName)
         ];
         
         csvRows.push(row.join(','));
@@ -2483,22 +2466,26 @@ export default function WarehouseDashboard() {
                         <div className="mt-4 p-3 bg-white border rounded-lg">
                           <h5 className="text-sm font-medium text-gray-700 mb-2">CSV Export Format:</h5>
                           <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
-                            <div>1. Date and Time</div>
-                            <div>2. Session ID</div>
-                            <div>3. Branch</div>
-                            <div>4. Type (Supply/Loading)</div>
-                            <div>5. Method (Drum/Loose)</div>
+                            <div>1. ID No</div>
+                            <div>2. Date and Time</div>
+                            <div>3. Order / Delivery No</div>
+                            <div>4. Supply Type</div>
+                            <div>5. Branch Name</div>
                             <div>6. Oil Type</div>
-                            <div>7. Quantity</div>
-                            <div>8. Start Meter*</div>
-                            <div>9. End Meter*</div>
-                            <div>10. Order/Delivery No</div>
-                            <div>11. After Level</div>
+                            <div>7. Branch Level Before</div>
+                            <div>8. Start Meter reading</div>
+                            <div>9. End Meter Reading</div>
+                            <div>10. Qty Delivered</div>
+                            <div>11. Total Qty Supplied</div>
+                            <div>12. Drum Capacity</div>
+                            <div>13. No of Drum</div>
+                            <div>14. Branch Level After</div>
+                            <div>15. Driver Name</div>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            *Start Meter: For drum = quantity of drums supplied, for loose = meter reading<br/>
-                            **Order/Delivery No: Data entered by driver during supply workflow<br/>
-                            ***After Level: Updated tank current level after supply completion
+                            *Fields extracted directly from Firebase transactions collection<br/>
+                            **All data mapped from actual workflow database fields<br/>
+                            ***Driver Name retrieved from transaction records
                           </p>
                         </div>
                       </CardContent>
