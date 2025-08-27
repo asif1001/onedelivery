@@ -510,58 +510,68 @@ export default function WarehouseDashboard() {
         }
         
         // Determine transaction details
-        const sessionId = transaction.sessionId || transaction.id || 'N/A';
+        // Session ID - unique identifier for each transaction in series
+        const sessionId = transaction.sessionId || transaction.transactionId || `TXN-${transaction.id?.slice(-8)}` || 'N/A';
         const type = transaction.type === 'loading' ? 'Loading' : 'Supply';
         
-        // Fix method detection - properly identify Loose vs Drum
+        // Method detection - Drum vs Loose from driver supply workflow
         let method = 'Loose'; // Default to Loose
         if (transaction.deliveryType) {
           method = transaction.deliveryType;
-        } else if (transaction.method) {
-          method = transaction.method;
-        } else if (transaction.isDrumDelivery || transaction.drumCount > 0 || transaction.drumCapacity > 0) {
+        } else if (transaction.supplyMethod) {
+          method = transaction.supplyMethod;
+        } else if (transaction.isDrumSupply || transaction.drumCount > 0) {
           method = 'Drum';
-        } else if (transaction.isLooseDelivery || transaction.startMeterReading || transaction.endMeterReading) {
+        } else if (transaction.isLooseSupply || transaction.meterReading) {
           method = 'Loose';
         }
         
         const oilType = transaction.oilTypeName || 'Unknown Oil Type';
         const quantity = transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0;
         
-        // Calculate Start/End Meter based on method
+        // Start Meter - For drum = qty of drums supplied, for loose = meter reading
         let startMeter = 'N/A';
         let endMeter = 'N/A';
         
         if (method.toLowerCase() === 'drum') {
-          // For drum deliveries
-          startMeter = transaction.drumCount || transaction.startMeterReading || 'N/A';
-          endMeter = transaction.drumCapacity || transaction.endMeterReading || 'N/A';
+          // For drum deliveries: Start Meter = quantity of drums supplied
+          startMeter = transaction.drumQuantity || transaction.drumCount || transaction.drumsSupplied || 'N/A';
+          endMeter = transaction.drumCapacity || transaction.totalDrumCapacity || 'N/A';
         } else {
-          // For loose deliveries
-          startMeter = transaction.startMeterReading || 'N/A';
-          endMeter = transaction.endMeterReading || 'N/A';
+          // For loose deliveries: meter readings
+          startMeter = transaction.startMeterReading || transaction.initialMeter || 'N/A';
+          endMeter = transaction.endMeterReading || transaction.finalMeter || 'N/A';
         }
         
-        // Get Order/Delivery Number
-        const orderNo = transaction.orderNo || transaction.deliveryNo || transaction.taskId || transaction.id || 'N/A';
+        // Order/Delivery No - Data entered by driver during supply workflow
+        const orderNo = transaction.deliveryOrderNo || 
+                       transaction.orderNumber || 
+                       transaction.driverOrderNo || 
+                       transaction.supplyOrderNo || 
+                       transaction.orderNo || 
+                       transaction.deliveryNo || 
+                       'N/A';
         
-        // Calculate After Level (final tank level after transaction)
+        // After Level - Tank current level after supply completion (new updated level)
         let afterLevel = 'N/A';
         
-        // Priority order for after level data
-        if (transaction.afterTankLevel !== undefined) {
-          afterLevel = transaction.afterTankLevel;
+        // Look for the updated tank level after supply completion
+        if (transaction.updatedTankLevel !== undefined) {
+          afterLevel = transaction.updatedTankLevel;
+        } else if (transaction.newCurrentLevel !== undefined) {
+          afterLevel = transaction.newCurrentLevel;
         } else if (transaction.finalTankLevel !== undefined) {
           afterLevel = transaction.finalTankLevel;
+        } else if (transaction.afterSupplyLevel !== undefined) {
+          afterLevel = transaction.afterSupplyLevel;
         } else if (transaction.currentTankLevel !== undefined) {
+          // If this is the tank level after the transaction
           afterLevel = transaction.currentTankLevel;
-        } else if (transaction.newTankLevel !== undefined) {
-          afterLevel = transaction.newTankLevel;
         } else {
-          // Try to calculate from before level + quantity for supply transactions
-          const beforeLevel = transaction.beforeTankLevel || transaction.initialTankLevel;
-          if (beforeLevel !== undefined && quantity > 0 && type === 'Supply') {
-            afterLevel = parseFloat(beforeLevel) + parseFloat(quantity);
+          // Calculate the new level: previous level + supplied quantity
+          const previousLevel = transaction.previousTankLevel || transaction.beforeTankLevel || transaction.initialTankLevel;
+          if (previousLevel !== undefined && quantity > 0 && type === 'Supply') {
+            afterLevel = parseFloat(previousLevel) + parseFloat(quantity);
           }
         }
         
@@ -2486,8 +2496,9 @@ export default function WarehouseDashboard() {
                             <div>11. After Level</div>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            *For drum deliveries: Start Meter = Number of drums, End Meter = Drum capacity<br/>
-                            **After Level = Final tank level after transaction completion
+                            *Start Meter: For drum = quantity of drums supplied, for loose = meter reading<br/>
+                            **Order/Delivery No: Data entered by driver during supply workflow<br/>
+                            ***After Level: Updated tank current level after supply completion
                           </p>
                         </div>
                       </CardContent>
