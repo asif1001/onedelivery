@@ -264,24 +264,71 @@ export const downloadPhotosInDateRange = async (startDate: string, endDate: stri
     const zip = new JSZip();
 
     // Add photos to ZIP
+    let successCount = 0;
+    let failCount = 0;
+    
     for (const photo of photoData) {
       try {
         console.log(`📥 Downloading: ${photo.filename}`);
-        const response = await fetch(photo.url);
+        
+        // Fetch photo with proper error handling
+        const response = await fetch(photo.url, {
+          method: 'GET',
+          mode: 'cors', // Handle CORS properly
+          cache: 'no-cache',
+          headers: {
+            'Accept': 'image/*'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        // Check if response actually contains image data
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`Invalid content type: ${contentType}. Expected image.`);
+        }
+        
         const blob = await response.blob();
+        
+        // Verify blob is valid and not empty
+        if (!blob || blob.size === 0) {
+          throw new Error('Received empty or invalid blob');
+        }
+        
+        // Add to ZIP file
         zip.file(photo.filename, blob);
+        successCount++;
+        
+        console.log(`✅ Successfully added: ${photo.filename} (${blob.size} bytes)`);
+        
       } catch (error) {
+        failCount++;
         console.error(`❌ Failed to download ${photo.filename}:`, error);
-        // Continue with other photos
+        
+        // Try alternative approach - create a text file with error info instead of breaking
+        const errorInfo = `Failed to download photo: ${photo.filename}\nURL: ${photo.url}\nError: ${error}\nTransaction: ${photo.transactionId}\nBranch: ${photo.branchName}\nType: ${photo.photoType}`;
+        zip.file(`ERROR_${photo.filename.replace('.jpg', '.txt')}`, errorInfo);
+        
+        // Continue with other photos instead of breaking the entire process
+        continue;
       }
     }
 
-    // Generate ZIP file
-    console.log('🗜️ Generating ZIP file...');
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    // Generate ZIP file with compression
+    console.log(`🗜️ Generating ZIP file... (${successCount} photos successful, ${failCount} failed)`);
+    const zipBlob = await zip.generateAsync({ 
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: {
+        level: 6 // Balanced compression
+      }
+    });
 
     // Download ZIP file
-    const zipFilename = `photos_${startDate}_to_${endDate}.zip`;
+    const zipFilename = `photos_${startDate}_to_${endDate}_${successCount}photos.zip`;
     const url = URL.createObjectURL(zipBlob);
     const a = document.createElement('a');
     a.href = url;
@@ -291,7 +338,11 @@ export const downloadPhotosInDateRange = async (startDate: string, endDate: stri
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    console.log('✅ ZIP download completed');
+    console.log(`✅ ZIP download completed: ${successCount}/${photoData.length} photos successfully downloaded`);
+    
+    if (failCount > 0) {
+      console.warn(`⚠️ ${failCount} photos failed to download. Check error logs in ZIP file.`);
+    }
 
   } catch (error) {
     console.error('❌ Photo download error:', error);
