@@ -162,6 +162,13 @@ export default function WarehouseDashboard() {
   const [transactionStartDate, setTransactionStartDate] = useState('');
   const [transactionEndDate, setTransactionEndDate] = useState('');
   
+  // Date range search states
+  const [searchStartDate, setSearchStartDate] = useState('');
+  const [searchEndDate, setSearchEndDate] = useState('');
+  const [searchedTransactions, setSearchedTransactions] = useState<Transaction[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  
   const [showLogDateFilter, setShowLogDateFilter] = useState(false);
   const [logStartDate, setLogStartDate] = useState('');
   const [logEndDate, setLogEndDate] = useState('');
@@ -319,6 +326,86 @@ export default function WarehouseDashboard() {
         description: "Failed to log out. Please try again.",
         variant: "destructive"
       });
+    }
+  };
+
+  // Search transactions by date range
+  const searchTransactionsByDateRange = async () => {
+    if (!searchStartDate || !searchEndDate) {
+      toast({
+        title: "Date range required",
+        description: "Please select both start and end dates",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (new Date(searchStartDate) > new Date(searchEndDate)) {
+      toast({
+        title: "Invalid date range",
+        description: "Start date must be before end date",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      console.log('🔍 Searching transactions from', searchStartDate, 'to', searchEndDate);
+      
+      // Convert dates to Timestamp objects for Firestore query
+      const startDate = new Date(searchStartDate + 'T00:00:00');
+      const endDate = new Date(searchEndDate + 'T23:59:59');
+      
+      // Query transactions collection with date range
+      const transactionsQuery = query(
+        collection(db, 'transactions'),
+        orderBy('timestamp', 'desc')
+      );
+      
+      const snapshot = await getDocs(transactionsQuery);
+      const allTransactions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter by date range in JavaScript since Firestore queries can be complex
+      const filteredTransactions = allTransactions.filter(transaction => {
+        let transactionDate = null;
+        
+        if (transaction.timestamp?.toDate) {
+          transactionDate = transaction.timestamp.toDate();
+        } else if (transaction.timestamp && typeof transaction.timestamp === 'string') {
+          transactionDate = new Date(transaction.timestamp);
+        } else if (transaction.createdAt?.toDate) {
+          transactionDate = transaction.createdAt.toDate();
+        } else if (transaction.createdAt) {
+          transactionDate = new Date(transaction.createdAt);
+        }
+        
+        if (!transactionDate) return false;
+        
+        return transactionDate >= startDate && transactionDate <= endDate;
+      });
+
+      console.log('📦 Found transactions:', filteredTransactions.length);
+      setSearchedTransactions(filteredTransactions);
+      setShowSearchResults(true);
+      
+      toast({
+        title: "Search completed",
+        description: `Found ${filteredTransactions.length} transactions in the selected date range`
+      });
+      
+    } catch (error) {
+      console.error('❌ Error searching transactions:', error);
+      toast({
+        title: "Search failed",
+        description: "Failed to search transactions. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -1966,6 +2053,164 @@ export default function WarehouseDashboard() {
           {/* Inventory Control Tab */}
           <TabsContent value="transactions" className="space-y-4">
             <div className="space-y-6">
+              {/* Date Range Search Section */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-blue-600" />
+                    Search Transactions by Date Range
+                  </CardTitle>
+                  <CardDescription>
+                    Search for transactions within any date range from the database
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">Start Date</label>
+                      <input
+                        type="date"
+                        value={searchStartDate}
+                        onChange={(e) => setSearchStartDate(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        data-testid="input-search-start-date"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-sm font-medium text-gray-700 mb-1 block">End Date</label>
+                      <input
+                        type="date"
+                        value={searchEndDate}
+                        onChange={(e) => setSearchEndDate(e.target.value)}
+                        className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        data-testid="input-search-end-date"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={searchTransactionsByDateRange}
+                        disabled={isSearching || !searchStartDate || !searchEndDate}
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                        data-testid="button-search-transactions"
+                      >
+                        {isSearching ? (
+                          <>
+                            <RefreshCwIcon className="h-4 w-4 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <EyeIcon className="h-4 w-4" />
+                            Search
+                          </>
+                        )}
+                      </Button>
+                      {showSearchResults && (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setShowSearchResults(false);
+                            setSearchedTransactions([]);
+                            setSearchStartDate('');
+                            setSearchEndDate('');
+                          }}
+                          className="flex items-center gap-2"
+                          data-testid="button-clear-search"
+                        >
+                          <X className="h-4 w-4" />
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Search Results Section */}
+              {showSearchResults && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <ClipboardListIcon className="h-4 w-4 text-green-600" />
+                      Search Results
+                      <Badge className="bg-green-100 text-green-800">
+                        {searchedTransactions.length} found
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Transactions from {searchStartDate} to {searchEndDate}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {searchedTransactions.length > 0 ? (
+                      <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
+                        {searchedTransactions.map((transaction, index) => (
+                          <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-white bg-white shadow-sm">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                  transaction.type === 'loading' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                                }`}>
+                                  {transaction.type === 'loading' ? 'LOADING' : 'SUPPLY'}
+                                </span>
+                                <span className="font-medium">{transaction.oilTypeName}</span>
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                {(transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0).toLocaleString()}L
+                                {(() => {
+                                  const branch = branches.find(b => b.id === transaction.branchId);
+                                  const branchName = branch ? branch.name : (transaction.branchName || 'Unknown Location');
+                                  if (transaction.type === 'supply') {
+                                    return <> • Delivered to {branchName}</>;
+                                  } else if (transaction.type === 'loading') {
+                                    return <> • Loaded from {branchName}</>;
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                              <div className="text-xs text-gray-500 flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {transaction.timestamp?.toDate ? 
+                                  transaction.timestamp.toDate().toLocaleString() : 
+                                  transaction.createdAt ? (
+                                    transaction.createdAt.toDate ? 
+                                      transaction.createdAt.toDate().toLocaleString() :
+                                      new Date(transaction.createdAt).toLocaleString()
+                                  ) : 'Unknown date'
+                                }
+                              </div>
+                              <div className="text-xs text-gray-500">Driver: {(() => {
+                                const driver = drivers.find(d => d.uid === transaction.driverUid || d.id === transaction.driverUid);
+                                return driver ? (driver.displayName || driver.email) : transaction.driverName || transaction.driverUid || 'Unknown Driver';
+                              })()}</div>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedTransaction(transaction);
+                                setShowTransactionModal(true);
+                              }}
+                              className="flex items-center gap-2"
+                              data-testid={`button-view-searched-transaction-${index}`}
+                            >
+                              <EyeIcon className="h-4 w-4" />
+                              View
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <ClockIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>No transactions found in the selected date range</p>
+                        <p className="text-sm mt-1">Try adjusting your search criteria</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
               <div className="flex justify-between items-center">
                 <div>
                   <h3 className="text-lg font-semibold">Recent Transactions</h3>
