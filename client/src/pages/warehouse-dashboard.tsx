@@ -31,14 +31,16 @@ import {
   Package,
   MapPin,
   DownloadIcon,
+  DownloadCloudIcon,
   Edit,
   Save,
   X,
+  XIcon,
   Upload,
   FileSpreadsheet
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel } from "@/lib/firebase";
+import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel, getAllUsers } from "@/lib/firebase";
 import { 
   collection, 
   query, 
@@ -119,6 +121,7 @@ export default function WarehouseDashboard() {
   const [oilTanks, setOilTanks] = useState<OilTank[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
   
   // UI states
   const [loading, setLoading] = useState(true);
@@ -214,6 +217,11 @@ export default function WarehouseDashboard() {
           ).catch(() => []);
           
           setRecentTransactions(recentTxs);
+          
+          // Load drivers for proper transaction details
+          const driversData = await getAllUsers().catch(() => []);
+          console.log('👥 Got drivers:', driversData.length);
+          setDrivers(driversData);
           
           // Minimal update logs
           const recentLogs = await getDocs(query(
@@ -2281,67 +2289,99 @@ export default function WarehouseDashboard() {
                   </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Quantity</label>
-                  <p className="font-medium">{(selectedTransaction.quantity || 0).toLocaleString()}L</p>
-                </div>
-                <div>
                   <label className="text-sm font-medium text-gray-600">Oil Type</label>
-                  <p className="font-medium">{selectedTransaction.oilTypeName || 'Unknown'}</p>
+                  <p className="font-medium">
+                    {(() => {
+                      const oilType = oilTypes.find(o => o.id === selectedTransaction.oilTypeId);
+                      return oilType ? `${oilType.name} - ${oilType.viscosity}` : selectedTransaction.oilTypeName || 'Unknown Oil Type';
+                    })()}
+                  </p>
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-gray-600">Branch</label>
-                  <p className="font-medium">{selectedTransaction.branchName || 'Unknown'}</p>
+                  <label className="text-sm font-medium text-gray-600">Quantity</label>
+                  <p className="font-medium">
+                    {(selectedTransaction.deliveredLiters || selectedTransaction.loadedLiters || selectedTransaction.quantity || 0).toLocaleString()}L
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Driver</label>
-                  <p className="font-medium">{(() => {
-                    // Enhanced driver name resolution (same logic as Driver Dashboard approach)
-                    let driverName = selectedTransaction.driverName;
-                    
-                    // If driverName is missing or generic "Driver", try to get better info
-                    if (!driverName || driverName === 'Driver') {
-                      // Try alternative fields first
-                      driverName = selectedTransaction.reporterName || selectedTransaction.reportedByName;
-                      
-                      // If still no good name and we have a driverUid, show ID for reference
-                      if (!driverName && selectedTransaction.driverUid) {
-                        driverName = `Driver (ID: ${selectedTransaction.driverUid.slice(-4)})`;
-                      } else if (!driverName) {
-                        driverName = 'Unknown Driver';
-                      }
-                    }
-                    
-                    return driverName;
-                  })()}</p>
+                  <p className="font-medium">
+                    {(() => {
+                      const driver = drivers.find(d => d.uid === selectedTransaction.driverUid || d.id === selectedTransaction.driverUid);
+                      return driver ? (driver.displayName || driver.email) : selectedTransaction.driverName || selectedTransaction.driverUid || 'Unknown Driver';
+                    })()}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Branch</label>
+                  <p className="font-medium">
+                    {(() => {
+                      const branch = branches.find(b => b.id === selectedTransaction.branchId);
+                      return branch ? branch.name : selectedTransaction.branchName || 'Unknown Branch';
+                    })()}
+                  </p>
+                </div>
+                {selectedTransaction.deliveryOrderId && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Delivery Order</label>
+                    <p className="font-medium">{selectedTransaction.deliveryOrderId}</p>
+                  </div>
+                )}
+                {(selectedTransaction.startMeterReading || selectedTransaction.endMeterReading) && (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">Start Meter</label>
+                      <p className="font-medium">{selectedTransaction.startMeterReading || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-600">End Meter</label>
+                      <p className="font-medium">{selectedTransaction.endMeterReading || 'N/A'}</p>
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <p className="font-medium text-green-600">{selectedTransaction.status || 'Completed'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Session ID</label>
+                  <p className="font-medium text-xs text-gray-500">
+                    {selectedTransaction.loadSessionId || selectedTransaction.id || 'N/A'}
+                  </p>
                 </div>
               </div>
 
+              {/* Photos - Complete Implementation */}
               {selectedTransaction.photos && Object.keys(selectedTransaction.photos).length > 0 && (
                 <div>
-                  <label className="text-sm font-medium text-gray-600 block mb-3">Transaction Photos</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {Object.entries(selectedTransaction.photos).map(([key, url]) => (
-                      <div key={key} className="relative group cursor-pointer" 
-                           onClick={() => {
-                             setSelectedPhoto({
-                               url: url as string,
-                               label: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())
-                             });
-                             setShowPhotoModal(true);
-                           }}>
-                        <img
-                          src={url as string}
-                          alt={key}
-                          className="w-full h-24 object-cover rounded-lg border"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                          <Eye className="h-6 w-6 text-white" />
+                  <label className="text-sm font-medium text-gray-600 block mb-2">Photos</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {Object.entries(selectedTransaction.photos).map(([photoType, photoUrl]: [string, any]) => 
+                      photoUrl && (
+                        <div key={photoType} className="text-center">
+                          <div className="relative group cursor-pointer"
+                               onClick={() => {
+                                 setSelectedPhoto({
+                                   url: photoUrl,
+                                   label: photoType.replace(/([A-Z])/g, ' $1').trim()
+                                 });
+                                 setShowPhotoModal(true);
+                               }}>
+                            <img 
+                              src={photoUrl} 
+                              alt={photoType} 
+                              className="w-full h-20 object-cover rounded border hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
+                              <EyeIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 capitalize">
+                            {photoType.replace(/([A-Z])/g, ' $1').trim()}
+                          </p>
                         </div>
-                        <p className="text-xs text-gray-600 mt-1 text-center truncate">
-                          {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                        </p>
-                      </div>
-                    ))}
+                      )
+                    )}
                   </div>
                 </div>
               )}
@@ -2355,21 +2395,37 @@ export default function WarehouseDashboard() {
         <DialogContent className="max-w-4xl w-full h-[90vh] p-0">
           <DialogTitle className="sr-only">Photo Viewer</DialogTitle>
           <DialogDescription className="sr-only">
-            Full size view of {selectedPhoto?.label || 'transaction photo'}
+            Full size view of {selectedPhoto?.label || 'delivery photo'}
           </DialogDescription>
           {selectedPhoto && (
             <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
               {/* Header with photo label and close button */}
               <div className="absolute top-0 left-0 right-0 bg-black/80 text-white p-4 z-10 flex justify-between items-center">
                 <h3 className="text-lg font-medium">{selectedPhoto.label}</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPhotoModal(false)}
-                  className="text-white hover:bg-white/20"
-                >
-                  ×
-                </Button>
+                <div className="flex items-center space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const link = document.createElement('a');
+                      link.href = selectedPhoto.url;
+                      link.download = `${selectedPhoto.label.replace(/\s+/g, '_')}_${new Date().getTime()}.jpg`;
+                      link.click();
+                    }}
+                    className="text-white hover:bg-white/20"
+                  >
+                    <DownloadCloudIcon className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowPhotoModal(false)}
+                    className="text-white hover:bg-white/20"
+                  >
+                    <XIcon className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
               {/* Full-size image */}
@@ -2380,6 +2436,33 @@ export default function WarehouseDashboard() {
                   className="max-w-full max-h-full object-contain"
                   style={{ maxHeight: 'calc(100vh - 120px)' }}
                 />
+              </div>
+              
+              {/* Footer with actions */}
+              <div className="absolute bottom-0 left-0 right-0 bg-black/80 text-white p-4 z-10 flex justify-center space-x-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(selectedPhoto.url, '_blank')}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <EyeIcon className="h-4 w-4 mr-1" />
+                  Open in New Tab
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.href = selectedPhoto.url;
+                    link.download = `${selectedPhoto.label.replace(/\s+/g, '_')}_${new Date().getTime()}.jpg`;
+                    link.click();
+                  }}
+                  className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                >
+                  <DownloadCloudIcon className="h-4 w-4 mr-1" />
+                  Download Photo
+                </Button>
               </div>
             </div>
           )}
