@@ -518,8 +518,8 @@ export default function WarehouseDashboard() {
         // ID No - loadSessionId from Firebase
         const idNo = transaction.loadSessionId || transaction.sessionId || transaction.id || 'N/A';
         
-        // Order / Delivery No - deliveryOrderNo from Firebase
-        const orderDeliveryNo = transaction.deliveryOrderNo || 'N/A';
+        // Order / Delivery No - deliveryOrderNo from Firebase (entered by driver in supply workflows)
+        const orderDeliveryNo = transaction.deliveryOrderNo || transaction.deliveryOrderId || transaction.orderNumber || 'N/A';
         
         // Supply Type - supplyType from Firebase
         const supplyType = transaction.supplyType || transaction.type || 'N/A';
