@@ -24,6 +24,8 @@ import {
   AlertCircleIcon,
   CheckCircleIcon,
   Eye,
+  EyeIcon,
+  ClockIcon,
   ImageIcon,
   TruckIcon,
   Package,
@@ -1955,9 +1957,97 @@ export default function WarehouseDashboard() {
 
           {/* Inventory Control Tab */}
           <TabsContent value="transactions" className="space-y-4">
-            <div className="text-center py-12 text-gray-500">
-              <p className="text-lg">Inventory Control</p>
-              <p className="text-sm">No cards to display</p>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Recent Transactions</h3>
+                  <p className="text-sm text-gray-600">Last 20 system transactions</p>
+                </div>
+                <div className="text-sm text-gray-500">
+                  Total: {recentTransactions.length} transactions
+                </div>
+              </div>
+              
+              <Card>
+                <CardContent className="p-6">
+                  {recentTransactions.length > 0 ? (
+                    <div className="space-y-4">
+                      {recentTransactions.map((transaction, index) => (
+                        <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className={`px-2 py-1 text-xs font-medium rounded ${
+                                transaction.type === 'loading' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'
+                              }`}>
+                                {transaction.type === 'loading' ? 'LOADING' : 'SUPPLY'}
+                              </span>
+                              <span className="font-medium">{transaction.oilTypeName}</span>
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              {(transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0).toLocaleString()}L
+                              {(() => {
+                                const branch = branches.find(b => b.id === transaction.branchId);
+                                const branchName = branch ? branch.name : (transaction.branchName || 'Unknown Location');
+                                if (transaction.type === 'supply') {
+                                  return <> • Delivered to {branchName}</>;
+                                } else if (transaction.type === 'loading') {
+                                  return <> • Loaded from {branchName}</>;
+                                }
+                                return null;
+                              })()}
+                            </div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {transaction.timestamp?.toDate ? 
+                                transaction.timestamp.toDate().toLocaleString() : 
+                                transaction.createdAt ? (
+                                  transaction.createdAt.toDate ? 
+                                    transaction.createdAt.toDate().toLocaleString() :
+                                    new Date(transaction.createdAt).toLocaleString()
+                                ) : 'Unknown date'
+                              }
+                            </div>
+                            <div className="text-xs text-gray-500">Driver: {(() => {
+                              // Enhanced driver name resolution with multiple fallbacks
+                              if (transaction.driverName) return transaction.driverName;
+                              if (transaction.reporterName) return transaction.reporterName;
+                              if (transaction.reportedByName) return transaction.reportedByName;
+                              
+                              return transaction.driverUid ? `Driver (ID: ${transaction.driverUid.slice(-4)})` : 'Unknown Driver';
+                            })()}</div>
+                            {(() => {
+                              const branch = branches.find(b => b.id === transaction.branchId);
+                              const branchName = branch ? branch.name : (transaction.branchName || 'Unknown Location');
+                              const locationLabel = transaction.type === 'loading' ? 'Source' : 'Branch';
+                              return (
+                                <div className="text-xs text-gray-500">{locationLabel}: {branchName}</div>
+                              );
+                            })()}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedTransaction(transaction);
+                              setShowTransactionModal(true);
+                            }}
+                            className="flex items-center gap-2"
+                            data-testid={`button-view-transaction-${index}`}
+                          >
+                            <EyeIcon className="h-4 w-4" />
+                            View
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <ClockIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                      <p>No recent transactions</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
