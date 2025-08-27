@@ -488,7 +488,7 @@ export default function WarehouseDashboard() {
         'Quantity',
         'Start Meter',
         'End Meter', 
-        'Before Level',
+        'Order/Delivery No',
         'After Level'
       ];
 
@@ -512,7 +512,19 @@ export default function WarehouseDashboard() {
         // Determine transaction details
         const sessionId = transaction.sessionId || transaction.id || 'N/A';
         const type = transaction.type === 'loading' ? 'Loading' : 'Supply';
-        const method = transaction.deliveryType || transaction.method || 'N/A';
+        
+        // Fix method detection - properly identify Loose vs Drum
+        let method = 'Loose'; // Default to Loose
+        if (transaction.deliveryType) {
+          method = transaction.deliveryType;
+        } else if (transaction.method) {
+          method = transaction.method;
+        } else if (transaction.isDrumDelivery || transaction.drumCount > 0 || transaction.drumCapacity > 0) {
+          method = 'Drum';
+        } else if (transaction.isLooseDelivery || transaction.startMeterReading || transaction.endMeterReading) {
+          method = 'Loose';
+        }
+        
         const oilType = transaction.oilTypeName || 'Unknown Oil Type';
         const quantity = transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0;
         
@@ -522,31 +534,35 @@ export default function WarehouseDashboard() {
         
         if (method.toLowerCase() === 'drum') {
           // For drum deliveries
-          startMeter = transaction.startMeterReading || transaction.drumCount || 'N/A';
-          endMeter = transaction.endMeterReading || transaction.drumCapacity || 'N/A';
+          startMeter = transaction.drumCount || transaction.startMeterReading || 'N/A';
+          endMeter = transaction.drumCapacity || transaction.endMeterReading || 'N/A';
         } else {
           // For loose deliveries
           startMeter = transaction.startMeterReading || 'N/A';
           endMeter = transaction.endMeterReading || 'N/A';
         }
         
-        // Calculate Before/After Tank Levels
-        let beforeLevel = 'N/A';
+        // Get Order/Delivery Number
+        const orderNo = transaction.orderNo || transaction.deliveryNo || transaction.taskId || transaction.id || 'N/A';
+        
+        // Calculate After Level (final tank level after transaction)
         let afterLevel = 'N/A';
         
-        if (transaction.beforeTankLevel !== undefined) {
-          beforeLevel = transaction.beforeTankLevel;
-        } else if (transaction.initialTankLevel !== undefined) {
-          beforeLevel = transaction.initialTankLevel;
-        }
-        
+        // Priority order for after level data
         if (transaction.afterTankLevel !== undefined) {
           afterLevel = transaction.afterTankLevel;
         } else if (transaction.finalTankLevel !== undefined) {
           afterLevel = transaction.finalTankLevel;
-        } else if (beforeLevel !== 'N/A' && quantity > 0) {
-          // Calculate: before level + quantity = after level
-          afterLevel = parseFloat(beforeLevel) + parseFloat(quantity);
+        } else if (transaction.currentTankLevel !== undefined) {
+          afterLevel = transaction.currentTankLevel;
+        } else if (transaction.newTankLevel !== undefined) {
+          afterLevel = transaction.newTankLevel;
+        } else {
+          // Try to calculate from before level + quantity for supply transactions
+          const beforeLevel = transaction.beforeTankLevel || transaction.initialTankLevel;
+          if (beforeLevel !== undefined && quantity > 0 && type === 'Supply') {
+            afterLevel = parseFloat(beforeLevel) + parseFloat(quantity);
+          }
         }
         
         // Escape commas and quotes in CSV data
@@ -567,7 +583,7 @@ export default function WarehouseDashboard() {
           quantity,
           startMeter,
           endMeter,
-          beforeLevel,
+          escapeCSV(orderNo),
           afterLevel
         ];
         
@@ -2466,11 +2482,12 @@ export default function WarehouseDashboard() {
                             <div>7. Quantity</div>
                             <div>8. Start Meter*</div>
                             <div>9. End Meter*</div>
-                            <div>10. Before Level</div>
+                            <div>10. Order/Delivery No</div>
                             <div>11. After Level</div>
                           </div>
                           <p className="text-xs text-gray-500 mt-2">
-                            *For drum deliveries: Start Meter = Number of drums, End Meter = Drum capacity
+                            *For drum deliveries: Start Meter = Number of drums, End Meter = Drum capacity<br/>
+                            **After Level = Final tank level after transaction completion
                           </p>
                         </div>
                       </CardContent>
