@@ -24,6 +24,7 @@ import { watermarkImage, getCurrentTimestamp } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
 interface LoadingData {
+  deliveryOrderNo: string;
   oilTypeId: string;
   totalLoadedLiters: number;
   loadMeterReading: number;
@@ -48,6 +49,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingData, setLoadingData] = useState<LoadingData>({
+    deliveryOrderNo: '',
     oilTypeId: '',
     totalLoadedLiters: 0,
     loadMeterReading: 0,
@@ -136,6 +138,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
 
       // Create load session directly in Firestore with complete information
       const loadSessionData = {
+        deliveryOrderNo: loadingData.deliveryOrderNo || '',
         oilTypeId: loadingData.oilTypeId,
         oilTypeName: oilTypeName,
         totalLoadedLiters: loadingData.totalLoadedLiters,
@@ -156,6 +159,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
       
       // Reset form
       setLoadingData({
+        deliveryOrderNo: '',
         oilTypeId: '',
         totalLoadedLiters: 0,
         loadMeterReading: 0,
@@ -232,6 +236,17 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
         <CardContent className="space-y-6">
           {/* Loading Details */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="deliveryOrder">Order/Delivery Number</Label>
+              <Input
+                data-testid="input-delivery-order"
+                type="text"
+                placeholder="Enter order/delivery number"
+                value={loadingData.deliveryOrderNo}
+                onChange={(e) => setLoadingData(prev => ({ ...prev, deliveryOrderNo: e.target.value }))}
+              />
+            </div>
+
             <div>
               <Label htmlFor="oilType">Oil Type *</Label>
               <Select 
