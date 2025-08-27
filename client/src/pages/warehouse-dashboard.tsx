@@ -1979,9 +1979,9 @@ export default function WarehouseDashboard() {
               <Card>
                 <CardContent className="p-6">
                   {recentTransactions.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="max-h-96 overflow-y-auto space-y-4 border rounded-lg p-4 bg-gray-50">
                       {recentTransactions.map((transaction, index) => (
-                        <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                        <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-white bg-white shadow-sm">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className={`px-2 py-1 text-xs font-medium rounded ${
@@ -2173,9 +2173,9 @@ export default function WarehouseDashboard() {
                 </div>
 
                 {getFilteredLogs().length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
                     {getFilteredLogs().map((log) => (
-                      <div key={log.id} className="p-3 border rounded-lg bg-gray-50">
+                      <div key={log.id} className="p-3 border rounded-lg bg-white shadow-sm">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
