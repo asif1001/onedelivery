@@ -172,6 +172,12 @@ export default function WarehouseDashboard() {
     driver: ''
   });
   
+  // CSV export states
+  const [showCsvExport, setShowCsvExport] = useState(false);
+  const [csvStartDate, setCsvStartDate] = useState('');
+  const [csvEndDate, setCsvEndDate] = useState('');
+  const [csvExporting, setCsvExporting] = useState(false);
+  
   const [showLogDateFilter, setShowLogDateFilter] = useState(false);
   const [logStartDate, setLogStartDate] = useState('');
   const [logEndDate, setLogEndDate] = useState('');
@@ -410,6 +416,193 @@ export default function WarehouseDashboard() {
       });
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  // Export transactions to CSV with specified format
+  const exportTransactionsToCSV = async () => {
+    if (!csvStartDate || !csvEndDate) {
+      toast({
+        title: "Date range required",
+        description: "Please select both start and end dates for CSV export",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (new Date(csvStartDate) > new Date(csvEndDate)) {
+      toast({
+        title: "Invalid date range",
+        description: "Start date must be before end date",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setCsvExporting(true);
+    try {
+      console.log('📊 Exporting CSV from', csvStartDate, 'to', csvEndDate);
+      
+      // Convert dates for filtering
+      const startDate = new Date(csvStartDate + 'T00:00:00');
+      const endDate = new Date(csvEndDate + 'T23:59:59');
+      
+      // Query all transactions
+      const transactionsQuery = query(
+        collection(db, 'transactions'),
+        orderBy('timestamp', 'desc')
+      );
+      
+      const snapshot = await getDocs(transactionsQuery);
+      const allTransactions = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      // Filter by date range
+      const filteredTransactions = allTransactions.filter(transaction => {
+        let transactionDate = null;
+        
+        if (transaction.timestamp?.toDate) {
+          transactionDate = transaction.timestamp.toDate();
+        } else if (transaction.timestamp && typeof transaction.timestamp === 'string') {
+          transactionDate = new Date(transaction.timestamp);
+        } else if (transaction.createdAt?.toDate) {
+          transactionDate = transaction.createdAt.toDate();
+        } else if (transaction.createdAt) {
+          transactionDate = new Date(transaction.createdAt);
+        }
+        
+        if (!transactionDate) return false;
+        return transactionDate >= startDate && transactionDate <= endDate;
+      });
+
+      // CSV Headers as specified
+      const headers = [
+        'Date and Time',
+        'Session ID', 
+        'Branch',
+        'Type',
+        'Method',
+        'Oil Type',
+        'Quantity',
+        'Start Meter',
+        'End Meter', 
+        'Before Level',
+        'After Level'
+      ];
+
+      // Create CSV rows
+      const csvRows = [headers.join(',')];
+      
+      filteredTransactions.forEach(transaction => {
+        const branch = branches.find(b => b.id === transaction.branchId);
+        const branchName = branch ? branch.name : (transaction.branchName || 'Unknown Branch');
+        
+        // Format date
+        let dateTime = 'Unknown Date';
+        if (transaction.timestamp?.toDate) {
+          dateTime = transaction.timestamp.toDate().toLocaleString();
+        } else if (transaction.createdAt?.toDate) {
+          dateTime = transaction.createdAt.toDate().toLocaleString();
+        } else if (transaction.createdAt) {
+          dateTime = new Date(transaction.createdAt).toLocaleString();
+        }
+        
+        // Determine transaction details
+        const sessionId = transaction.sessionId || transaction.id || 'N/A';
+        const type = transaction.type === 'loading' ? 'Loading' : 'Supply';
+        const method = transaction.deliveryType || transaction.method || 'N/A';
+        const oilType = transaction.oilTypeName || 'Unknown Oil Type';
+        const quantity = transaction.quantity || transaction.deliveredLiters || transaction.loadedLiters || 0;
+        
+        // Calculate Start/End Meter based on method
+        let startMeter = 'N/A';
+        let endMeter = 'N/A';
+        
+        if (method.toLowerCase() === 'drum') {
+          // For drum deliveries
+          startMeter = transaction.startMeterReading || transaction.drumCount || 'N/A';
+          endMeter = transaction.endMeterReading || transaction.drumCapacity || 'N/A';
+        } else {
+          // For loose deliveries
+          startMeter = transaction.startMeterReading || 'N/A';
+          endMeter = transaction.endMeterReading || 'N/A';
+        }
+        
+        // Calculate Before/After Tank Levels
+        let beforeLevel = 'N/A';
+        let afterLevel = 'N/A';
+        
+        if (transaction.beforeTankLevel !== undefined) {
+          beforeLevel = transaction.beforeTankLevel;
+        } else if (transaction.initialTankLevel !== undefined) {
+          beforeLevel = transaction.initialTankLevel;
+        }
+        
+        if (transaction.afterTankLevel !== undefined) {
+          afterLevel = transaction.afterTankLevel;
+        } else if (transaction.finalTankLevel !== undefined) {
+          afterLevel = transaction.finalTankLevel;
+        } else if (beforeLevel !== 'N/A' && quantity > 0) {
+          // Calculate: before level + quantity = after level
+          afterLevel = parseFloat(beforeLevel) + parseFloat(quantity);
+        }
+        
+        // Escape commas and quotes in CSV data
+        const escapeCSV = (field) => {
+          if (typeof field === 'string' && (field.includes(',') || field.includes('"'))) {
+            return `"${field.replace(/"/g, '""')}"`;
+          }
+          return field;
+        };
+        
+        const row = [
+          escapeCSV(dateTime),
+          escapeCSV(sessionId),
+          escapeCSV(branchName),
+          escapeCSV(type),
+          escapeCSV(method),
+          escapeCSV(oilType),
+          quantity,
+          startMeter,
+          endMeter,
+          beforeLevel,
+          afterLevel
+        ];
+        
+        csvRows.push(row.join(','));
+      });
+
+      // Create and download CSV file
+      const csvContent = csvRows.join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `transactions_${csvStartDate}_to_${csvEndDate}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+      toast({
+        title: "CSV Export Successful",
+        description: `Exported ${filteredTransactions.length} transactions to CSV file`
+      });
+      
+    } catch (error) {
+      console.error('❌ CSV Export Error:', error);
+      toast({
+        title: "Export failed",
+        description: "Failed to export CSV. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setCsvExporting(false);
     }
   };
 
@@ -2149,7 +2342,7 @@ export default function WarehouseDashboard() {
                       </TabsTrigger>
                     </TabsList>
                     
-                    {/* Quick Filters */}
+                    {/* Quick Filters and CSV Export */}
                     <div className="flex items-center gap-2">
                       <select 
                         className="text-xs border rounded px-2 py-1 bg-white"
@@ -2180,8 +2373,109 @@ export default function WarehouseDashboard() {
                           <option key={oilType.id} value={oilType.id}>{oilType.name}</option>
                         ))}
                       </select>
+                      
+                      {/* CSV Export Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowCsvExport(!showCsvExport)}
+                        className="flex items-center gap-2 bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                        data-testid="button-csv-export"
+                      >
+                        <DownloadIcon className="h-4 w-4" />
+                        CSV Export
+                      </Button>
                     </div>
                   </div>
+
+                  {/* CSV Export Section */}
+                  {showCsvExport && (
+                    <Card className="mb-4 border-green-200 bg-green-50">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <DownloadIcon className="h-4 w-4 text-green-600" />
+                          Export Transactions to CSV
+                        </CardTitle>
+                        <CardDescription>
+                          Download transactions in CSV format with date range filter (includes all 11 required fields)
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Export Start Date</label>
+                            <input
+                              type="date"
+                              value={csvStartDate}
+                              onChange={(e) => setCsvStartDate(e.target.value)}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              data-testid="input-csv-start-date"
+                            />
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Export End Date</label>
+                            <input
+                              type="date"
+                              value={csvEndDate}
+                              onChange={(e) => setCsvEndDate(e.target.value)}
+                              className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              data-testid="input-csv-end-date"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={exportTransactionsToCSV}
+                              disabled={csvExporting || !csvStartDate || !csvEndDate}
+                              className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                              data-testid="button-download-csv"
+                            >
+                              {csvExporting ? (
+                                <>
+                                  <RefreshCwIcon className="h-4 w-4 animate-spin" />
+                                  Exporting...
+                                </>
+                              ) : (
+                                <>
+                                  <DownloadIcon className="h-4 w-4" />
+                                  Download CSV
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => setShowCsvExport(false)}
+                              className="flex items-center gap-2"
+                              data-testid="button-close-csv-export"
+                            >
+                              <X className="h-4 w-4" />
+                              Close
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {/* CSV Format Information */}
+                        <div className="mt-4 p-3 bg-white border rounded-lg">
+                          <h5 className="text-sm font-medium text-gray-700 mb-2">CSV Export Format:</h5>
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
+                            <div>1. Date and Time</div>
+                            <div>2. Session ID</div>
+                            <div>3. Branch</div>
+                            <div>4. Type (Supply/Loading)</div>
+                            <div>5. Method (Drum/Loose)</div>
+                            <div>6. Oil Type</div>
+                            <div>7. Quantity</div>
+                            <div>8. Start Meter*</div>
+                            <div>9. End Meter*</div>
+                            <div>10. Before Level</div>
+                            <div>11. After Level</div>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            *For drum deliveries: Start Meter = Number of drums, End Meter = Drum capacity
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Recent Transactions Tab */}
                   <TabsContent value="recent" className="mt-0">
