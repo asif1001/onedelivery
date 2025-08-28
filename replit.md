@@ -14,7 +14,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
-### ✅ Fixed Movement vs Adjustment Timestamp Separation (Latest - August 28, 2025)
+### ✅ Enhanced Tank Card Display with Real Dates and User Names (Latest - August 28, 2025)
+- **Real date display**: Tank cards now show actual dates (e.g., "8/24/2025, 12:00:00 PM") instead of relative times (e.g., "4 days ago")
+- **Full user names**: Display complete user names (e.g., "Husain Alsaffar") instead of abbreviated versions (e.g., "Husain")
+- **Improved layout**: Separated date/time and user information onto different lines for better readability
+- **Enhanced user experience**: Tank status cards provide precise timestamp and attribution information
+- **Recovery system integration**: Leverages existing data recovery system to show accurate historical updates
+
+### ✅ Fixed Movement vs Adjustment Timestamp Separation (August 28, 2025)
 - **Critical fix completed**: Warehouse adjustments no longer incorrectly show as "Last Movement"  
 - **Enhanced movement filtering**: Dashboard only shows movements where `lastMovementByRole === 'driver'`
 - **Transaction log analysis**: Added `getTankTransactionLogs` function to query actual driver movements vs manual adjustments

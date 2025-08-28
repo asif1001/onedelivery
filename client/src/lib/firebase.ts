@@ -26,7 +26,8 @@ import {
   addDoc,
   Timestamp,
   runTransaction,
-  onSnapshot
+  onSnapshot,
+  limit
 } from 'firebase/firestore';
 import { 
   getStorage, 
@@ -759,14 +760,14 @@ export const updateUserNameCascading = async (userId: string, newDisplayName: st
 };
 
 // Get transaction logs for movement analysis
-export const getTankTransactionLogs = async (tankId: string, limit: number = 20) => {
+export const getTankTransactionLogs = async (tankId: string, limitCount: number = 20) => {
   try {
     const logsRef = collection(db, 'tankUpdateLogs');
     const q = query(
       logsRef,
       where('tankId', '==', tankId),
       orderBy('updatedAt', 'desc'),
-      limitQuery(limit)
+      limit(limitCount)
     );
     
     const snapshot = await getDocs(q);
@@ -811,6 +812,35 @@ export const getTankTransactionLogs = async (tankId: string, limit: number = 20)
     return { allLogs: [], driverMovements: [], manualAdjustments: [], lastMovement: null, lastAdjustment: null };
   }
 };
+
+// Get last movement from transactions collection 
+export const getLastMovementFromTransactions = async (branchId: string, oilTypeId: string) => {
+  try {
+    const transactionsRef = collection(db, 'transactions');
+    const q = query(
+      transactionsRef,
+      where('branchId', '==', branchId),
+      where('oilTypeId', '==', oilTypeId),
+      where('movementType', 'in', ['LOAD', 'SUPPLY_LOOSE', 'SUPPLY_DRUM']),
+      orderBy('timestamp', 'desc'),
+      limit(1)
+    );
+    
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      const data = snapshot.docs[0].data();
+      return {
+        date: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp),
+        user: data.updatedBy || data.driverName || 'Unknown Driver',
+        type: data.movementType
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting last movement from transactions:', error);
+    return null;
+  }
+};;
 
 /**
  * BRANCH AND TANK ACTIVATION/DEACTIVATION FUNCTIONS
