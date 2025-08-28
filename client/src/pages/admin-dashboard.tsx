@@ -286,6 +286,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isTransactionViewerOpen, setIsTransactionViewerOpen] = useState(false);
   
+  // Theme state
+  const [theme, setTheme] = useState<'light' | 'night' | 'midday'>('light');
+  
   // Date filter states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [csvStartDate, setCsvStartDate] = useState('');
@@ -1668,21 +1671,62 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
 
 
+  // Theme classes
+  const getThemeClasses = () => {
+    switch (theme) {
+      case 'night':
+        return {
+          background: 'bg-gray-900',
+          header: 'bg-gray-800 border-gray-700',
+          sidebar: 'bg-gray-800 border-gray-700',
+          card: 'bg-gray-800 border-gray-700 text-white',
+          mobileNav: 'bg-gray-800 border-gray-700',
+          text: 'text-white',
+          secondaryText: 'text-gray-300',
+          accent: 'text-blue-400'
+        };
+      case 'midday':
+        return {
+          background: 'bg-blue-50',
+          header: 'bg-blue-100 border-blue-200',
+          sidebar: 'bg-white border-blue-200',
+          card: 'bg-white border-blue-200',
+          mobileNav: 'bg-blue-100 border-blue-200',
+          text: 'text-gray-900',
+          secondaryText: 'text-gray-600',
+          accent: 'text-blue-600'
+        };
+      default: // light
+        return {
+          background: 'bg-gray-50',
+          header: 'bg-white border-gray-200',
+          sidebar: 'bg-white border-gray-200',
+          card: 'bg-white border-gray-200',
+          mobileNav: 'bg-white border-gray-200',
+          text: 'text-gray-900',
+          secondaryText: 'text-gray-600',
+          accent: 'text-blue-600'
+        };
+    }
+  };
+
+  const themeClasses = getThemeClasses();
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className={`min-h-screen ${themeClasses.background} flex items-center justify-center`}>
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading admin dashboard...</p>
+          <p className={themeClasses.secondaryText}>Loading admin dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${themeClasses.background}`}>
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className={`${themeClasses.header} shadow-sm border-b`}>
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
           <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center">
@@ -1690,15 +1734,52 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <OilDeliveryLogo className="w-10 h-10 sm:w-12 sm:h-12" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900">OneDelivery</h1>
-                <p className="text-xs sm:text-sm text-gray-500">Admin Dashboard</p>
+                <h1 className={`text-lg sm:text-xl font-bold ${themeClasses.text}`}>OneDelivery</h1>
+                <p className={`text-xs sm:text-sm ${themeClasses.secondaryText}`}>Admin Dashboard</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-2 sm:space-x-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{user.displayName}</p>
-                <p className="text-xs text-gray-500">{user.email}</p>
+              {/* Theme Switcher */}
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-100 dark:bg-gray-700">
+                <button
+                  onClick={() => setTheme('light')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'light' 
+                      ? 'bg-white shadow text-gray-900' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-light"
+                >
+                  ☀️ Light
+                </button>
+                <button
+                  onClick={() => setTheme('midday')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'midday' 
+                      ? 'bg-blue-500 shadow text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-midday"
+                >
+                  🌤️ Midday
+                </button>
+                <button
+                  onClick={() => setTheme('night')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'night' 
+                      ? 'bg-gray-800 shadow text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-night"
+                >
+                  🌙 Night
+                </button>
+              </div>
+              
+              <div className={`text-right hidden sm:block`}>
+                <p className={`text-sm font-medium ${themeClasses.text}`}>{user.displayName}</p>
+                <p className={`text-xs ${themeClasses.secondaryText}`}>{user.email}</p>
               </div>
               <Button
                 onClick={handleLogout}
@@ -1719,19 +1800,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Main Content */}
       <div className="flex h-[calc(100vh-64px)]">
         {/* Left Sidebar */}
-        <div className="hidden lg:flex lg:flex-col lg:w-64 bg-white shadow-lg border-r">
+        <div className={`hidden lg:flex lg:flex-col lg:w-64 ${themeClasses.sidebar} shadow-lg border-r`}>
           <div className="flex-1 px-4 py-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-6">Admin Panel</h2>
+            <h2 className={`text-lg font-semibold ${themeClasses.text} mb-6`}>Admin Panel</h2>
             <nav className="space-y-1">
               {/* Main Navigation */}
               <div className="mb-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Dashboard</h3>
+                <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Dashboard</h3>
                 <button
                   onClick={() => setActiveTab('overview')}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === 'overview' 
                       ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                   }`}
                 >
                   <BarChart3Icon className="mr-3 h-5 w-5" />
@@ -1741,14 +1822,14 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
               {/* Management Section */}
               <div className="mb-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Management</h3>
+                <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Management</h3>
                 <div className="space-y-1">
                   <button
                     onClick={() => setActiveTab('drivers')}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'drivers' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <UsersIcon className="mr-3 h-5 w-5" />
@@ -1759,7 +1840,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'branches' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <MapPinIcon className="mr-3 h-5 w-5" />
@@ -1770,7 +1851,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'oil-types' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <DropletIcon className="mr-3 h-5 w-5" />
@@ -1781,7 +1862,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'drum-capacities' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <PackageIcon className="mr-3 h-5 w-5" />
@@ -1792,14 +1873,14 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
               {/* Operations Section */}
               <div className="mb-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Operations</h3>
+                <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Operations</h3>
                 <div className="space-y-1">
                   <button
                     onClick={() => setActiveTab('recent-transactions')}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'recent-transactions' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <FileTextIcon className="mr-3 h-5 w-5" />
@@ -1810,20 +1891,20 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'logs-update' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <ClockIcon className="mr-3 h-5 w-5" />
                     Logs Update
                   </button>
                   <Link to="/task-management">
-                    <button className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-gray-700 hover:bg-gray-100">
+                    <button className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`}>
                       <ClipboardListIcon className="mr-3 h-5 w-5" />
                       Tasks
                     </button>
                   </Link>
                   <Link to="/complaint-management">
-                    <button className="w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors text-gray-700 hover:bg-gray-100">
+                    <button className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`}>
                       <AlertTriangleIcon className="mr-3 h-5 w-5" />
                       Complaints
                     </button>
@@ -1833,7 +1914,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'warehouse' 
                         ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                        : 'text-gray-700 hover:bg-gray-100'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                     }`}
                   >
                     <PackageIcon className="mr-3 h-5 w-5" />
@@ -1844,13 +1925,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
               {/* Settings Section */}
               <div>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Configuration</h3>
+                <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Configuration</h3>
                 <button
                   onClick={() => setActiveTab('settings')}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     activeTab === 'settings' 
                       ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
-                      : 'text-gray-700 hover:bg-gray-100'
+                      : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                   }`}
                 >
                   <SettingsIcon className="mr-3 h-5 w-5" />
@@ -1863,84 +1944,104 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
         {/* Mobile Navigation Tabs (shown on smaller screens) */}
         <div className="lg:hidden w-full">
-          <div className="bg-white border-b px-4 py-2">
+          <div className={`${themeClasses.mobileNav} border-b px-4 py-2`}>
             <div className="flex space-x-1 overflow-x-auto">
               <button
                 onClick={() => setActiveTab('overview')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'overview' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'overview' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Overview
               </button>
               <button
                 onClick={() => setActiveTab('drivers')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'drivers' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'drivers' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Users
               </button>
               <button
                 onClick={() => setActiveTab('branches')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'branches' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'branches' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Branches
               </button>
               <button
                 onClick={() => setActiveTab('oil-types')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'oil-types' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'oil-types' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Oil Types
               </button>
               <button
                 onClick={() => setActiveTab('recent-transactions')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'recent-transactions' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'recent-transactions' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
-                Recent Transactions
+                Transactions
               </button>
               <button
                 onClick={() => setActiveTab('logs-update')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'logs-update' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'logs-update' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
-                Logs Update
+                Logs
               </button>
               <button
                 onClick={() => setActiveTab('tasks')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'tasks' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'tasks' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Tasks
               </button>
               <button
                 onClick={() => setActiveTab('complaints')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'complaints' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'complaints' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Complaints
               </button>
               <button
                 onClick={() => setActiveTab('warehouse')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'warehouse' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'warehouse' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Warehouse
               </button>
               <button
                 onClick={() => setActiveTab('settings')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap ${
-                  activeTab === 'settings' ? 'bg-orange-100 text-orange-900' : 'text-gray-700 hover:bg-gray-100'
+                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
+                  activeTab === 'settings' 
+                    ? 'bg-orange-100 text-orange-900' 
+                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
                 }`}
               >
                 Settings
@@ -1958,8 +2059,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             {/* CSV Download Section */}
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-6 space-y-4 sm:space-y-0">
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Overview</h2>
-                <p className="text-gray-600 text-sm">Today's operations and download reports</p>
+                <h2 className={`text-xl sm:text-2xl font-bold ${themeClasses.text}`}>Admin Overview</h2>
+                <p className={`${themeClasses.secondaryText} text-sm`}>Today's operations and download reports</p>
               </div>
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                 <Button
@@ -1985,7 +2086,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             
             {/* Date Filter Section */}
             {showDateFilter && (
-              <Card className="mb-6">
+              <Card className={`mb-6 ${themeClasses.card}`}>
                 <CardContent className="pt-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     <div className="flex items-center space-x-2">
