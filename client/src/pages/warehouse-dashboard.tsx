@@ -876,12 +876,31 @@ export default function WarehouseDashboard() {
         
         // Handle manual adjustment timestamp (primary for staleness check)
         if (tank.lastAdjustmentAt) {
-          lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
-          lastAdjustmentBy = tank.lastAdjustmentByUser;
-          lastAdjustmentRole = tank.lastAdjustmentByRole;
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
-          daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
+          const adjustmentUser = tank.lastAdjustmentByUser;
+          
+          // CRITICAL FIX: Filter out warehouse operations from showing as manual updates
+          if (adjustmentUser === 'Renga' || adjustmentUser === 'warehouse@gmail.com' || adjustmentUser === 'renga@ekkanoo.com.bh') {
+            console.log(`⚠️ WAREHOUSE: Rejecting warehouse adjustment for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+              warehouseUser: adjustmentUser,
+              adjustmentDate: tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate().toLocaleString() : 'Unknown',
+              reason: 'Warehouse bulk operation incorrectly recorded as manual adjustment'
+            });
+            // Don't use warehouse adjustments - skip this adjustment completely
+          } else {
+            // Only use legitimate manual adjustments
+            lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
+            lastAdjustmentBy = tank.lastAdjustmentByUser;
+            lastAdjustmentRole = tank.lastAdjustmentByRole;
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
+            daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`✅ WAREHOUSE: Using legitimate manual adjustment for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+              date: lastAdjustment.toLocaleString(),
+              by: lastAdjustmentBy,
+              daysSince: daysSinceAdjustment
+            });
+          }
         }
         
         // Recovery system for warehouse-overwritten manual updates
@@ -905,12 +924,17 @@ export default function WarehouseDashboard() {
               daysSince: daysSinceAdjustment
             });
           }
-          // Check if this is a warehouse operation for other tanks
-          else if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh') {
-            console.log(`⚠️ WAREHOUSE: Tank ${tankId} shows warehouse overwrite - manual update history lost`);
-            // Don't use warehouse updates as adjustments
+          // STRICT FILTERING: Reject ALL warehouse operations - don't show as manual updates
+          else if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh' || tank.notes?.includes('warehouse bulk update')) {
+            console.log(`⚠️ WAREHOUSE: Rejecting warehouse operation for tank ${tankId} (${tank.oilTypeName}):`, {
+              warehouseUser: legacyUpdatedBy,
+              warehouseDate: tank.lastUpdated?.toDate ? tank.lastUpdated.toDate().toLocaleString() : 'Unknown',
+              branch: tank.branchName,
+              reason: 'Warehouse bulk operation should not appear as manual update'
+            });
+            // Explicitly don't use warehouse updates - leave lastAdjustment as null
           } else {
-            // Use legitimate non-warehouse updates
+            // Use legitimate non-warehouse updates only
             const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
             lastAdjustment = legacyUpdate;
             const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -918,6 +942,12 @@ export default function WarehouseDashboard() {
             daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
             lastAdjustmentBy = legacyUpdatedBy;
             lastAdjustmentRole = 'branch_user';
+            
+            console.log(`✅ WAREHOUSE: Using legitimate manual update for tank ${tankId}:`, {
+              date: legacyUpdate.toLocaleString(),
+              by: lastAdjustmentBy,
+              branch: tank.branchName
+            });
           }
         }
         
