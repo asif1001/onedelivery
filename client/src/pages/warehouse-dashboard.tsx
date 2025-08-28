@@ -2366,7 +2366,7 @@ export default function WarehouseDashboard() {
               )}
             </div>
 
-            {/* Branch Tank Status - Compact Design */}
+            {/* Enhanced Branch Tank Status - User Requested Format */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -2380,31 +2380,37 @@ export default function WarehouseDashboard() {
               <CardContent className="pt-0">
                 <div className="grid gap-4">
                   {getBranchUpdateStatus().map((branch) => {
-                    // Determine branch styling based on update status
-                    let branchCardClass = 'hover:shadow-lg transition-shadow';
+                    // Determine branch styling and status based on update status
+                    let branchCardClass = 'hover:shadow-lg transition-shadow border-2';
                     let headerTextColor = 'text-gray-900';
-                    let statusBadge = null;
+                    let branchStatusText = '';
+                    let branchStatusBadge = null;
                     
                     if (branch.status === 'needs-attention') {
-                      branchCardClass = 'bg-red-50 border-red-400 shadow-red-100 hover:shadow-red-200 transition-shadow';
+                      branchCardClass = 'bg-red-50 border-red-400 shadow-red-100 hover:shadow-red-200 transition-shadow border-2';
                       headerTextColor = 'text-red-800';
-                      statusBadge = (
-                        <Badge variant="destructive" className="text-xs">
-                          Needs Attention ({branch.neverUpdatedTanks + branch.oldTanks} tanks)
+                      branchStatusText = 'Needs Attention';
+                      branchStatusBadge = (
+                        <Badge variant="destructive" className="text-xs ml-2">
+                          Critical
                         </Badge>
                       );
                     } else if (branch.status === 'partially-updated') {
-                      branchCardClass = 'bg-yellow-50 border-yellow-400 shadow-yellow-100 hover:shadow-yellow-200 transition-shadow';
+                      branchCardClass = 'bg-yellow-50 border-yellow-400 shadow-yellow-100 hover:shadow-yellow-200 transition-shadow border-2';
                       headerTextColor = 'text-yellow-800';
-                      statusBadge = (
-                        <Badge variant="secondary" className="text-xs">
-                          Some Updates Needed ({branch.staleTanks + branch.oldTanks} tanks)
+                      branchStatusText = 'Partial Updated';
+                      branchStatusBadge = (
+                        <Badge variant="secondary" className="text-xs ml-2 bg-yellow-100 text-yellow-800">
+                          Partial
                         </Badge>
                       );
                     } else {
-                      statusBadge = (
-                        <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                          All Current
+                      branchCardClass = 'bg-green-50 border-green-400 shadow-green-100 hover:shadow-green-200 transition-shadow border-2';
+                      headerTextColor = 'text-green-800';
+                      branchStatusText = 'Up-to-date';
+                      branchStatusBadge = (
+                        <Badge variant="default" className="text-xs ml-2 bg-green-100 text-green-800">
+                          Good
                         </Badge>
                       );
                     }
@@ -2412,120 +2418,107 @@ export default function WarehouseDashboard() {
                     return (
                       <Card key={branch.id} className={branchCardClass}>
                         <CardHeader className="pb-3">
-                          <div className="flex justify-between items-start">
+                          <div className="flex justify-between items-center">
                             <div className="min-w-0 flex-1">
                               <CardTitle className={`flex items-center gap-2 text-base ${headerTextColor}`}>
-                                <MapPinIcon className="h-4 w-4 flex-shrink-0" />
+                                <BuildingIcon className="h-5 w-5 flex-shrink-0" />
                                 <span className="truncate">{branch.name}</span>
+                                {branchStatusBadge}
+                                <span className="text-sm font-normal">Tank Status: [{branchStatusText}]</span>
                               </CardTitle>
-                              <div className="mt-2">
-                                {statusBadge}
-                              </div>
                             </div>
                           </div>
                         </CardHeader>
                         <CardContent className="pt-0">
-                          <div className="space-y-3">
-                            <h4 className="font-medium text-sm">Oil Tanks ({branch.tankDetails.length})</h4>
+                          <div className="space-y-4">
                             {branch.tankDetails.length > 0 ? (
-                              <div className="space-y-2">
+                              <div className="space-y-4">
                                 {branch.tankDetails.map((tank, index) => {
                                   const percentage = Math.round(tank.percentage || 0);
                                   
-                                  // Determine status based on percentage like branch dashboard  
+                                  // Determine tank level status
                                   const levelStatus = percentage <= 5 ? 
-                                    { status: 'critical', label: 'Critical', color: 'red', bgColor: 'bg-red-50', borderColor: 'border-red-200', textColor: 'text-red-800' } :
+                                    { status: 'critical', label: 'Critical', color: 'red' } :
                                     percentage <= 25 ? 
-                                    { status: 'low', label: 'Low', color: 'yellow', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200', textColor: 'text-yellow-800' } :
-                                    { status: 'normal', label: 'Normal', color: 'green', bgColor: 'bg-green-50', borderColor: 'border-green-200', textColor: 'text-green-800' };
+                                    { status: 'low', label: 'Low', color: 'yellow' } :
+                                    { status: 'normal', label: 'Normal', color: 'green' };
                                   
                                   const progressBarColor = levelStatus.color === 'red' ? 'bg-red-500' :
                                                           levelStatus.color === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
                                   
                                   return (
-                                    <div key={index} className={`p-2 sm:p-3 rounded-lg border ${levelStatus.bgColor} ${levelStatus.borderColor}`}>
-                                      <div className="flex justify-between items-start mb-2">
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-2 mb-1">
-                                            <p className="text-sm font-medium truncate">{tank.oilTypeName}</p>
-                                            <Badge 
-                                              variant={levelStatus.status === 'critical' ? 'destructive' : 
-                                                      levelStatus.status === 'low' ? 'secondary' : 'default'}
-                                              className="text-xs px-1 py-0"
-                                            >
-                                              {levelStatus.label}
-                                            </Badge>
-                                          </div>
-                                          <div className="space-y-1 text-xs">
-                                            <div className="text-gray-600 space-y-1">
-                                              <div>Current Level: {tank.currentLevel?.toLocaleString() || 0}L</div>
-                                              <div>Capacity: {tank.capacity?.toLocaleString() || 0}L</div>
-                                            </div>
-                                            
-                                            {tank.lastAdjustment ? (
-                                              <div className={`text-xs ${
-                                                (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
-                                                (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
-                                                (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
-                                              }`}>
-                                                <div className="flex items-center gap-1 mb-1">
-                                                  <span className="font-medium">Last Manual Update:</span>
-                                                  <span>
-                                                    {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </span>
-                                                </div>
-                                                {tank.lastAdjustmentBy && (
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500">Updated by:</span>
-                                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4">
-                                                      {tank.lastAdjustmentRole === 'admin' ? '👑' : 
-                                                       tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
-                                                       tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
-                                                      {tank.lastAdjustmentBy}
-                                                    </Badge>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            ) : (
-                                              <p className="text-xs text-red-600 font-medium">
-                                                <span className="font-medium">Last Manual Update:</span>
-                                                <span className="ml-1">Never updated</span>
-                                              </p>
-                                            )}
-                                            
-                                            {tank.lastMovement && (
-                                              <div className="text-xs text-blue-600">
-                                                <div className="flex items-center gap-1 mb-1">
-                                                  <span className="font-medium">Last Movement:</span>
-                                                  <span>
-                                                    {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </span>
-                                                </div>
-                                                {tank.lastMovementBy && (
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500">Driver:</span>
-                                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-blue-50">
-                                                      🚛{tank.lastMovementBy}
-                                                    </Badge>
-                                                  </div>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
+                                    <div key={index} className="border-l-4 border-gray-300 pl-4 py-2">
+                                      {/* Tank Header with Oil Type and Level Info */}
+                                      <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-lg font-bold">•</span>
+                                          <span className="font-medium text-base">{tank.oilTypeName}</span>
+                                          <span className="text-gray-600">
+                                            Current Level: {(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L ({percentage}%)
+                                          </span>
                                         </div>
-                                        <div className="text-right ml-2">
-                                          <p className="text-sm font-medium">{percentage}%</p>
-                                          <p className="text-xs text-gray-500">Capacity</p>
-                                        </div>
+                                        <Badge 
+                                          variant={levelStatus.status === 'critical' ? 'destructive' : 
+                                                  levelStatus.status === 'low' ? 'secondary' : 'default'}
+                                          className="text-xs ml-2"
+                                        >
+                                          {levelStatus.label}
+                                        </Badge>
                                       </div>
                                       
-                                      <div className="w-full bg-gray-200 rounded-full h-2">
+                                      {/* Progress Bar */}
+                                      <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
                                         <div 
-                                          className={`h-2 rounded-full transition-all duration-300 ${progressBarColor}`}
+                                          className={`h-3 rounded-full transition-all duration-300 ${progressBarColor}`}
                                           style={{ 
                                             width: `${Math.min(percentage, 100)}%` 
                                           }}
                                         />
+                                      </div>
+                                      
+                                      {/* Last Manual Update */}
+                                      <div className="text-sm mb-2">
+                                        {tank.lastAdjustment ? (
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium">Last Manual Update:</span>
+                                            <span>
+                                              {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                            </span>
+                                            <span className="text-gray-500">by:</span>
+                                            <Badge variant="outline" className="text-xs px-2 py-0 h-5">
+                                              {tank.lastAdjustmentRole === 'admin' ? '👑' : 
+                                               tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
+                                               tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
+                                              {tank.lastAdjustmentBy || 'Unknown'}
+                                            </Badge>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-2 text-red-600">
+                                            <span className="font-medium">Last Manual Update:</span>
+                                            <span>Never updated</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Last Movement */}
+                                      <div className="text-sm">
+                                        {tank.lastMovement ? (
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium">Last Movement:</span>
+                                            <span>
+                                              {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                            </span>
+                                            <span className="text-gray-500">Driver:</span>
+                                            <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50">
+                                              🚛{tank.lastMovementBy || 'Unknown'}
+                                            </Badge>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center gap-2 text-gray-500">
+                                            <span className="font-medium">Last Movement:</span>
+                                            <span>No driver movements recorded</span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   );
