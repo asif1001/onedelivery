@@ -1681,28 +1681,57 @@ export default function WarehouseDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <TrendingUpIcon className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="branches" className="flex items-center gap-2">
-              <BuildingIcon className="h-4 w-4" />
-              Stock Update
-            </TabsTrigger>
-            <TabsTrigger value="tracking" className="flex items-center gap-2">
-              <AlertCircleIcon className="h-4 w-4" />
-              Monitoring
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className="flex items-center gap-2">
-              <ClipboardListIcon className="h-4 w-4" />
-              Transactions
-            </TabsTrigger>
-            <TabsTrigger value="logs" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Update Logs
-            </TabsTrigger>
-          </TabsList>
+          {/* Mobile Tab Navigation - Scrollable */}
+          <div className="block md:hidden">
+            <TabsList className="flex w-full overflow-x-auto space-x-1 p-1">
+              <TabsTrigger value="overview" className="flex items-center gap-1 whitespace-nowrap px-3 py-2">
+                <TrendingUpIcon className="h-3 w-3" />
+                <span className="text-xs">Overview</span>
+              </TabsTrigger>
+              <TabsTrigger value="branches" className="flex items-center gap-1 whitespace-nowrap px-3 py-2">
+                <BuildingIcon className="h-3 w-3" />
+                <span className="text-xs">Stock</span>
+              </TabsTrigger>
+              <TabsTrigger value="tracking" className="flex items-center gap-1 whitespace-nowrap px-3 py-2">
+                <AlertCircleIcon className="h-3 w-3" />
+                <span className="text-xs">Monitor</span>
+              </TabsTrigger>
+              <TabsTrigger value="transactions" className="flex items-center gap-1 whitespace-nowrap px-3 py-2">
+                <ClipboardListIcon className="h-3 w-3" />
+                <span className="text-xs">Transactions</span>
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="flex items-center gap-1 whitespace-nowrap px-3 py-2">
+                <Calendar className="h-3 w-3" />
+                <span className="text-xs">Logs</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+          
+          {/* Desktop Tab Navigation - Grid Layout */}
+          <div className="hidden md:block">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="overview" className="flex items-center gap-2">
+                <TrendingUpIcon className="h-4 w-4" />
+                Overview
+              </TabsTrigger>
+              <TabsTrigger value="branches" className="flex items-center gap-2">
+                <BuildingIcon className="h-4 w-4" />
+                Stock Update
+              </TabsTrigger>
+              <TabsTrigger value="tracking" className="flex items-center gap-2">
+                <AlertCircleIcon className="h-4 w-4" />
+                Monitoring
+              </TabsTrigger>
+              <TabsTrigger value="transactions" className="flex items-center gap-2">
+                <ClipboardListIcon className="h-4 w-4" />
+                Transactions
+              </TabsTrigger>
+              <TabsTrigger value="logs" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Update Logs
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Overview Statistics Tab */}
           <TabsContent value="overview" className="space-y-4">
