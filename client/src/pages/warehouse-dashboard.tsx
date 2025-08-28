@@ -123,6 +123,9 @@ export default function WarehouseDashboard() {
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   
+  // Theme state
+  const [theme, setTheme] = useState<'light' | 'night' | 'midday'>('light');
+  
   // UI states
   const [loading, setLoading] = useState(true);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
@@ -1555,10 +1558,45 @@ export default function WarehouseDashboard() {
     );
   }
 
+  // Theme classes
+  const getThemeClasses = () => {
+    switch (theme) {
+      case 'night':
+        return {
+          background: 'bg-gray-900',
+          header: 'bg-gray-800 border-gray-700',
+          card: 'bg-gray-800 border-gray-700 text-white',
+          text: 'text-white',
+          secondaryText: 'text-gray-300',
+          accent: 'text-blue-400'
+        };
+      case 'midday':
+        return {
+          background: 'bg-blue-50',
+          header: 'bg-blue-100 border-blue-200',
+          card: 'bg-white border-blue-200',
+          text: 'text-gray-900',
+          secondaryText: 'text-gray-600',
+          accent: 'text-blue-600'
+        };
+      default: // light
+        return {
+          background: 'bg-gray-50',
+          header: 'bg-white border-gray-200',
+          card: 'bg-white border-gray-200',
+          text: 'text-gray-900',
+          secondaryText: 'text-gray-600',
+          accent: 'text-blue-600'
+        };
+    }
+  };
+
+  const themeClasses = getThemeClasses();
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${themeClasses.background}`}>
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className={`${themeClasses.header} shadow-sm border-b`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center gap-3">
@@ -1576,11 +1614,47 @@ export default function WarehouseDashboard() {
                 />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">OneDelivery Warehouse</h1>
-                <p className="text-sm text-gray-500">Welcome, {user?.displayName || user?.email}</p>
+                <h1 className={`text-xl font-bold ${themeClasses.text}`}>OneDelivery Warehouse</h1>
+                <p className={`text-sm ${themeClasses.secondaryText}`}>Welcome, {user?.displayName || user?.email}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Theme Switcher */}
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-100 dark:bg-gray-700">
+                <button
+                  onClick={() => setTheme('light')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'light' 
+                      ? 'bg-white shadow text-gray-900' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-light"
+                >
+                  ☀️ Light
+                </button>
+                <button
+                  onClick={() => setTheme('midday')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'midday' 
+                      ? 'bg-blue-500 shadow text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-midday"
+                >
+                  🌤️ Midday
+                </button>
+                <button
+                  onClick={() => setTheme('night')}
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+                    theme === 'night' 
+                      ? 'bg-gray-800 shadow text-white' 
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  data-testid="theme-night"
+                >
+                  🌙 Night
+                </button>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -1641,9 +1715,9 @@ export default function WarehouseDashboard() {
                 const fullyUpdated = branchStatuses.filter(b => b.status === 'fully-updated' || b.status === 'up-to-date').length;
                 
                 return (
-                  <Card>
+                  <Card className={themeClasses.card}>
                     <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center gap-1">
+                      <CardTitle className={`text-sm flex items-center gap-1 ${themeClasses.text}`}>
                         <AlertTriangleIcon className="h-4 w-4 text-orange-600" />
                         Branch Updates
                       </CardTitle>
@@ -1696,15 +1770,15 @@ export default function WarehouseDashboard() {
                 return oilTypeTotals.map((oilType) => {
                   const percentage = oilType.totalCapacity > 0 ? (oilType.totalAvailable / oilType.totalCapacity) * 100 : 0;
                   return (
-                    <Card key={oilType.oilTypeName}>
+                    <Card key={oilType.oilTypeName} className={themeClasses.card}>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-sm flex items-center gap-1">
+                        <CardTitle className={`text-sm flex items-center gap-1 ${themeClasses.text}`}>
                           <DropletIcon className="h-4 w-4 text-blue-600" />
                           {oilType.oilTypeName}
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="pt-0">
-                        <div className="text-xs text-gray-600 space-y-1">
+                        <div className={`text-xs ${themeClasses.secondaryText} space-y-1`}>
                           <p className="font-medium">{(oilType.totalAvailable || 0).toLocaleString()}L available</p>
                           <p>{oilType.tankCount} tank{oilType.tankCount !== 1 ? 's' : ''}</p>
                           <p>{Math.round(percentage)}% of capacity</p>
@@ -2201,13 +2275,13 @@ export default function WarehouseDashboard() {
 
           {/* Branch Stock Update Tracking Tab */}
           <TabsContent value="tracking" className="space-y-4">
-            <Card>
+            <Card className={themeClasses.card}>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
+                <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
                   <AlertCircleIcon className="h-4 w-4 text-blue-600" />
                   Branch Stock Update Tracking
                 </CardTitle>
-                <CardDescription className="text-sm text-gray-600">
+                <CardDescription className={`text-sm ${themeClasses.secondaryText}`}>
                   Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
                 </CardDescription>
               </CardHeader>
@@ -2290,7 +2364,7 @@ export default function WarehouseDashboard() {
                               )}
                             </div>
                             
-                            <div className="text-xs text-gray-500">
+                            <div className={`text-xs ${themeClasses.secondaryText}`}>
                               {branch.lastUpdate 
                                 ? `Last: ${branch.lastUpdate.toLocaleDateString()}`
                                 : 'No updates'
@@ -2301,7 +2375,11 @@ export default function WarehouseDashboard() {
                           {/* Tank Level Details with Dual Tracking */}
                           <div className="space-y-2">
                             {branch.tankDetails.slice(0, 3).map((tank) => (
-                              <div key={tank.tankId} className="p-2 bg-gray-50 rounded text-xs space-y-2">
+                              <div key={tank.tankId} className={`p-2 rounded text-xs space-y-2 ${
+                                theme === 'night' ? 'bg-gray-700' : 
+                                theme === 'midday' ? 'bg-blue-25' : 
+                                'bg-gray-50'
+                              }`}>
                                 {/* Tank Header */}
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-2 min-w-0 flex-1">
