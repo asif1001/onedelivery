@@ -2327,7 +2327,7 @@ export default function WarehouseDashboard() {
                         branchStatus === 'red' ? `${borderColor} ${bgColor} shadow-red-100` :
                         branchStatus === 'yellow' ? `${borderColor} ${bgColor} shadow-yellow-100` :
                         `${borderColor} ${bgColor} shadow-green-100 hover:shadow-md`
-                      } transition-shadow duration-200 h-fit`}>
+                      } transition-shadow duration-200 h-fit ${themeClasses.card}`}>
                         <CardContent className="p-4 space-y-3">
                           {/* Branch Header with Red Highlighting */}
                           <div className="space-y-2">
@@ -2335,7 +2335,9 @@ export default function WarehouseDashboard() {
                               <div
                                 className={`w-3 h-3 rounded-full flex-shrink-0 ${dotColor}`}
                               />
-                              <h4 className={`font-semibold text-base truncate ${textColor}`} title={branch.name}>
+                              <h4 className={`font-semibold text-base truncate ${
+                                theme === 'night' ? 'text-white' : textColor
+                              }`} title={branch.name}>
                                 {branch.name}
                               </h4>
                             </div>
@@ -2376,8 +2378,8 @@ export default function WarehouseDashboard() {
                           <div className="space-y-2">
                             {branch.tankDetails.slice(0, 3).map((tank) => (
                               <div key={tank.tankId} className={`p-2 rounded text-xs space-y-2 ${
-                                theme === 'night' ? 'bg-gray-700' : 
-                                theme === 'midday' ? 'bg-blue-25' : 
+                                theme === 'night' ? 'bg-gray-600 border border-gray-500' : 
+                                theme === 'midday' ? 'bg-blue-25 border border-blue-100' : 
                                 'bg-gray-50'
                               }`}>
                                 {/* Tank Header */}
@@ -2397,12 +2399,16 @@ export default function WarehouseDashboard() {
                                         'Never updated'
                                       }
                                     />
-                                    <span className="font-bold text-sm text-gray-800 truncate" title={tank.oilTypeName}>
+                                    <span className={`font-bold text-sm truncate ${
+                                      theme === 'night' ? 'text-gray-100' : 'text-gray-800'
+                                    }`} title={tank.oilTypeName}>
                                       {tank.oilTypeName}
                                     </span>
                                   </div>
                                   <div className="text-right flex-shrink-0">
-                                    <div className="text-xs text-gray-600 font-medium">{tank.percentage}%</div>
+                                    <div className={`text-xs font-medium ${
+                                      theme === 'night' ? 'text-gray-300' : 'text-gray-600'
+                                    }`}>{tank.percentage}%</div>
                                   </div>
                                 </div>
 
@@ -2410,8 +2416,14 @@ export default function WarehouseDashboard() {
                                 <div className="space-y-1">
                                   {/* Last Manual Update */}
                                   {tank.lastManualUpdate ? (
-                                    <div className="p-1.5 bg-blue-50 rounded border-l-2 border-blue-300">
-                                      <p className="text-xs text-blue-800">
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
+                                        ? 'bg-blue-900/40 border-blue-400' 
+                                        : 'bg-blue-50 border-blue-300'
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-blue-200' : 'text-blue-800'
+                                      }`}>
                                         <span className="font-medium">Manual:</span>{' '}
                                         {tank.daysSinceManualUpdate === 0 ? 'Today' :
                                          tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
@@ -2419,8 +2431,14 @@ export default function WarehouseDashboard() {
                                       </p>
                                     </div>
                                   ) : (
-                                    <div className="p-1.5 bg-gray-100 rounded border-l-2 border-gray-300">
-                                      <p className="text-xs text-gray-600">
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
+                                        ? 'bg-gray-700 border-gray-500' 
+                                        : 'bg-gray-100 border-gray-300'
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
                                         <span className="font-medium">Manual:</span> Never updated
                                       </p>
                                     </div>
@@ -2428,8 +2446,14 @@ export default function WarehouseDashboard() {
 
                                   {/* Last Supply/Loading */}
                                   {tank.lastSupplyLoading ? (
-                                    <div className="p-1.5 bg-orange-50 rounded border-l-2 border-orange-300">
-                                      <p className="text-xs text-orange-800">
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
+                                        ? 'bg-orange-900/40 border-orange-400' 
+                                        : 'bg-orange-50 border-orange-300'
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-orange-200' : 'text-orange-800'
+                                      }`}>
                                         <span className="font-medium">Supply/Loading:</span>{' '}
                                         {tank.daysSinceSupplyLoading === 0 ? 'Today' :
                                          tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
@@ -2437,8 +2461,14 @@ export default function WarehouseDashboard() {
                                       </p>
                                     </div>
                                   ) : (
-                                    <div className="p-1.5 bg-gray-100 rounded border-l-2 border-gray-300">
-                                      <p className="text-xs text-gray-600">
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
+                                        ? 'bg-gray-700 border-gray-500' 
+                                        : 'bg-gray-100 border-gray-300'
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
                                         <span className="font-medium">Supply/Loading:</span> No recent activity
                                       </p>
                                     </div>
@@ -2447,14 +2477,16 @@ export default function WarehouseDashboard() {
                               </div>
                             ))}
                             {branch.tankDetails.length > 3 && (
-                              <div className="text-xs text-gray-500 text-center py-1">
+                              <div className={`text-xs text-center py-1 ${themeClasses.secondaryText}`}>
                                 +{branch.tankDetails.length - 3} more tanks
                               </div>
                             )}
                           </div>
 
                           {/* Summary Stats - Compact */}
-                          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+                          <div className={`flex flex-wrap gap-2 pt-2 border-t ${
+                            theme === 'night' ? 'border-gray-600' : 'border-gray-200'
+                          }`}>
                             {branch.recentlyUpdatedTanks > 0 && (
                               <div className="flex items-center gap-1">
                                 <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
