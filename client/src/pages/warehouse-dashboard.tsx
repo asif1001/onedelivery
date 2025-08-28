@@ -950,8 +950,9 @@ export default function WarehouseDashboard() {
           } else {
             // Only use legitimate manual adjustments
             lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
-            lastAdjustmentBy = tank.lastAdjustmentByUser;
-            lastAdjustmentRole = tank.lastAdjustmentByRole;
+            // Try multiple user name sources in order of preference
+            lastAdjustmentBy = tank.lastAdjustmentByUser || tank.lastUpdatedBy || tank.updatedBy || tank.lastAdjustmentBy;
+            lastAdjustmentRole = tank.lastAdjustmentByRole || tank.userRole;
             const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
             daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -2489,7 +2490,7 @@ export default function WarehouseDashboard() {
                                               {tank.lastAdjustmentRole === 'admin' ? '👑' : 
                                                tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
                                                tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
-                                              {tank.lastAdjustmentBy || 'Unknown'}
+                                              {tank.lastAdjustmentBy || tank.lastAdjustmentByUser || tank.lastUpdatedBy || tank.updatedBy || 'Unknown User'}
                                             </Badge>
                                           </div>
                                         ) : (
@@ -2510,7 +2511,7 @@ export default function WarehouseDashboard() {
                                             </span>
                                             <span className="text-gray-500">Driver:</span>
                                             <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50">
-                                              🚛{tank.lastMovementBy || 'Unknown'}
+                                              🚛{tank.lastMovementBy || tank.lastMovementByUser || tank.driverName || 'Unknown Driver'}
                                             </Badge>
                                           </div>
                                         ) : (
