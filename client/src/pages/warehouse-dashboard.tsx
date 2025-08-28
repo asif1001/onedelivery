@@ -2336,22 +2336,22 @@ export default function WarehouseDashboard() {
                                               {tank.currentLevel?.toLocaleString() || 0}L / {tank.capacity?.toLocaleString() || 0}L
                                             </div>
                                             
-                                            {/* Manual Update Info */}
+                                            {/* Manual Update Info - Exact format as branch dashboard */}
                                             {tank.lastAdjustment ? (
                                               <div className={`text-xs ${
                                                 (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
                                                 (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
                                                 (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
                                               }`}>
-                                                <div className="flex items-center gap-1 mb-1">
-                                                  <span className="font-medium">Last Manual Update:</span>
-                                                  <span>
+                                                <div className="mb-1">
+                                                  <div className="font-medium">Last Manual Update:</div>
+                                                  <div>
                                                     {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </span>
+                                                  </div>
                                                 </div>
                                                 {tank.lastAdjustmentBy && (
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500">Updated by:</span>
+                                                  <div className="mb-2">
+                                                    <div className="text-gray-500 mb-1">Updated by:</div>
                                                     <Badge variant="outline" className="text-xs px-1 py-0 h-4">
                                                       {tank.lastAdjustmentRole === 'admin' ? '👑' : 
                                                        tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
@@ -2362,24 +2362,24 @@ export default function WarehouseDashboard() {
                                                 )}
                                               </div>
                                             ) : (
-                                              <p className="text-xs text-red-600 font-medium">
-                                                <span className="font-medium">Last Manual Update:</span>
-                                                <span className="ml-1">Never updated</span>
-                                              </p>
+                                              <div className="text-xs text-red-600 font-medium mb-2">
+                                                <div className="font-medium">Last Manual Update:</div>
+                                                <div>Never updated</div>
+                                              </div>
                                             )}
                                             
-                                            {/* Movement Info */}
+                                            {/* Movement Info - Exact format as branch dashboard */}
                                             {tank.lastMovement && (
                                               <div className="text-xs text-blue-600">
-                                                <div className="flex items-center gap-1 mb-1">
-                                                  <span className="font-medium">Last Movement:</span>
-                                                  <span>
+                                                <div className="mb-1">
+                                                  <div className="font-medium">Last Movement:</div>
+                                                  <div>
                                                     {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </span>
+                                                  </div>
                                                 </div>
                                                 {tank.lastMovementBy && (
-                                                  <div className="flex items-center gap-1">
-                                                    <span className="text-gray-500">Driver:</span>
+                                                  <div>
+                                                    <div className="text-gray-500 mb-1">Driver:</div>
                                                     <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-blue-50">
                                                       🚛{tank.lastMovementBy}
                                                     </Badge>
