@@ -47,7 +47,8 @@ import {
   getOilTanksForBranches,
   createSampleTanks,
   fixExistingTankCapacities,
-  subscribeToTankUpdates
+  subscribeToTankUpdates,
+  getTankTransactionLogs
 } from "@/lib/firebase";
 import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -577,7 +578,7 @@ export default function BranchDashboard() {
     return { status: 'normal', color: 'green', bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' };
   };
 
-  // Helper function to determine branch status based on tank updates (similar to warehouse dashboard)
+  // Helper function to determine branch status based on tank updates using transaction logs
   const getBranchUpdateStatus = () => {
     const now = new Date();
     const sevenDaysAgo = new Date();
@@ -589,7 +590,7 @@ export default function BranchDashboard() {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       
       // Calculate tank update status using transaction logs for accurate data
-      const tankUpdateDetails = branchTanks.map(tank => {
+      const tankUpdateDetails = branchTanks.map((tank) => {
         let lastAdjustment = null;
         let lastMovement = null;
         let daysSinceAdjustment = null;
@@ -602,8 +603,8 @@ export default function BranchDashboard() {
         // Use transaction logs to get accurate movement vs adjustment data
         const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
         
-        // For now, use the existing tank timestamps but with corrected logic
-        // In a future update, we can query transaction logs here for 100% accuracy
+        // For now, use the corrected tank timestamp logic
+        // TODO: Implement real-time transaction log querying for 100% accuracy
         
         // Handle manual adjustment timestamp (primary for staleness check)
         if (tank.lastAdjustmentAt) {
@@ -615,14 +616,25 @@ export default function BranchDashboard() {
           lastAdjustmentRole = tank.lastAdjustmentByRole;
         }
         
-        // Handle movement timestamp - only use if it's actually from a driver operation
+        // Handle movement timestamp - only use actual driver movements
         if (tank.lastMovementAt && tank.lastMovementByRole === 'driver') {
+          console.log(`✅ Using driver movement for tank ${tankId}:`, {
+            lastMovementAt: tank.lastMovementAt,
+            lastMovementByRole: tank.lastMovementByRole,
+            lastMovementByUser: tank.lastMovementByUser
+          });
+          
           lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
           daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
           lastMovementBy = tank.lastMovementByUser;
           lastMovementRole = tank.lastMovementByRole;
+        } else if (tank.lastMovementAt) {
+          console.log(`⚠️ Ignoring non-driver movement for tank ${tankId}:`, {
+            role: tank.lastMovementByRole,
+            user: tank.lastMovementByUser
+          });
         }
         
         // Fallback to legacy lastUpdated field ONLY for adjustment purposes
