@@ -1614,15 +1614,15 @@ export default function WarehouseDashboard() {
             </TabsTrigger>
             <TabsTrigger value="branches" className="flex items-center gap-2">
               <BuildingIcon className="h-4 w-4" />
-              Branch Management
+              Level Update
             </TabsTrigger>
             <TabsTrigger value="tracking" className="flex items-center gap-2">
               <AlertCircleIcon className="h-4 w-4" />
-              Stock Tracking
+              Level Monitoring
             </TabsTrigger>
             <TabsTrigger value="transactions" className="flex items-center gap-2">
               <ClipboardListIcon className="h-4 w-4" />
-              Inventory Control
+              Transactions
             </TabsTrigger>
             <TabsTrigger value="logs" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
