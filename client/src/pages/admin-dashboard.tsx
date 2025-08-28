@@ -2105,7 +2105,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto lg:overflow-auto">
-          <div className="p-3 lg:p-6 min-h-full">
+          <div className={`${activeTab === 'tasks' || activeTab === 'complaints' ? 'p-2 lg:p-6' : 'p-3 lg:p-6'} min-h-full`}>
             {/* Overview Content */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
@@ -3076,21 +3076,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Tasks Management Section */}
       {activeTab === 'tasks' && (
-        <div className="space-y-6">
+        <div className="space-y-4 lg:space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Task Management</h2>
-              <p className="text-gray-600">Manage tasks, track progress, and handle assignments</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setActiveSection('dashboard')}
-                variant="outline"
-                size="sm"
-              >
-                <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                Back to Dashboard
-              </Button>
+              <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Task Management</h2>
+              <p className={`text-sm lg:text-base ${themeClasses.secondaryText}`}>Manage tasks, track progress, and handle assignments</p>
             </div>
           </div>
 
@@ -3240,21 +3230,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Complaints Management Section */}
       {activeTab === 'complaints' && (
-        <div className="space-y-6">
+        <div className="space-y-4 lg:space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-2xl font-bold">Complaint Management</h2>
-              <p className="text-gray-600">Manage complaints, track resolution status, and handle customer issues</p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => setActiveSection('dashboard')}
-                variant="outline"
-                size="sm"
-              >
-                <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                Back to Dashboard
-              </Button>
+              <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Complaint Management</h2>
+              <p className={`text-sm lg:text-base ${themeClasses.secondaryText}`}>Manage complaints, track resolution status, and handle customer issues</p>
             </div>
           </div>
 
