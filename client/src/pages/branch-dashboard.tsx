@@ -1018,14 +1018,14 @@ export default function BranchDashboard() {
       const gaugePhotoUrl = await uploadPhoto(watermarkedGaugePhoto, `tank-updates/${selectedTankForUpdate}/gauge-${Date.now()}`);
       const systemPhotoUrl = await uploadPhoto(watermarkedSystemPhoto, `tank-updates/${selectedTankForUpdate}/system-${Date.now()}`);
 
-      // Enhanced update data with concurrent handling
+      // Enhanced update data with concurrent handling (avoid undefined values)
       const updateData = {
         currentLevel: newLevel,
         lastUpdatedBy: currentUser.displayName || currentUser.email,
         notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
         systemScreenPhoto: systemPhotoUrl,
-        lastSeenUpdate: (selectedTank as any).lastAdjustmentAt,
+        lastSeenUpdate: (selectedTank as any).lastAdjustmentAt || null,
         expectedPreviousLevel: selectedTank.currentLevel,
         updateType: 'manual_with_photos',
         sessionId: `${currentUser.uid}_${Date.now()}`,

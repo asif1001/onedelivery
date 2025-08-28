@@ -3055,12 +3055,18 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
         }
       }
       
-      // Create updated tank data with version control
+      // Create updated tank data with version control (filter out undefined values)
       const updatedTanks = [...oilTanks];
       const now = new Date();
+      
+      // Filter out undefined values from updateData to prevent Firebase errors
+      const cleanUpdateData = Object.fromEntries(
+        Object.entries(updateData).filter(([_, value]) => value !== undefined)
+      );
+      
       updatedTanks[tankIndex] = {
         ...currentTankData,
-        ...updateData,
+        ...cleanUpdateData,
         lastUpdated: now,
         updateVersion: (currentTankData.updateVersion || 0) + 1,
         lastConflictCheck: now
