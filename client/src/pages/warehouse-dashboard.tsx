@@ -2314,44 +2314,52 @@ export default function WarehouseDashboard() {
                               <div className="space-y-2">
                                 {branch.tankDetails.map((tank, index) => {
                                   const percentage = Math.round(tank.percentage || 0);
-                                  const levelColor = percentage <= 5 ? 'bg-red-500' :
-                                                   percentage <= 25 ? 'bg-yellow-500' : 
-                                                   percentage >= 95 ? 'bg-blue-500' : 'bg-green-500';
                                   
-                                  const updateStatusColor = 
-                                    (tank.daysSinceAdjustment ?? 999) === 0 ? 'bg-green-50 border-green-200' :
-                                    (tank.daysSinceAdjustment ?? 999) <= 1 ? 'bg-green-50 border-green-200' :
-                                    (tank.daysSinceAdjustment ?? 999) <= 7 ? 'bg-yellow-50 border-yellow-200' : 
-                                    'bg-red-50 border-red-200';
+                                  // Determine status based on percentage like branch dashboard  
+                                  const levelStatus = percentage <= 5 ? 
+                                    { status: 'critical', label: 'Critical', color: 'red', bgColor: 'bg-red-50', borderColor: 'border-red-200', textColor: 'text-red-800' } :
+                                    percentage <= 25 ? 
+                                    { status: 'low', label: 'Low', color: 'yellow', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-200', textColor: 'text-yellow-800' } :
+                                    { status: 'normal', label: 'Normal', color: 'green', bgColor: 'bg-green-50', borderColor: 'border-green-200', textColor: 'text-green-800' };
+                                  
+                                  const progressBarColor = levelStatus.color === 'red' ? 'bg-red-500' :
+                                                          levelStatus.color === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
                                   
                                   return (
-                                    <div key={index} className={`p-3 rounded-lg border ${updateStatusColor}`}>
+                                    <div key={index} className={`p-2 sm:p-3 rounded-lg border ${levelStatus.bgColor} ${levelStatus.borderColor}`}>
                                       <div className="flex justify-between items-start mb-2">
                                         <div className="min-w-0 flex-1">
                                           <div className="flex items-center gap-2 mb-1">
                                             <p className="text-sm font-medium truncate">{tank.oilTypeName}</p>
+                                            <Badge 
+                                              variant={levelStatus.status === 'critical' ? 'destructive' : 
+                                                      levelStatus.status === 'low' ? 'secondary' : 'default'}
+                                              className="text-xs px-1 py-0"
+                                            >
+                                              {levelStatus.label}
+                                            </Badge>
                                           </div>
-                                          <div className="space-y-2 text-xs">
-                                            <div className="text-gray-600">
-                                              {tank.currentLevel?.toLocaleString() || 0}L / {tank.capacity?.toLocaleString() || 0}L
+                                          <div className="space-y-1 text-xs">
+                                            <div className="text-gray-600 space-y-1">
+                                              <div>Current Level: {tank.currentLevel?.toLocaleString() || 0}L</div>
+                                              <div>Capacity: {tank.capacity?.toLocaleString() || 0}L</div>
                                             </div>
                                             
-                                            {/* Manual Update Info - Exact format as branch dashboard */}
                                             {tank.lastAdjustment ? (
                                               <div className={`text-xs ${
                                                 (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
                                                 (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
                                                 (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
                                               }`}>
-                                                <div className="mb-1">
-                                                  <div className="font-medium">Last Manual Update:</div>
-                                                  <div>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                  <span className="font-medium">Last Manual Update:</span>
+                                                  <span>
                                                     {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </div>
+                                                  </span>
                                                 </div>
                                                 {tank.lastAdjustmentBy && (
-                                                  <div className="mb-2">
-                                                    <div className="text-gray-500 mb-1">Updated by:</div>
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500">Updated by:</span>
                                                     <Badge variant="outline" className="text-xs px-1 py-0 h-4">
                                                       {tank.lastAdjustmentRole === 'admin' ? '👑' : 
                                                        tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
@@ -2362,24 +2370,23 @@ export default function WarehouseDashboard() {
                                                 )}
                                               </div>
                                             ) : (
-                                              <div className="text-xs text-red-600 font-medium mb-2">
-                                                <div className="font-medium">Last Manual Update:</div>
-                                                <div>Never updated</div>
-                                              </div>
+                                              <p className="text-xs text-red-600 font-medium">
+                                                <span className="font-medium">Last Manual Update:</span>
+                                                <span className="ml-1">Never updated</span>
+                                              </p>
                                             )}
                                             
-                                            {/* Movement Info - Exact format as branch dashboard */}
                                             {tank.lastMovement && (
                                               <div className="text-xs text-blue-600">
-                                                <div className="mb-1">
-                                                  <div className="font-medium">Last Movement:</div>
-                                                  <div>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                  <span className="font-medium">Last Movement:</span>
+                                                  <span>
                                                     {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                                  </div>
+                                                  </span>
                                                 </div>
                                                 {tank.lastMovementBy && (
-                                                  <div>
-                                                    <div className="text-gray-500 mb-1">Driver:</div>
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500">Driver:</span>
                                                     <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-blue-50">
                                                       🚛{tank.lastMovementBy}
                                                     </Badge>
@@ -2395,11 +2402,12 @@ export default function WarehouseDashboard() {
                                         </div>
                                       </div>
                                       
-                                      {/* Tank Level Progress Bar */}
                                       <div className="w-full bg-gray-200 rounded-full h-2">
                                         <div 
-                                          className={`h-2 rounded-full transition-all duration-300 ${levelColor}`}
-                                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                                          className={`h-2 rounded-full transition-all duration-300 ${progressBarColor}`}
+                                          style={{ 
+                                            width: `${Math.min(percentage, 100)}%` 
+                                          }}
                                         />
                                       </div>
                                     </div>
