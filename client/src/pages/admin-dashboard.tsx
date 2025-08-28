@@ -289,6 +289,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   // Theme state
   const [theme, setTheme] = useState<'light' | 'night' | 'midday'>('light');
   
+  // Mobile menu state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
   // Date filter states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [csvStartDate, setCsvStartDate] = useState('');
@@ -1942,111 +1945,152 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           </div>
         </div>
 
-        {/* Mobile Navigation Tabs (shown on smaller screens) */}
-        <div className="lg:hidden w-full">
-          <div className={`${themeClasses.mobileNav} border-b px-4 py-2`}>
-            <div className="flex space-x-1 overflow-x-auto">
-              <button
-                onClick={() => setActiveTab('overview')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'overview' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab('drivers')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'drivers' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Users
-              </button>
-              <button
-                onClick={() => setActiveTab('branches')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'branches' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Branches
-              </button>
-              <button
-                onClick={() => setActiveTab('oil-types')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'oil-types' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Oil Types
-              </button>
-              <button
-                onClick={() => setActiveTab('recent-transactions')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'recent-transactions' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Transactions
-              </button>
-              <button
-                onClick={() => setActiveTab('logs-update')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'logs-update' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Logs
-              </button>
-              <button
-                onClick={() => setActiveTab('tasks')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'tasks' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Tasks
-              </button>
-              <button
-                onClick={() => setActiveTab('complaints')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'complaints' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Complaints
-              </button>
-              <button
-                onClick={() => setActiveTab('warehouse')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'warehouse' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Warehouse
-              </button>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap transition-all ${
-                  activeTab === 'settings' 
-                    ? 'bg-orange-100 text-orange-900' 
-                    : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                }`}
-              >
-                Settings
-              </button>
+        {/* Mobile Navigation Menu (shown on smaller screens) */}
+        <div className="lg:hidden w-full relative">
+          <div className={`${themeClasses.mobileNav} border-b px-4 py-3`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className={`p-2 rounded-md ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`}
+                  data-testid="mobile-menu-toggle"
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <span className={`ml-3 text-sm font-medium ${themeClasses.text}`}>
+                  {activeTab === 'overview' && 'Overview'}
+                  {activeTab === 'drivers' && 'Users'}
+                  {activeTab === 'branches' && 'Branches'} 
+                  {activeTab === 'oil-types' && 'Oil Types'}
+                  {activeTab === 'recent-transactions' && 'Transactions'}
+                  {activeTab === 'logs-update' && 'Logs'}
+                  {activeTab === 'tasks' && 'Tasks'}
+                  {activeTab === 'complaints' && 'Complaints'}
+                  {activeTab === 'warehouse' && 'Warehouse'}
+                  {activeTab === 'settings' && 'Settings'}
+                </span>
+              </div>
             </div>
+            
+            {/* Mobile Menu Dropdown */}
+            {isMobileMenuOpen && (
+              <div className={`absolute top-full left-0 right-0 ${themeClasses.card} border-t shadow-lg z-50`}>
+                <div className="py-2">
+                  <button
+                    onClick={() => { setActiveTab('overview'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'overview' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-overview"
+                  >
+                    📊 Overview
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('drivers'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'drivers' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-users"
+                  >
+                    👥 Users
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('branches'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'branches' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-branches"
+                  >
+                    🏢 Branches
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('oil-types'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'oil-types' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-oil-types"
+                  >
+                    💧 Oil Types
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('recent-transactions'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'recent-transactions' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-transactions"
+                  >
+                    📄 Transactions
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('logs-update'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'logs-update' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-logs"
+                  >
+                    🕐 Logs
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('tasks'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'tasks' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-tasks"
+                  >
+                    📋 Tasks
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('complaints'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'complaints' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-complaints"
+                  >
+                    ⚠️ Complaints
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('warehouse'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'warehouse' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-warehouse"
+                  >
+                    📦 Warehouse
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('settings'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'settings' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-settings"
+                  >
+                    ⚙️ Settings
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
