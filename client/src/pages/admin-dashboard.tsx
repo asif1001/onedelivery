@@ -1946,12 +1946,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
 
         {/* Mobile Navigation Menu (shown on smaller screens) */}
-        <div className="lg:hidden w-full relative">
-          <div className={`${themeClasses.mobileNav} border-b px-4 py-3`}>
+        <div className="lg:hidden w-full">
+          <div className={`${themeClasses.mobileNav} border-b px-4 py-3 relative`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  onClick={() => {
+                    console.log('Mobile menu toggle clicked, current state:', isMobileMenuOpen);
+                    setIsMobileMenuOpen(!isMobileMenuOpen);
+                  }}
                   className={`p-2 rounded-md ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`}
                   data-testid="mobile-menu-toggle"
                 >
@@ -1976,7 +1979,14 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             
             {/* Mobile Menu Dropdown */}
             {isMobileMenuOpen && (
-              <div className={`absolute top-full left-0 right-0 ${themeClasses.card} border-t shadow-lg z-50`}>
+              <div 
+                className={`absolute top-full left-0 right-0 ${theme === 'night' ? 'bg-gray-800 border-gray-700' : theme === 'midday' ? 'bg-white border-blue-200' : 'bg-white border-gray-200'} border shadow-xl z-[100]`}
+                style={{ 
+                  minHeight: '300px',
+                  maxHeight: '400px',
+                  overflow: 'auto'
+                }}
+              >
                 <div className="py-2">
                   <button
                     onClick={() => { setActiveTab('overview'); setIsMobileMenuOpen(false); }}
