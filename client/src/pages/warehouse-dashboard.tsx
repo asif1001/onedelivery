@@ -1012,49 +1012,45 @@ export default function WarehouseDashboard() {
           }
         }
         
-        // Handle movement timestamp from transaction logs (for actual driver movements)
-        if (tank.lastMovementAt) {
-          // First check tank fields, but filter out non-driver movements
-          const movementUser = tank.lastMovementByUser;
-          const movementRole = tank.lastMovementByRole;
+        // Handle movement timestamp - STRICT FILTERING: only use actual driver movements
+        if (tank.lastMovementAt && tank.lastMovementByRole === 'driver') {
+          lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
+          lastMovementBy = tank.lastMovementByUser;
+          lastMovementRole = tank.lastMovementByRole;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
           
-          // Only use movements from actual drivers, not warehouse/admin users
-          if (movementRole === 'driver' || (!movementRole && !['Renga', 'warehouse@gmail.com', 'renga@ekkanoo.com.bh'].includes(movementUser))) {
-            lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
-            lastMovementBy = movementUser;
-            lastMovementRole = movementRole || 'driver';
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
-            daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            console.log(`🚛 WAREHOUSE: Using driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-              date: lastMovement.toLocaleString(),
-              driver: lastMovementBy,
-              daysSince: daysSinceMovement
-            });
-          } else {
-            console.log(`⚠️ WAREHOUSE: Ignoring non-driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-              role: movementRole,
-              user: movementUser
-            });
-          }
+          console.log(`🚛 WAREHOUSE: Using driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+            date: lastMovement.toLocaleString(),
+            driver: lastMovementBy,
+            daysSince: daysSinceMovement
+          });
+        } else if (tank.lastMovementAt) {
+          console.log(`⚠️ WAREHOUSE: Ignoring non-driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+            role: tank.lastMovementByRole,
+            user: tank.lastMovementByUser
+          });
         }
         
         // If no movement from tank fields, try to get from transaction logs
+        // BUT ONLY if we have a specific tank ID match and confirmed driver role
         if (!lastMovement) {
-          // Get the tank ID in the format expected by transaction logs
           const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
           const tankTransactions = transactionData.filter(t => 
-            (t.tankId === tankId || t.branchId === tank.branchId) && 
+            t.branchId === tank.branchId && 
+            t.oilTypeId === tank.oilTypeId &&
             (t.type === 'loading' || t.type === 'supply' || t.type === 'delivery') &&
-            t.driverName
+            t.driverName && // Must have driver name
+            // Additional validation: exclude generic "Driver" names that might be placeholders
+            t.driverName !== 'Driver' && t.driverName !== 'Unknown Driver'
           );
           
           if (tankTransactions.length > 0) {
-            // Get the most recent driver transaction
+            // Get the most recent confirmed driver transaction
             const recentTransaction = tankTransactions.sort((a, b) => {
-              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
-              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
+              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.createdAt);
+              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.createdAt);
               return dateB.getTime() - dateA.getTime();
             })[0];
             
@@ -1065,18 +1061,21 @@ export default function WarehouseDashboard() {
                 new Date(recentTransaction.timestamp || recentTransaction.createdAt);
             
             lastMovement = transactionDate;
-            lastMovementBy = recentTransaction.driverName || recentTransaction.driver || 'Driver';
+            lastMovementBy = recentTransaction.driverName;
             lastMovementRole = 'driver';
             const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
             daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
             
-            console.log(`🚛 WAREHOUSE: Found transaction for tank ${tankId}:`, {
+            console.log(`🚛 WAREHOUSE: Found confirmed driver transaction for tank ${tankId}:`, {
               date: lastMovement.toLocaleString(),
               driver: lastMovementBy,
               type: recentTransaction.type,
-              daysSince: daysSinceMovement
+              daysSince: daysSinceMovement,
+              oilType: tank.oilTypeName
             });
+          } else {
+            console.log(`ℹ️ WAREHOUSE: No confirmed driver movements found for tank ${tankId} (${tank.oilTypeName})`);
           }
         }
         
