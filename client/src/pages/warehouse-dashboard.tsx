@@ -1610,15 +1610,15 @@ export default function WarehouseDashboard() {
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <TrendingUpIcon className="h-4 w-4" />
-              Overview Stats
+              Overview
             </TabsTrigger>
             <TabsTrigger value="branches" className="flex items-center gap-2">
               <BuildingIcon className="h-4 w-4" />
-              Level Update
+              Stock Update
             </TabsTrigger>
             <TabsTrigger value="tracking" className="flex items-center gap-2">
               <AlertCircleIcon className="h-4 w-4" />
-              Level Monitoring
+              Monitoring
             </TabsTrigger>
             <TabsTrigger value="transactions" className="flex items-center gap-2">
               <ClipboardListIcon className="h-4 w-4" />
