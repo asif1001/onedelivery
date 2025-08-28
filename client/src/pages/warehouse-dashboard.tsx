@@ -952,14 +952,66 @@ export default function WarehouseDashboard() {
           }
         }
         
-        // Handle movement timestamp (for transaction history)
+        // Handle movement timestamp from transaction logs (for actual driver movements)
         if (tank.lastMovementAt) {
-          lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
-          lastMovementBy = tank.lastMovementByUser;
-          lastMovementRole = tank.lastMovementByRole;
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
-          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+          // First check tank fields, but filter out non-driver movements
+          const movementUser = tank.lastMovementByUser;
+          const movementRole = tank.lastMovementByRole;
+          
+          // Only use movements from actual drivers, not warehouse/admin users
+          if (movementRole === 'driver' || (!movementRole && !['Renga', 'warehouse@gmail.com', 'renga@ekkanoo.com.bh'].includes(movementUser))) {
+            lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
+            lastMovementBy = movementUser;
+            lastMovementRole = movementRole || 'driver';
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+            daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`🚛 WAREHOUSE: Using driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+              date: lastMovement.toLocaleString(),
+              driver: lastMovementBy,
+              daysSince: daysSinceMovement
+            });
+          } else {
+            console.log(`⚠️ WAREHOUSE: Ignoring non-driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
+              role: movementRole,
+              user: movementUser
+            });
+          }
+        }
+        
+        // If no movement from tank fields, try to get from transaction logs
+        if (!lastMovement) {
+          // Get the tank ID in the format expected by transaction logs
+          const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
+          const tankTransactions = allTransactions.filter(t => 
+            t.tankId === tankId && 
+            t.lastMovementByRole === 'driver' &&
+            (t.operationType === 'LOAD' || t.operationType === 'SUPPLY_LOOSE' || t.operationType === 'SUPPLY_DRUM')
+          );
+          
+          if (tankTransactions.length > 0) {
+            // Get the most recent driver transaction
+            const recentTransaction = tankTransactions.sort((a, b) => {
+              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp);
+              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp);
+              return dateB.getTime() - dateA.getTime();
+            })[0];
+            
+            lastMovement = recentTransaction.timestamp?.toDate ? recentTransaction.timestamp.toDate() : new Date(recentTransaction.timestamp);
+            lastMovementBy = recentTransaction.lastMovementByUser || recentTransaction.driver;
+            lastMovementRole = 'driver';
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+            daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`🚛 WAREHOUSE: Found transaction for tank ${tankId}:`, {
+              date: lastMovement.toLocaleString(),
+              driver: lastMovementBy,
+              type: recentTransaction.operationType,
+              daysSince: daysSinceMovement
+            });
+          }
         }
         
         // Fallback to tank update logs for backward compatibility
