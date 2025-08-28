@@ -758,6 +758,60 @@ export const updateUserNameCascading = async (userId: string, newDisplayName: st
   }
 };
 
+// Get transaction logs for movement analysis
+export const getTankTransactionLogs = async (tankId: string, limit: number = 20) => {
+  try {
+    const logsRef = collection(db, 'tankUpdateLogs');
+    const q = query(
+      logsRef,
+      where('tankId', '==', tankId),
+      orderBy('updatedAt', 'desc'),
+      limitQuery(limit)
+    );
+    
+    const snapshot = await getDocs(q);
+    const logs = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        ...data,
+        id: doc.id,
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)
+      };
+    });
+    
+    console.log(`📋 Retrieved ${logs.length} transaction logs for tank ${tankId}`);
+    
+    // Filter for actual driver movements vs manual adjustments
+    const driverMovements = logs.filter(log => 
+      log.movementType && ['LOAD', 'SUPPLY_LOOSE', 'SUPPLY_DRUM'].includes(log.movementType)
+    );
+    const manualAdjustments = logs.filter(log => 
+      log.movementType && ['ADJUST_BRANCH', 'ADJUST_WAREHOUSE', 'ADJUST_ADMIN'].includes(log.movementType) ||
+      log.isManualAdjustment === true ||
+      log.updateType === 'manual' || log.updateType === 'manual_with_photos'
+    );
+    
+    console.log(`📊 Tank ${tankId} analysis:`, {
+      totalLogs: logs.length,
+      driverMovements: driverMovements.length,
+      manualAdjustments: manualAdjustments.length,
+      lastMovement: driverMovements[0] || null,
+      lastAdjustment: manualAdjustments[0] || null
+    });
+    
+    return {
+      allLogs: logs,
+      driverMovements,
+      manualAdjustments,
+      lastMovement: driverMovements[0] || null,
+      lastAdjustment: manualAdjustments[0] || null
+    };
+  } catch (error) {
+    console.error('Error getting tank transaction logs:', error);
+    return { allLogs: [], driverMovements: [], manualAdjustments: [], lastMovement: null, lastAdjustment: null };
+  }
+};
+
 /**
  * BRANCH AND TANK ACTIVATION/DEACTIVATION FUNCTIONS
  * These functions manage active/inactive status for branches and individual tanks
@@ -3068,19 +3122,33 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
       const now = new Date();
       const updatedBy = updateData.lastUpdatedBy || updateData.updatedBy || 'Unknown';
       
-      // Only driver operations get movement timestamps
-      const movementFields = !isManualAdjustment ? {
+      // Classify operation and update appropriate timestamps ONLY
+      const movementTypes = ['LOAD', 'SUPPLY_LOOSE', 'SUPPLY_DRUM'];
+      const isDriverMovement = movementTypes.includes(movementType);
+      
+      // Only actual driver movements get movement timestamps
+      const movementFields = isDriverMovement ? {
         lastMovementAt: now,
         lastMovementByUser: updatedBy,
         lastMovementByRole: userRole
       } : {};
       
-      // Only manual adjustments get adjustment timestamps
+      // Only manual adjustments get adjustment timestamps  
       const adjustmentFields = isManualAdjustment ? {
         lastAdjustmentAt: now,
         lastAdjustmentByUser: updatedBy,
         lastAdjustmentByRole: userRole
       } : {};
+      
+      console.log('🔍 TIMESTAMP CLASSIFICATION:', {
+        movementType,
+        isDriverMovement,
+        isManualAdjustment,
+        updatedBy,
+        userRole,
+        willUpdateMovement: isDriverMovement,
+        willUpdateAdjustment: isManualAdjustment
+      });
       
       updatedTanks[tankIndex] = {
         ...currentTankData,

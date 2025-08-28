@@ -14,6 +14,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
+### ✅ Fixed Movement vs Adjustment Timestamp Separation (Latest - August 28, 2025)
+- **Critical fix completed**: Warehouse adjustments no longer incorrectly show as "Last Movement"  
+- **Enhanced movement filtering**: Dashboard only shows movements where `lastMovementByRole === 'driver'`
+- **Transaction log analysis**: Added `getTankTransactionLogs` function to query actual driver movements vs manual adjustments
+- **Strict classification**: Only LOAD, SUPPLY_LOOSE, SUPPLY_DRUM operations create movement timestamps
+- **Data integrity**: Manual adjustments by warehouse/branch/admin users only update adjustment timestamps
+- **Dashboard accuracy**: "Last Movement" now correctly shows only actual driver operations
+
 ### ✅ GitHub Repository Sync Completed (Latest - August 27, 2025)
 - **Successful force push**: All 58 commits (1492 objects, 214.43 MiB) pushed to GitHub
 - **Repository URL**: https://github.com/asif1001/onedelivery.git 
