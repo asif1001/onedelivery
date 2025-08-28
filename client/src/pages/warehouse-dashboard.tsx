@@ -227,8 +227,7 @@ export default function WarehouseDashboard() {
           )).then(snapshot => 
             snapshot.docs.map(doc => ({ 
               id: doc.id, 
-              ...doc.data(), 
-              driverName: 'Driver' 
+              ...doc.data()
             }))
           ).catch(() => []);
           
@@ -912,7 +911,14 @@ export default function WarehouseDashboard() {
           lastSupplyLoading = lastTransaction.createdAt instanceof Date ? lastTransaction.createdAt : 
                              (lastTransaction as any).timestamp?.toDate ? (lastTransaction as any).timestamp.toDate() : 
                              new Date((lastTransaction as any).timestamp || lastTransaction.createdAt);
-          lastSupplyLoadingBy = lastTransaction.driverName || (lastTransaction as any).reporterName || 'System';
+          // Get driver name using the same logic as the transaction display
+          const driver = drivers.find(d => d.uid === lastTransaction.driverUid || d.id === lastTransaction.driverUid);
+          lastSupplyLoadingBy = driver ? (driver.displayName || driver.email) : 
+                               lastTransaction.driverName || 
+                               lastTransaction.driverDisplayName ||
+                               (lastTransaction as any).reportedByName ||
+                               (lastTransaction as any).reporterName || 
+                               'System';
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
           daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
