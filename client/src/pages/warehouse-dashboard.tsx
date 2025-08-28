@@ -863,38 +863,71 @@ export default function WarehouseDashboard() {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
 
-      // Get detailed tank update status
+      // Get detailed tank update status with dual tracking (manual + supply/loading)
       const tankUpdateDetails = branchTanks.map(tank => {
-        // Find the most recent update for this specific tank
+        // Manual Updates from tankUpdateLogs collection
         const tankLogs = branchLogs.filter(log => 
-          log.oilTypeName === tank.oilTypeName && log.branchName === branch.name
-        );
+          log.oilTypeName === tank.oilTypeName && log.branchName === branch.name &&
+          (log.tankId === tank.id || log.tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`)
+        ).sort((a, b) => {
+          const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+          const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
 
-        let lastUpdate = null;
-        let lastUpdateBy = null;
-        let daysSinceUpdate = null;
+        let lastManualUpdate = null;
+        let lastManualUpdateBy = null;
+        let daysSinceManualUpdate = null;
         
         if (tankLogs.length > 0) {
-          const mostRecentLog = tankLogs.reduce((latest, current) => {
-            const currentDate = current.updatedAt?.toDate ? current.updatedAt.toDate() : new Date(current.updatedAt);
-            const latestDate = latest.updatedAt?.toDate ? latest.updatedAt.toDate() : new Date(latest.updatedAt);
-            return currentDate > latestDate ? current : latest;
-          });
-          lastUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
-          lastUpdateBy = mostRecentLog.updatedBy;
-          // Calculate calendar days difference (not 24-hour periods)
+          const mostRecentLog = tankLogs[0];
+          lastManualUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
+          lastManualUpdateBy = mostRecentLog.updatedBy;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
+          daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Supply/Loading from transactions collection
+        const tankTransactions = recentTransactions.filter(transaction => 
+          transaction.branchId === branch.id && 
+          transaction.oilTypeName === tank.oilTypeName && 
+          (transaction.type === 'supply' || transaction.type === 'loading')
+        ).sort((a, b) => {
+          const dateA = a.createdAt instanceof Date ? a.createdAt : 
+                       (a as any).timestamp?.toDate ? (a as any).timestamp.toDate() : 
+                       new Date((a as any).timestamp || a.createdAt || 0);
+          const dateB = b.createdAt instanceof Date ? b.createdAt : 
+                       (b as any).timestamp?.toDate ? (b as any).timestamp.toDate() : 
+                       new Date((b as any).timestamp || b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
+        let lastSupplyLoading = null;
+        let lastSupplyLoadingBy = null;
+        let daysSinceSupplyLoading = null;
+        
+        if (tankTransactions.length > 0) {
+          const lastTransaction = tankTransactions[0];
+          lastSupplyLoading = lastTransaction.createdAt instanceof Date ? lastTransaction.createdAt : 
+                             (lastTransaction as any).timestamp?.toDate ? (lastTransaction as any).timestamp.toDate() : 
+                             new Date((lastTransaction as any).timestamp || lastTransaction.createdAt);
+          lastSupplyLoadingBy = lastTransaction.driverName || (lastTransaction as any).reporterName || 'System';
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
+          daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Use manual update for overall status calculation (legacy compatibility)
+        let lastUpdate = lastManualUpdate;
+        let lastUpdateBy = lastManualUpdateBy;
+        let daysSinceUpdate = daysSinceManualUpdate;
+        
+        if (!lastUpdate && tank.lastUpdated) {
+          lastUpdate = new Date(tank.lastUpdated);
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
           daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-        } else {
-          // Check tank's lastUpdated field if no logs found
-          if (tank.lastUpdated) {
-            lastUpdate = new Date(tank.lastUpdated);
-            // Calculate calendar days difference (not 24-hour periods)
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
         }
 
         // Determine tank update status
@@ -914,7 +947,14 @@ export default function WarehouseDashboard() {
           lastUpdateBy,
           daysSinceUpdate,
           updateStatus,
-          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1)
+          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1),
+          // Dual tracking data
+          lastManualUpdate,
+          lastManualUpdateBy,
+          daysSinceManualUpdate,
+          lastSupplyLoading,
+          lastSupplyLoadingBy,
+          daysSinceSupplyLoading
         };
       });
 
@@ -2245,37 +2285,72 @@ export default function WarehouseDashboard() {
                             </div>
                           </div>
 
-                          {/* Tank Level Details - Compact */}
-                          <div className="space-y-1">
+                          {/* Tank Level Details with Dual Tracking */}
+                          <div className="space-y-2">
                             {branch.tankDetails.slice(0, 3).map((tank) => (
-                              <div key={tank.tankId} className="flex items-center justify-between p-1.5 bg-gray-50 rounded text-xs">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <div
-                                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                      tank.updateStatus === 'recent' ? 'bg-green-500' :
-                                      tank.updateStatus === 'stale' ? 'bg-yellow-500' :
-                                      tank.updateStatus === 'old' ? 'bg-orange-500' :
-                                      'bg-red-500'
-                                    }`}
-                                    title={
-                                      tank.updateStatus === 'recent' ? 'Updated within 24 hours' :
-                                      tank.updateStatus === 'stale' ? 'Updated 1-7 days ago' :
-                                      tank.updateStatus === 'old' ? 'Updated over 7 days ago' :
-                                      'Never updated'
-                                    }
-                                  />
-                                  <span className="font-medium text-gray-700 truncate" title={tank.oilTypeName}>
-                                    {tank.oilTypeName}
-                                  </span>
+                              <div key={tank.tankId} className="p-2 bg-gray-50 rounded text-xs space-y-2">
+                                {/* Tank Header */}
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <div
+                                      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                        tank.updateStatus === 'recent' ? 'bg-green-500' :
+                                        tank.updateStatus === 'stale' ? 'bg-yellow-500' :
+                                        tank.updateStatus === 'old' ? 'bg-orange-500' :
+                                        'bg-red-500'
+                                      }`}
+                                      title={
+                                        tank.updateStatus === 'recent' ? 'Updated within 24 hours' :
+                                        tank.updateStatus === 'stale' ? 'Updated 1-7 days ago' :
+                                        tank.updateStatus === 'old' ? 'Updated over 7 days ago' :
+                                        'Never updated'
+                                      }
+                                    />
+                                    <span className="font-medium text-gray-700 truncate" title={tank.oilTypeName}>
+                                      {tank.oilTypeName}
+                                    </span>
+                                  </div>
+                                  <div className="text-right flex-shrink-0">
+                                    <div className="text-xs text-gray-600 font-medium">{tank.percentage}%</div>
+                                  </div>
                                 </div>
-                                <div className="text-right flex-shrink-0">
-                                  <div className="text-xs text-gray-600">{tank.percentage}%</div>
-                                  {tank.lastUpdate ? (
-                                    <div className="text-xs text-gray-400">
-                                      {tank.daysSinceUpdate === 0 ? 'Today' : `${tank.daysSinceUpdate}d`}
+
+                                {/* Dual Tracking Information - Compact Single Lines */}
+                                <div className="space-y-1">
+                                  {/* Last Manual Update */}
+                                  {tank.lastManualUpdate ? (
+                                    <div className="p-1.5 bg-blue-50 rounded border-l-2 border-blue-300">
+                                      <p className="text-xs text-blue-800">
+                                        <span className="font-medium">Manual:</span>{' '}
+                                        {tank.daysSinceManualUpdate === 0 ? 'Today' :
+                                         tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
+                                         `${tank.daysSinceManualUpdate}d ago`} by {tank.lastManualUpdateBy}
+                                      </p>
                                     </div>
                                   ) : (
-                                    <div className="text-xs text-red-500">Not updated</div>
+                                    <div className="p-1.5 bg-gray-100 rounded border-l-2 border-gray-300">
+                                      <p className="text-xs text-gray-600">
+                                        <span className="font-medium">Manual:</span> Never updated
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Last Supply/Loading */}
+                                  {tank.lastSupplyLoading ? (
+                                    <div className="p-1.5 bg-orange-50 rounded border-l-2 border-orange-300">
+                                      <p className="text-xs text-orange-800">
+                                        <span className="font-medium">Supply/Loading:</span>{' '}
+                                        {tank.daysSinceSupplyLoading === 0 ? 'Today' :
+                                         tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
+                                         `${tank.daysSinceSupplyLoading}d ago`} by {tank.lastSupplyLoadingBy}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className="p-1.5 bg-gray-100 rounded border-l-2 border-gray-300">
+                                      <p className="text-xs text-gray-600">
+                                        <span className="font-medium">Supply/Loading:</span> No recent activity
+                                      </p>
+                                    </div>
                                   )}
                                 </div>
                               </div>
