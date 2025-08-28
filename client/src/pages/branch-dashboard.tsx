@@ -560,6 +560,75 @@ export default function BranchDashboard() {
     }
   };
 
+  // Helper function to determine tank level status based on current level vs capacity
+  const getTankLevelStatus = (currentLevel: number, capacity: number) => {
+    const percentage = (currentLevel / capacity) * 100;
+    if (percentage < 20) return { status: 'critical', color: 'red', bgColor: 'bg-red-50', textColor: 'text-red-700', borderColor: 'border-red-200' };
+    if (percentage < 50) return { status: 'low', color: 'yellow', bgColor: 'bg-yellow-50', textColor: 'text-yellow-700', borderColor: 'border-yellow-200' };
+    return { status: 'normal', color: 'green', bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' };
+  };
+
+  // Helper function to determine branch status based on tank updates (similar to warehouse dashboard)
+  const getBranchUpdateStatus = () => {
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    return branches.map(branch => {
+      const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
+      
+      // Calculate tank update status
+      const tankUpdateDetails = branchTanks.map(tank => {
+        let lastUpdate = null;
+        let daysSinceUpdate = null;
+        
+        if (tank.lastUpdatedBy && tank.lastUpdated) {
+          lastUpdate = new Date(tank.lastUpdated);
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Determine tank update status
+        let updateStatus = 'never';
+        if (lastUpdate) {
+          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
+          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
+          else updateStatus = 'old';
+        }
+
+        return {
+          ...tank,
+          lastUpdate,
+          daysSinceUpdate,
+          updateStatus,
+          levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1)
+        };
+      });
+
+      // Determine overall branch status
+      const outdatedTanks = tankUpdateDetails.filter(tank => tank.updateStatus === 'old' || tank.updateStatus === 'never');
+      const upToDateTanks = tankUpdateDetails.filter(tank => tank.updateStatus === 'recent');
+      
+      let branchStatus = 'up-to-date';
+      if (outdatedTanks.length === tankUpdateDetails.length) {
+        branchStatus = 'needs-attention'; // All tanks outdated
+      } else if (outdatedTanks.length > 0) {
+        branchStatus = 'partially-updated'; // Some tanks outdated
+      }
+
+      return {
+        ...branch,
+        tankUpdateDetails,
+        status: branchStatus,
+        outdatedTanks: outdatedTanks.length,
+        totalTanks: tankUpdateDetails.length
+      };
+    });
+  };
+
   // Photo capture functions (same as oil supply process)
   const capturePhoto = (inputId: string, setPhoto: (file: File | null) => void, useCamera: boolean = false) => {
     const input = document.getElementById(inputId) as HTMLInputElement;
@@ -1269,16 +1338,43 @@ export default function BranchDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                {branches.map((branch) => {
-                  const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
+                {getBranchUpdateStatus().map((branch) => {
+                  // Determine branch styling based on update status
+                  let branchCardClass = 'hover:shadow-lg transition-shadow';
+                  let headerTextColor = 'text-gray-900';
+                  let statusBadge = null;
+                  
+                  if (branch.status === 'needs-attention') {
+                    branchCardClass = 'bg-red-50 border-red-400 shadow-red-100 hover:shadow-red-200 transition-shadow';
+                    headerTextColor = 'text-red-800';
+                    statusBadge = (
+                      <Badge variant="destructive" className="text-xs">
+                        Needs Attention ({branch.outdatedTanks} tanks)
+                      </Badge>
+                    );
+                  } else if (branch.status === 'partially-updated') {
+                    branchCardClass = 'bg-yellow-50 border-yellow-400 shadow-yellow-100 hover:shadow-yellow-200 transition-shadow';
+                    headerTextColor = 'text-yellow-800';
+                    statusBadge = (
+                      <Badge variant="secondary" className="text-xs">
+                        Partially Updated ({branch.outdatedTanks} tanks)
+                      </Badge>
+                    );
+                  } else {
+                    statusBadge = (
+                      <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                        Up to Date
+                      </Badge>
+                    );
+                  }
                   
                   return (
-                    <Card key={branch.id} className="hover:shadow-lg transition-shadow">
+                    <Card key={branch.id} className={branchCardClass}>
                       <CardHeader className="pb-3">
                         <div className="flex justify-between items-start">
                           <div className="min-w-0 flex-1">
-                            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                              <MapPinIcon className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 flex-shrink-0" />
+                            <CardTitle className={`flex items-center gap-2 text-base sm:text-lg ${headerTextColor}`}>
+                              <MapPinIcon className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
                               <span className="truncate">{branch.name}</span>
                             </CardTitle>
                             <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">{branch.location}</p>
@@ -1288,42 +1384,72 @@ export default function BranchDashboard() {
                                 <span className="truncate">{branch.contactNo}</span>
                               </p>
                             )}
+                            <div className="mt-2">
+                              {statusBadge}
+                            </div>
                           </div>
                         </div>
                       </CardHeader>
                       <CardContent className="pt-0">
                         <div className="space-y-3">
-                          <h4 className="font-medium text-sm">Oil Tanks ({branchTanks.length})</h4>
-                          {branchTanks.length > 0 ? (
+                          <h4 className="font-medium text-sm">Oil Tanks ({branch.tankUpdateDetails.length})</h4>
+                          {branch.tankUpdateDetails.length > 0 ? (
                             <div className="space-y-2">
-                              {branchTanks.map((tank, index) => (
-                                <div key={index} className="p-2 sm:p-3 bg-gray-50 rounded-lg">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <div className="min-w-0 flex-1">
-                                      <p className="text-sm font-medium truncate">{tank.oilTypeName}</p>
-                                      <p className="text-xs text-gray-600">
-                                        Current Level: {tank.currentLevel?.toLocaleString() || '0'}L
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        Capacity: {tank.capacity?.toLocaleString() || '0'}L
-                                      </p>
+                              {branch.tankUpdateDetails.map((tank, index) => {
+                                const percentage = Math.round(((tank.currentLevel || 0) / (tank.capacity || 1)) * 100);
+                                const progressBarColor = tank.levelStatus.color === 'red' ? 'bg-red-500' :
+                                                        tank.levelStatus.color === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
+                                
+                                return (
+                                  <div key={index} className={`p-2 sm:p-3 rounded-lg border ${tank.levelStatus.bgColor} ${tank.levelStatus.borderColor}`}>
+                                    <div className="flex justify-between items-start mb-2">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="text-sm font-medium truncate">{tank.oilTypeName}</p>
+                                          <Badge 
+                                            variant={tank.levelStatus.status === 'critical' ? 'destructive' : 
+                                                    tank.levelStatus.status === 'low' ? 'secondary' : 'default'}
+                                            className="text-xs px-1 py-0"
+                                          >
+                                            {tank.levelStatus.status === 'critical' ? 'Critical' :
+                                             tank.levelStatus.status === 'low' ? 'Low' : 'Normal'}
+                                          </Badge>
+                                        </div>
+                                        <p className="text-xs text-gray-600">
+                                          Current Level: {tank.currentLevel?.toLocaleString() || '0'}L
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          Capacity: {tank.capacity?.toLocaleString() || '0'}L
+                                        </p>
+                                        {tank.daysSinceUpdate !== null && (
+                                          <p className={`text-xs mt-1 ${
+                                            tank.updateStatus === 'old' || tank.updateStatus === 'never' ? 'text-red-600 font-medium' :
+                                            tank.updateStatus === 'stale' ? 'text-yellow-600' : 'text-green-600'
+                                          }`}>
+                                            {tank.updateStatus === 'never' ? 'Never updated' :
+                                             tank.daysSinceUpdate === 0 ? 'Updated today' :
+                                             tank.daysSinceUpdate === 1 ? 'Updated yesterday' :
+                                             `Updated ${tank.daysSinceUpdate} days ago`}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <div className="text-right ml-2">
+                                        <p className={`text-xs mb-1 font-medium ${tank.levelStatus.textColor}`}>
+                                          {percentage}%
+                                        </p>
+                                      </div>
                                     </div>
-                                    <div className="text-right ml-2">
-                                      <p className="text-xs text-gray-600 mb-1">
-                                        {Math.round(((tank.currentLevel || 0) / (tank.capacity || 1)) * 100)}%
-                                      </p>
+                                    <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full rounded-full transition-all ${progressBarColor}`}
+                                        style={{ 
+                                          width: `${Math.min(percentage, 100)}%` 
+                                        }}
+                                      />
                                     </div>
                                   </div>
-                                  <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div 
-                                      className="h-full bg-blue-500 rounded-full transition-all"
-                                      style={{ 
-                                        width: `${Math.min(((tank.currentLevel || 0) / (tank.capacity || 1)) * 100, 100)}%` 
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-center py-4">
