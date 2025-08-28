@@ -49,7 +49,7 @@ import {
   fixExistingTankCapacities,
   subscribeToTankUpdates
 } from "@/lib/firebase";
-import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // Helper function to add watermarks to File objects
@@ -201,6 +201,21 @@ interface Complaint {
   createdBy: string;
 }
 
+interface UpdateLog {
+  id: string;
+  branchName: string;
+  oilTypeName: string;
+  oldLevel: number;
+  newLevel: number;
+  updatedBy: string;
+  updatedAt: any;
+  notes?: string;
+  reason?: string;
+  photos?: Record<string, string>;
+  branchId?: string;
+  tankId?: string;
+}
+
 export default function BranchDashboard() {
   // Get current user from localStorage (matching the authentication system)
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -208,6 +223,7 @@ export default function BranchDashboard() {
   const [oilTypes, setOilTypes] = useState<OilType[]>([]);
   const [oilTanks, setOilTanks] = useState<OilTank[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [loading, setLoading] = useState(true);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
@@ -373,11 +389,19 @@ export default function BranchDashboard() {
       console.log('📊 Loading data for branches:', currentUser.branchIds);
       
       // PERFORMANCE OPTIMIZATION: Load all data in parallel instead of sequentially
-      const [allBranches, allOilTypes, allTransactions, allComplaints] = await Promise.all([
+      const [allBranches, allOilTypes, allTransactions, allComplaints, allUpdateLogs] = await Promise.all([
         getActiveBranchesOnly(),
         getAllOilTypes(),
         getAllTransactions(),
-        getAllComplaints()
+        getAllComplaints(),
+        // Fetch update logs from tankUpdateLogs collection
+        getDocs(query(
+          collection(db, 'tankUpdateLogs'),
+          orderBy('updatedAt', 'desc'),
+          limit(50)
+        )).then(snapshot => 
+          snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpdateLog))
+        ).catch(() => [])
       ]);
 
       // Filter branches for current user
@@ -442,11 +466,17 @@ export default function BranchDashboard() {
           createdBy: complaint.createdBy || 'Unknown'
         }));
 
+      // Process and filter update logs for current user's branches
+      const branchUpdateLogs = allUpdateLogs.filter((log: UpdateLog) => 
+        userBranches.some(branch => branch.name === log.branchName)
+      );
+
       // Update all state immediately with processed data
       setBranches(userBranches);
       setOilTypes(allOilTypes);
       setOilTanks(tanksWithDetails);
       setRecentTransactions(branchTransactions);
+      setUpdateLogs(branchUpdateLogs);
       setComplaints(branchComplaints);
       
       console.log('🔍 DATA SOURCE USED: branches.oilTanks (embedded tanks) instead of oilTanks collection');
@@ -454,8 +484,13 @@ export default function BranchDashboard() {
         branches: userBranches.length,
         tanks: tanksWithDetails.length,
         transactions: branchTransactions.length,
-        complaints: branchComplaints.length
+        complaints: branchComplaints.length,
+        updateLogs: branchUpdateLogs.length
       });
+      
+      if (branchUpdateLogs.length > 0) {
+        console.log('📋 Update logs sample:', branchUpdateLogs.slice(0, 2));
+      }
       
     } catch (error) {
       console.error('Error loading branch data:', error);
@@ -588,33 +623,49 @@ export default function BranchDashboard() {
         let lastSupplyLoadingBy = null;
         let daysSinceSupplyLoading = null;
         
-        // Check for manual updates using actual Firebase fields (with type assertions)
-        const firebaseTank = tank as any; // Firebase tank has additional fields not in schema
-        if (firebaseTank.updatedBy && firebaseTank.lastAdjustmentAt) {
-          // Handle Firebase Firestore timestamp properly  
-          lastManualUpdate = firebaseTank.lastAdjustmentAt?.toDate ? firebaseTank.lastAdjustmentAt.toDate() : new Date(firebaseTank.lastAdjustmentAt);
-          lastManualUpdateBy = firebaseTank.updatedBy;
+        // Get manual updates from updateLogs collection (the correct data source)
+        const tankUpdateLogs = updateLogs.filter(log => 
+          log.branchName === branch.name && 
+          log.oilTypeName === tank.oilTypeName &&
+          (log.tankId === tank.id || log.tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`)
+        ).sort((a, b) => {
+          const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+          const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        if (tankUpdateLogs.length > 0) {
+          const lastLog = tankUpdateLogs[0];
+          lastManualUpdate = lastLog.updatedAt?.toDate ? lastLog.updatedAt.toDate() : new Date(lastLog.updatedAt);
+          lastManualUpdateBy = lastLog.updatedBy;
           
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
           daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
-        // Find most recent SUPPLY or LOADING transaction for this tank
+        // Find most recent SUPPLY or LOADING transaction for this tank with improved matching
         const tankTransactions = recentTransactions.filter(transaction => 
           transaction.branchId === branch.id && 
-          ((transaction as any).tankId === tank.id || (transaction as any).tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`) &&
+          transaction.oilTypeName === tank.oilTypeName && // Match by oil type instead of tankId
           (transaction.type === 'supply' || transaction.type === 'loading')
         ).sort((a, b) => {
-          const dateA = new Date(a.createdAt || 0);
-          const dateB = new Date(b.createdAt || 0);
+          // Handle different timestamp formats
+          const dateA = a.createdAt instanceof Date ? a.createdAt : 
+                       (a as any).timestamp?.toDate ? (a as any).timestamp.toDate() : 
+                       new Date((a as any).timestamp || a.createdAt || 0);
+          const dateB = b.createdAt instanceof Date ? b.createdAt : 
+                       (b as any).timestamp?.toDate ? (b as any).timestamp.toDate() : 
+                       new Date((b as any).timestamp || b.createdAt || 0);
           return dateB.getTime() - dateA.getTime();
         });
         
         if (tankTransactions.length > 0) {
           const lastTransaction = tankTransactions[0];
-          lastSupplyLoading = new Date(lastTransaction.createdAt);
-          lastSupplyLoadingBy = lastTransaction.driverName || (lastTransaction as any).reporterName || (lastTransaction as any).reportedByName || 'Unknown Driver';
+          lastSupplyLoading = lastTransaction.createdAt instanceof Date ? lastTransaction.createdAt : 
+                             (lastTransaction as any).timestamp?.toDate ? (lastTransaction as any).timestamp.toDate() : 
+                             new Date((lastTransaction as any).timestamp || lastTransaction.createdAt);
+          lastSupplyLoadingBy = lastTransaction.driverName || (lastTransaction as any).reporterName || (lastTransaction as any).reportedByName || 'System';
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
           daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
