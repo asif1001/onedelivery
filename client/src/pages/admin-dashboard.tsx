@@ -3075,7 +3075,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       {/* Tasks Management Section */}
-      {activeSection === 'tasks' && (
+      {activeTab === 'tasks' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
@@ -3239,7 +3239,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       )}
 
       {/* Complaints Management Section */}
-      {activeSection === 'complaints' && (
+      {activeTab === 'complaints' && (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <div>
