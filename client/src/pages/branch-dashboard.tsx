@@ -157,7 +157,16 @@ interface OilTank {
   currentLevel: number;
   createdAt?: Date;
   updatedAt?: Date;
+  // Legacy timestamp fields (for backward compatibility)
+  lastUpdated?: any;
   lastUpdatedBy?: string;
+  // New separated timestamp fields
+  lastAdjustmentAt?: any;
+  lastAdjustmentByUser?: string;
+  lastAdjustmentByRole?: string;
+  lastMovementAt?: any;
+  lastMovementByUser?: string;
+  lastMovementByRole?: string;
 }
 
 interface OilType {
@@ -579,33 +588,64 @@ export default function BranchDashboard() {
     return branches.map(branch => {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       
-      // Calculate tank update status
+      // Calculate tank update status using new separated timestamps
       const tankUpdateDetails = branchTanks.map(tank => {
-        let lastUpdate = null;
-        let daysSinceUpdate = null;
+        let lastAdjustment = null;
+        let lastMovement = null;
+        let daysSinceAdjustment = null;
+        let daysSinceMovement = null;
         
-        if (tank.lastUpdatedBy && tank.lastUpdated) {
-          // Handle Firebase Firestore timestamp properly
-          lastUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+        // Handle manual adjustment timestamp (primary for staleness check)
+        if (tank.lastAdjustmentAt) {
+          lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
+          daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Handle movement timestamp (for transaction history)
+        if (tank.lastMovementAt) {
+          lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Fallback to legacy lastUpdated field for backward compatibility
+        if (!lastAdjustment && !lastMovement && tank.lastUpdated) {
+          const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+          lastMovement = legacyUpdate;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // Determine tank update status
+        // Determine tank update status based on manual adjustments (not movements)
         let updateStatus = 'never';
-        if (lastUpdate) {
-          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
-          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
+        const referenceDate = lastAdjustment || lastMovement; // Prefer adjustment over movement
+        const referenceDays = daysSinceAdjustment !== null ? daysSinceAdjustment : daysSinceMovement;
+        
+        if (referenceDate) {
+          if (referenceDate > oneDayAgo) updateStatus = 'recent';
+          else if (referenceDate > sevenDaysAgo) updateStatus = 'stale';
           else updateStatus = 'old';
         }
 
         return {
           ...tank,
-          lastUpdate,
-          daysSinceUpdate,
+          lastAdjustment,
+          lastMovement,
+          daysSinceAdjustment,
+          daysSinceMovement,
+          lastAdjustmentBy: tank.lastAdjustmentByUser || null,
+          lastMovementBy: tank.lastMovementByUser || null,
+          lastAdjustmentRole: tank.lastAdjustmentByRole || null,
+          lastMovementRole: tank.lastMovementByRole || null,
           updateStatus,
-          levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1)
+          levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1),
+          // Legacy field for backward compatibility
+          lastUpdate: lastAdjustment || lastMovement,
+          daysSinceUpdate: referenceDays
         };
       });
 
@@ -942,7 +982,8 @@ export default function BranchDashboard() {
         notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
         systemScreenPhoto: systemPhotoUrl,
-        lastSeenUpdate: selectedTank.lastUpdated,
+        lastSeenUpdate: selectedTank.lastAdjustmentAt || selectedTank.lastMovementAt || selectedTank.lastUpdated,
+        userRole: 'branch_user',
         expectedPreviousLevel: selectedTank.currentLevel,
         updateType: 'manual_with_photos',
         sessionId: `${currentUser.uid}_${Date.now()}`,
@@ -1422,17 +1463,60 @@ export default function BranchDashboard() {
                                         <p className="text-xs text-gray-500">
                                           Capacity: {tank.capacity?.toLocaleString() || '0'}L
                                         </p>
-                                        {tank.daysSinceUpdate !== null && (
-                                          <p className={`text-xs mt-1 ${
-                                            tank.updateStatus === 'old' || tank.updateStatus === 'never' ? 'text-red-600 font-medium' :
-                                            tank.updateStatus === 'stale' ? 'text-yellow-600' : 'text-green-600'
-                                          }`}>
-                                            {tank.updateStatus === 'never' ? 'Never updated' :
-                                             tank.daysSinceUpdate === 0 ? 'Updated today' :
-                                             tank.daysSinceUpdate === 1 ? 'Updated yesterday' :
-                                             `Updated ${tank.daysSinceUpdate} days ago`}
-                                          </p>
-                                        )}
+                                        {/* Display separated timestamps: Manual Updates (primary) and Movements (secondary) */}
+                                        <div className="mt-2 space-y-1">
+                                          {/* Primary: Last Manual Update (adjustments) */}
+                                          {tank.lastAdjustment ? (
+                                            <div className={`text-xs flex items-center gap-1 ${
+                                              tank.daysSinceAdjustment === 0 ? 'text-green-600' :
+                                              tank.daysSinceAdjustment <= 1 ? 'text-green-600' :
+                                              tank.daysSinceAdjustment <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
+                                            }`}>
+                                              <span className="font-medium">Last Manual Update:</span>
+                                              <span>
+                                                {tank.daysSinceAdjustment === 0 ? 'Today' :
+                                                 tank.daysSinceAdjustment === 1 ? 'Yesterday' :
+                                                 `${tank.daysSinceAdjustment} days ago`}
+                                              </span>
+                                              {tank.lastAdjustmentBy && (
+                                                <span className="text-gray-500">by</span>
+                                              )}
+                                              {tank.lastAdjustmentBy && (
+                                                <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                                  {tank.lastAdjustmentRole === 'admin' ? '👑' : 
+                                                   tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
+                                                   tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
+                                                  {tank.lastAdjustmentBy.split(' ')[0]}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <p className="text-xs text-red-600 font-medium">
+                                              <span className="font-medium">Last Manual Update:</span>
+                                              <span className="ml-1">Never updated</span>
+                                            </p>
+                                          )}
+                                          
+                                          {/* Secondary: Last Movement (driver operations) */}
+                                          {tank.lastMovement && (
+                                            <div className="text-xs flex items-center gap-1 text-blue-600">
+                                              <span className="font-medium">Last Movement:</span>
+                                              <span>
+                                                {tank.daysSinceMovement === 0 ? 'Today' :
+                                                 tank.daysSinceMovement === 1 ? 'Yesterday' :
+                                                 `${tank.daysSinceMovement} days ago`}
+                                              </span>
+                                              {tank.lastMovementBy && (
+                                                <span className="text-gray-500">by</span>
+                                              )}
+                                              {tank.lastMovementBy && (
+                                                <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-blue-50">
+                                                  🚛{tank.lastMovementBy.split(' ')[0]}
+                                                </Badge>
+                                              )}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                       <div className="text-right ml-2">
                                         <p className={`text-xs mb-1 font-medium ${tank.levelStatus.textColor}`}>

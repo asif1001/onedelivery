@@ -863,45 +863,70 @@ export default function WarehouseDashboard() {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
 
-      // Get detailed tank update status
+      // Get detailed tank update status using new separated timestamps
       const tankUpdateDetails = branchTanks.map(tank => {
-        // Find the most recent update for this specific tank
+        let lastAdjustment = null;
+        let lastMovement = null;
+        let daysSinceAdjustment = null;
+        let daysSinceMovement = null;
+        let lastAdjustmentBy = null;
+        let lastMovementBy = null;
+        let lastAdjustmentRole = null;
+        let lastMovementRole = null;
+        
+        // Handle manual adjustment timestamp (primary for staleness check)
+        if (tank.lastAdjustmentAt) {
+          lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
+          lastAdjustmentBy = tank.lastAdjustmentByUser;
+          lastAdjustmentRole = tank.lastAdjustmentByRole;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
+          daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Handle movement timestamp (for transaction history)
+        if (tank.lastMovementAt) {
+          lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
+          lastMovementBy = tank.lastMovementByUser;
+          lastMovementRole = tank.lastMovementByRole;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+        
+        // Fallback to tank update logs for backward compatibility
         const tankLogs = branchLogs.filter(log => 
           log.oilTypeName === tank.oilTypeName && log.branchName === branch.name
         );
-
-        let lastUpdate = null;
-        let lastUpdateBy = null;
-        let daysSinceUpdate = null;
         
-        if (tankLogs.length > 0) {
+        if (!lastAdjustment && !lastMovement && tankLogs.length > 0) {
           const mostRecentLog = tankLogs.reduce((latest, current) => {
             const currentDate = current.updatedAt?.toDate ? current.updatedAt.toDate() : new Date(current.updatedAt);
             const latestDate = latest.updatedAt?.toDate ? latest.updatedAt.toDate() : new Date(latest.updatedAt);
             return currentDate > latestDate ? current : latest;
           });
-          lastUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
-          lastUpdateBy = mostRecentLog.updatedBy;
-          // Calculate calendar days difference (not 24-hour periods)
+          const legacyUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
+          lastMovement = legacyUpdate;
+          lastMovementBy = mostRecentLog.updatedBy;
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-        } else {
-          // Check tank's lastUpdated field if no logs found
-          if (tank.lastUpdated) {
-            lastUpdate = new Date(tank.lastUpdated);
-            // Calculate calendar days difference (not 24-hour periods)
+          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        } else if (!lastAdjustment && !lastMovement && tank.lastUpdated) {
+          const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+          lastMovement = legacyUpdate;
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-          }
+          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // Determine tank update status
-        let updateStatus = 'never'; // never, recent, stale, old
-        if (lastUpdate) {
-          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
-          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
+        // Determine tank update status based on manual adjustments (not movements)
+        let updateStatus = 'never';
+        const referenceDate = lastAdjustment || lastMovement; // Prefer adjustment over movement
+        const referenceDays = daysSinceAdjustment !== null ? daysSinceAdjustment : daysSinceMovement;
+        
+        if (referenceDate) {
+          if (referenceDate > oneDayAgo) updateStatus = 'recent';
+          else if (referenceDate > sevenDaysAgo) updateStatus = 'stale';
           else updateStatus = 'old';
         }
 
@@ -910,11 +935,20 @@ export default function WarehouseDashboard() {
           oilTypeName: tank.oilTypeName,
           currentLevel: tank.currentLevel,
           capacity: tank.capacity,
-          lastUpdate,
-          lastUpdateBy,
-          daysSinceUpdate,
+          lastAdjustment,
+          lastMovement,
+          daysSinceAdjustment,
+          daysSinceMovement,
+          lastAdjustmentBy,
+          lastMovementBy,
+          lastAdjustmentRole,
+          lastMovementRole,
           updateStatus,
-          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1)
+          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1),
+          // Legacy fields for backward compatibility
+          lastUpdate: lastAdjustment || lastMovement,
+          lastUpdateBy: lastAdjustmentBy || lastMovementBy,
+          daysSinceUpdate: referenceDays
         };
       });
 
@@ -2270,12 +2304,22 @@ export default function WarehouseDashboard() {
                                 </div>
                                 <div className="text-right flex-shrink-0">
                                   <div className="text-xs text-gray-600">{tank.percentage}%</div>
-                                  {tank.lastUpdate ? (
-                                    <div className="text-xs text-gray-400">
-                                      {tank.daysSinceUpdate === 0 ? 'Today' : `${tank.daysSinceUpdate}d`}
+                                  {/* Display separated timestamps: Manual Updates (primary) and Movements (secondary) */}
+                                  {tank.lastAdjustment ? (
+                                    <div className={`text-xs ${
+                                      tank.daysSinceAdjustment === 0 ? 'text-green-600' :
+                                      tank.daysSinceAdjustment <= 1 ? 'text-green-600' :
+                                      tank.daysSinceAdjustment <= 7 ? 'text-yellow-600' : 'text-red-600'
+                                    }`}>
+                                      Manual: {tank.daysSinceAdjustment === 0 ? 'Today' : `${tank.daysSinceAdjustment}d`}
                                     </div>
                                   ) : (
-                                    <div className="text-xs text-red-500">Not updated</div>
+                                    <div className="text-xs text-red-500">No manual update</div>
+                                  )}
+                                  {tank.lastMovement && (
+                                    <div className="text-xs text-blue-600">
+                                      Move: {tank.daysSinceMovement === 0 ? 'Today' : `${tank.daysSinceMovement}d`}
+                                    </div>
                                   )}
                                 </div>
                               </div>

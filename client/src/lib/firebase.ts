@@ -2060,15 +2060,18 @@ export const createLoadSession = async (loadSessionData: any) => {
           throw new Error(`Insufficient oil in branch tanks. Required: ${loadingQuantity}L of ${loadSessionData.oilTypeName}`);
         }
         
-        // Update branch tank (decrease level)
-        const updatedTanks = [...oilTanks];
-        const beforeLevel = updatedTanks[selectedTankIndex].currentLevel;
-        updatedTanks[selectedTankIndex].currentLevel -= loadingQuantity;
-        updatedTanks[selectedTankIndex].lastUpdated = new Date();
+        // Update branch tank (decrease level) using centralized function with movement classification
+        const beforeLevel = oilTanks[selectedTankIndex].currentLevel;
+        const newLevel = beforeLevel - loadingQuantity;
+        const tankId = `${sourceLocationId}_tank_${selectedTankIndex}`;
         
-        await updateDoc(branchRef, {
-          oilTanks: updatedTanks,
-          updatedAt: new Date()
+        await updateOilTankLevel(tankId, {
+          currentLevel: newLevel,
+          lastUpdatedBy: loadSessionData.driverName || 'Driver',
+          updateType: 'load',
+          userRole: 'driver',
+          notes: `Loading: ${loadingQuantity}L removed from ${branchData.name || 'branch'} for delivery`,
+          sessionId: loadSessionData.id || `load_${Date.now()}`
         });
         
         console.log('✅ LOADING: Branch tank updated (source decreased):', {
@@ -2298,17 +2301,15 @@ export const completeDelivery = async (deliveryData: any) => {
             newLevel = targetTank.capacity; // Cap at capacity
           }
           
-          // Update the tank
-          const updatedTanks = [...oilTanks];
-          updatedTanks[selectedTankIndex] = {
-            ...targetTank,
+          // Update the tank using centralized function with movement classification
+          const tankId = `${targetBranchId}_tank_${selectedTankIndex}`;
+          await updateOilTankLevel(tankId, {
             currentLevel: newLevel,
-            lastUpdated: new Date()
-          };
-          
-          await updateDoc(doc(db, 'branches', targetBranchId), {
-            oilTanks: updatedTanks,
-            updatedAt: new Date()
+            lastUpdatedBy: deliveryData.driverName || 'Driver',
+            updateType: 'supply',
+            userRole: 'driver',
+            notes: `Supply delivery: ${supplyQuantity}L delivered to ${branchData.name || 'branch'}`,
+            sessionId: deliveryData.loadSessionId || `supply_${Date.now()}`
           });
           
           console.log('✅ LOOSE SUPPLY: Branch tank updated successfully:', {
@@ -2323,7 +2324,7 @@ export const completeDelivery = async (deliveryData: any) => {
             calculation: `${beforeLevelNum}L + ${supplyQuantityNum}L = ${newLevel}L`,
             tankCapacity: targetTank.capacity,
             capped: newLevel === targetTank.capacity,
-            updatedTankObject: updatedTanks[selectedTankIndex]
+            updateMethod: 'centralized_with_movement_classification'
           });
           
           // Force immediate data refresh verification
@@ -2555,17 +2556,15 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
           newLevel = targetTank.capacity;
         }
         
-        // Update the tank
-        const updatedTanks = [...oilTanks];
-        updatedTanks[selectedTankIndex] = {
-          ...targetTank,
+        // Update the tank using centralized function with movement classification
+        const tankId = `${targetBranchId}_tank_${selectedTankIndex}`;
+        await updateOilTankLevel(tankId, {
           currentLevel: newLevel,
-          lastUpdated: new Date()
-        };
-        
-        await updateDoc(doc(db, 'branches', targetBranchId), {
-          oilTanks: updatedTanks,
-          updatedAt: new Date()
+          lastUpdatedBy: drumSupplyData.driverName || 'Driver',
+          updateType: 'supply',
+          userRole: 'driver',
+          notes: `Drum supply: ${drumSupplyData.numberOfDrums} drums (${supplyQuantity}L) delivered to ${branchData.name || 'branch'}`,
+          sessionId: drumSupplyData.sessionId || `drum_supply_${Date.now()}`
         });
         
         console.log('✅ DRUM SUPPLY: Branch tank updated successfully');
@@ -3055,12 +3054,59 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
         }
       }
       
-      // Create updated tank data with version control
+      // Determine movement type and whether this is a manual adjustment
+      const userRole = updateData.userRole || 'unknown';
+      const updateType = updateData.updateType || 'manual';
+      
+      let movementType = 'ADJUST_MANUAL'; // Default
+      let isManualAdjustment = true;
+      
+      // Determine movement type based on update context
+      if (updateType === 'loading') {
+        movementType = 'LOAD';
+        isManualAdjustment = false;
+      } else if (updateType === 'supply') {
+        movementType = 'SUPPLY_LOOSE';
+        isManualAdjustment = false;
+      } else if (updateType === 'drum_supply') {
+        movementType = 'SUPPLY_DRUM';
+        isManualAdjustment = false;
+      } else if (userRole === 'branch_user') {
+        movementType = 'ADJUST_BRANCH';
+        isManualAdjustment = true;
+      } else if (userRole === 'warehouse') {
+        movementType = 'ADJUST_WAREHOUSE';
+        isManualAdjustment = true;
+      } else if (userRole === 'admin') {
+        movementType = 'ADJUST_ADMIN';
+        isManualAdjustment = true;
+      }
+
+      // Create updated tank data with separate timestamp fields
       const updatedTanks = [...oilTanks];
       const now = new Date();
+      const updatedBy = updateData.lastUpdatedBy || updateData.updatedBy || 'Unknown';
+      
+      // All updates get movement timestamps
+      const movementFields = {
+        lastMovementAt: now,
+        lastMovementByUser: updatedBy,
+        lastMovementByRole: userRole
+      };
+      
+      // Manual adjustments also get adjustment timestamps
+      const adjustmentFields = isManualAdjustment ? {
+        lastAdjustmentAt: now,
+        lastAdjustmentByUser: updatedBy,
+        lastAdjustmentByRole: userRole
+      } : {};
+      
       updatedTanks[tankIndex] = {
         ...currentTankData,
         ...updateData,
+        ...movementFields,
+        ...adjustmentFields,
+        // Keep legacy field for backward compatibility during migration
         lastUpdated: now,
         updateVersion: (currentTankData.updateVersion || 0) + 1,
         lastConflictCheck: now
@@ -3073,7 +3119,7 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
         lastTankUpdate: now
       });
       
-      // Create comprehensive log entry
+      // Create comprehensive log entry with new movement classification
       const logEntry = {
         tankId: tankId,
         branchId: branchId,
@@ -3083,9 +3129,14 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
         previousLevel: previousLevel,
         newLevel: updateData.currentLevel,
         levelDifference: updateData.currentLevel - previousLevel,
-        updatedBy: updateData.lastUpdatedBy,
+        updatedBy: updatedBy,
         updatedAt: now,
         notes: updateData.notes || '',
+        // New movement classification fields
+        movementType: movementType,
+        isManualAdjustment: isManualAdjustment,
+        userRole: userRole,
+        // Legacy field for backward compatibility
         updateType: updateData.updateType || 'manual',
         updateVersion: updatedTanks[tankIndex].updateVersion,
         photos: {
