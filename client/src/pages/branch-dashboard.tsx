@@ -1468,14 +1468,14 @@ export default function BranchDashboard() {
                                           {/* Primary: Last Manual Update (adjustments) */}
                                           {tank.lastAdjustment ? (
                                             <div className={`text-xs flex items-center gap-1 ${
-                                              tank.daysSinceAdjustment === 0 ? 'text-green-600' :
-                                              tank.daysSinceAdjustment <= 1 ? 'text-green-600' :
-                                              tank.daysSinceAdjustment <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
+                                              (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
+                                              (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
+                                              (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
                                             }`}>
                                               <span className="font-medium">Last Manual Update:</span>
                                               <span>
-                                                {tank.daysSinceAdjustment === 0 ? 'Today' :
-                                                 tank.daysSinceAdjustment === 1 ? 'Yesterday' :
+                                                {(tank.daysSinceAdjustment ?? 999) === 0 ? 'Today' :
+                                                 (tank.daysSinceAdjustment ?? 999) === 1 ? 'Yesterday' :
                                                  `${tank.daysSinceAdjustment} days ago`}
                                               </span>
                                               {tank.lastAdjustmentBy && (

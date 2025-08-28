@@ -2068,7 +2068,7 @@ export const createLoadSession = async (loadSessionData: any) => {
         await updateOilTankLevel(tankId, {
           currentLevel: newLevel,
           lastUpdatedBy: loadSessionData.driverName || 'Driver',
-          updateType: 'load',
+          updateType: 'loading', // Changed from 'load' to 'loading' to match classification
           userRole: 'driver',
           notes: `Loading: ${loadingQuantity}L removed from ${branchData.name || 'branch'} for delivery`,
           sessionId: loadSessionData.id || `load_${Date.now()}`
@@ -2080,29 +2080,10 @@ export const createLoadSession = async (loadSessionData: any) => {
           tankIndex: selectedTankIndex,
           oilType: loadSessionData.oilTypeName,
           beforeLevel,
-          afterLevel: updatedTanks[selectedTankIndex].currentLevel,
+          afterLevel: newLevel,
           quantityLoaded: loadingQuantity,
-          calculation: `${beforeLevel}L - ${loadingQuantity}L = ${updatedTanks[selectedTankIndex].currentLevel}L`
+          calculation: `${beforeLevel}L - ${loadingQuantity}L = ${newLevel}L`
         });
-        
-        // Immediate verification for loading
-        console.log('🔍 LOADING VERIFICATION: Checking branch tank decrease...');
-        setTimeout(async () => {
-          try {
-            const verifyDoc = await getDoc(doc(db, 'branches', sourceLocationId));
-            if (verifyDoc.exists()) {
-              const verifyData = verifyDoc.data();
-              const verifyTank = verifyData.oilTanks?.[selectedTankIndex];
-              console.log('🔍 LOADING VERIFICATION RESULT:', {
-                expectedLevel: updatedTanks[selectedTankIndex].currentLevel,
-                actualLevel: verifyTank?.currentLevel,
-                verified: verifyTank?.currentLevel === updatedTanks[selectedTankIndex].currentLevel
-              });
-            }
-          } catch (verifyError) {
-            console.error('❌ Loading verification failed:', verifyError);
-          }
-        }, 1000);
       }
     }
     
@@ -2561,7 +2542,7 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
         await updateOilTankLevel(tankId, {
           currentLevel: newLevel,
           lastUpdatedBy: drumSupplyData.driverName || 'Driver',
-          updateType: 'supply',
+          updateType: 'drum_supply', // Changed to match classification
           userRole: 'driver',
           notes: `Drum supply: ${drumSupplyData.numberOfDrums} drums (${supplyQuantity}L) delivered to ${branchData.name || 'branch'}`,
           sessionId: drumSupplyData.sessionId || `drum_supply_${Date.now()}`
@@ -3087,14 +3068,14 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
       const now = new Date();
       const updatedBy = updateData.lastUpdatedBy || updateData.updatedBy || 'Unknown';
       
-      // All updates get movement timestamps
-      const movementFields = {
+      // Only driver operations get movement timestamps
+      const movementFields = !isManualAdjustment ? {
         lastMovementAt: now,
         lastMovementByUser: updatedBy,
         lastMovementByRole: userRole
-      };
+      } : {};
       
-      // Manual adjustments also get adjustment timestamps
+      // Only manual adjustments get adjustment timestamps
       const adjustmentFields = isManualAdjustment ? {
         lastAdjustmentAt: now,
         lastAdjustmentByUser: updatedBy,
