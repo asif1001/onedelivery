@@ -2248,184 +2248,165 @@ export default function WarehouseDashboard() {
               )}
             </div>
 
-            {/* Branch Stock Update Tracking Card - Moved to Bottom */}
+            {/* Branch Tank Status - Compact Design */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <AlertCircleIcon className="h-4 w-4 text-blue-600" />
-                  Branch Stock Update Tracking
+                  Branch Tank Status
                 </CardTitle>
                 <CardDescription className="text-sm text-gray-600">
-                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently.
+                  Real-time tank update status across all branches. Shows manual updates and driver movements.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                {/* Gallery-style grid layout: 4 cards per row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                <div className="grid gap-4">
                   {getBranchUpdateStatus().map((branch) => {
-                    // Determine branch status based on update timeline:
-                    // Red = not updated for more than 7 days (includes never updated and old tanks)
-                    // Yellow = updated 1-7 days ago (stale tanks)
-                    // Green = updated within 24 hours (recent tanks)
-                    let branchStatus = 'green'; // default to green (current)
-                    let bgColor = 'bg-green-50';
-                    let borderColor = 'border-green-200';
-                    let textColor = 'text-green-800';
-                    let dotColor = 'bg-green-500';
-                    let badgeVariant: 'default' | 'destructive' | 'secondary' = 'default';
+                    // Determine branch styling based on update status
+                    let branchCardClass = 'hover:shadow-lg transition-shadow';
+                    let headerTextColor = 'text-gray-900';
+                    let statusBadge = null;
                     
-                    // Color coding based on branch status:
-                    // Red: All tanks not updated for 7+ days
-                    // Yellow: Partial tank level updates (mixed status)
-                    // Green: All tanks up to date
                     if (branch.status === 'needs-attention') {
-                      // Red for branches not updated for more than 7 days
-                      branchStatus = 'red';
-                      bgColor = 'bg-red-50';
-                      borderColor = 'border-red-400';
-                      textColor = 'text-red-800';
-                      dotColor = 'bg-red-500';
-                      badgeVariant = 'destructive';
+                      branchCardClass = 'bg-red-50 border-red-400 shadow-red-100 hover:shadow-red-200 transition-shadow';
+                      headerTextColor = 'text-red-800';
+                      statusBadge = (
+                        <Badge variant="destructive" className="text-xs">
+                          Needs Attention ({branch.neverUpdatedTanks + branch.oldTanks} tanks)
+                        </Badge>
+                      );
                     } else if (branch.status === 'partially-updated') {
-                      // Yellow for branches with partial tank level updates
-                      branchStatus = 'yellow';
-                      bgColor = 'bg-yellow-50';
-                      borderColor = 'border-yellow-400';
-                      textColor = 'text-yellow-800';
-                      dotColor = 'bg-yellow-500';
-                      badgeVariant = 'secondary';
+                      branchCardClass = 'bg-yellow-50 border-yellow-400 shadow-yellow-100 hover:shadow-yellow-200 transition-shadow';
+                      headerTextColor = 'text-yellow-800';
+                      statusBadge = (
+                        <Badge variant="secondary" className="text-xs">
+                          Some Updates Needed ({branch.staleTanks + branch.oldTanks} tanks)
+                        </Badge>
+                      );
+                    } else {
+                      statusBadge = (
+                        <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                          All Current
+                        </Badge>
+                      );
                     }
                     
                     return (
-                      <Card key={branch.id} className={`${
-                        branchStatus === 'red' ? `${borderColor} ${bgColor} shadow-red-100` :
-                        branchStatus === 'yellow' ? `${borderColor} ${bgColor} shadow-yellow-100` :
-                        `${borderColor} ${bgColor} shadow-green-100 hover:shadow-md`
-                      } transition-shadow duration-200 h-fit`}>
-                        <CardContent className="p-4 space-y-3">
-                          {/* Branch Header with Red Highlighting */}
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                              <div
-                                className={`w-3 h-3 rounded-full flex-shrink-0 ${dotColor}`}
-                              />
-                              <h4 className={`font-semibold text-sm truncate ${textColor}`} title={branch.name}>
-                                {branch.name}
-                              </h4>
-                            </div>
-                            
-                            <div className="flex flex-wrap gap-1">
-                              <Badge 
-                                variant={badgeVariant}
-                                className="text-xs"
-                              >
-                                {branch.recentlyUpdatedTanks}/{branch.totalTanks} updated
-                              </Badge>
-                              {branchStatus === 'red' && (
-                                <Badge variant="destructive" className="text-xs">
-                                  7+ Days
-                                </Badge>
-                              )}
-                              {branchStatus === 'yellow' && (
-                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
-                                  1-7 Days
-                                </Badge>
-                              )}
-                              {branchStatus === 'green' && (
-                                <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                                  Current
-                                </Badge>
-                              )}
-                            </div>
-                            
-                            <div className="text-xs text-gray-500">
-                              {branch.lastUpdate 
-                                ? `Last: ${branch.lastUpdate.toLocaleDateString()}`
-                                : 'No updates'
-                              }
+                      <Card key={branch.id} className={branchCardClass}>
+                        <CardHeader className="pb-3">
+                          <div className="flex justify-between items-start">
+                            <div className="min-w-0 flex-1">
+                              <CardTitle className={`flex items-center gap-2 text-base ${headerTextColor}`}>
+                                <MapPinIcon className="h-4 w-4 flex-shrink-0" />
+                                <span className="truncate">{branch.name}</span>
+                              </CardTitle>
+                              <div className="mt-2">
+                                {statusBadge}
+                              </div>
                             </div>
                           </div>
-
-                          {/* Tank Level Details - Compact */}
-                          <div className="space-y-1">
-                            {branch.tankDetails.slice(0, 3).map((tank) => (
-                              <div key={tank.tankId} className="flex items-center justify-between p-1.5 bg-gray-50 rounded text-xs">
-                                <div className="flex items-center gap-2 min-w-0 flex-1">
-                                  <div
-                                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                      tank.updateStatus === 'recent' ? 'bg-green-500' :
-                                      tank.updateStatus === 'stale' ? 'bg-yellow-500' :
-                                      tank.updateStatus === 'old' ? 'bg-orange-500' :
-                                      'bg-red-500'
-                                    }`}
-                                    title={
-                                      tank.updateStatus === 'recent' ? 'Updated within 24 hours' :
-                                      tank.updateStatus === 'stale' ? 'Updated 1-7 days ago' :
-                                      tank.updateStatus === 'old' ? 'Updated over 7 days ago' :
-                                      'Never updated'
-                                    }
-                                  />
-                                  <span className="font-medium text-gray-700 truncate" title={tank.oilTypeName}>
-                                    {tank.oilTypeName}
-                                  </span>
-                                </div>
-                                <div className="text-right flex-shrink-0">
-                                  <div className="text-xs text-gray-600">{tank.percentage}%</div>
-                                  {/* Display separated timestamps: Manual Updates (primary) and Movements (secondary) */}
-                                  {tank.lastAdjustment ? (
-                                    <div className={`text-xs ${
-                                      (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
-                                      (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
-                                      (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600'
-                                    }`}>
-                                      Manual: {tank.lastAdjustment.toLocaleDateString()}
-                                      <div className="text-xs text-gray-500">
-                                        {tank.daysSinceAdjustment === 0 ? 'Today' : `${tank.daysSinceAdjustment}d ago`}
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="space-y-3">
+                            <h4 className="font-medium text-sm">Oil Tanks ({branch.tankDetails.length})</h4>
+                            {branch.tankDetails.length > 0 ? (
+                              <div className="space-y-2">
+                                {branch.tankDetails.map((tank, index) => {
+                                  const percentage = Math.round(tank.percentage || 0);
+                                  const levelColor = percentage <= 5 ? 'bg-red-500' :
+                                                   percentage <= 25 ? 'bg-yellow-500' : 
+                                                   percentage >= 95 ? 'bg-blue-500' : 'bg-green-500';
+                                  
+                                  const updateStatusColor = 
+                                    (tank.daysSinceAdjustment ?? 999) === 0 ? 'bg-green-50 border-green-200' :
+                                    (tank.daysSinceAdjustment ?? 999) <= 1 ? 'bg-green-50 border-green-200' :
+                                    (tank.daysSinceAdjustment ?? 999) <= 7 ? 'bg-yellow-50 border-yellow-200' : 
+                                    'bg-red-50 border-red-200';
+                                  
+                                  return (
+                                    <div key={index} className={`p-3 rounded-lg border ${updateStatusColor}`}>
+                                      <div className="flex justify-between items-start mb-2">
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <p className="text-sm font-medium truncate">{tank.oilTypeName}</p>
+                                          </div>
+                                          <div className="space-y-2 text-xs">
+                                            <div className="text-gray-600">
+                                              {tank.currentLevel?.toLocaleString() || 0}L / {tank.capacity?.toLocaleString() || 0}L
+                                            </div>
+                                            
+                                            {/* Manual Update Info */}
+                                            {tank.lastAdjustment ? (
+                                              <div className={`text-xs ${
+                                                (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
+                                                (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
+                                                (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600 font-medium'
+                                              }`}>
+                                                <div className="flex items-center gap-1 mb-1">
+                                                  <span className="font-medium">Last Manual Update:</span>
+                                                  <span>
+                                                    {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                  </span>
+                                                </div>
+                                                {tank.lastAdjustmentBy && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500">Updated by:</span>
+                                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                                                      {tank.lastAdjustmentRole === 'admin' ? '👑' : 
+                                                       tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
+                                                       tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
+                                                      {tank.lastAdjustmentBy}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <p className="text-xs text-red-600 font-medium">
+                                                <span className="font-medium">Last Manual Update:</span>
+                                                <span className="ml-1">Never updated</span>
+                                              </p>
+                                            )}
+                                            
+                                            {/* Movement Info */}
+                                            {tank.lastMovement && (
+                                              <div className="text-xs text-blue-600">
+                                                <div className="flex items-center gap-1 mb-1">
+                                                  <span className="font-medium">Last Movement:</span>
+                                                  <span>
+                                                    {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                                  </span>
+                                                </div>
+                                                {tank.lastMovementBy && (
+                                                  <div className="flex items-center gap-1">
+                                                    <span className="text-gray-500">Driver:</span>
+                                                    <Badge variant="outline" className="text-xs px-1 py-0 h-4 bg-blue-50">
+                                                      🚛{tank.lastMovementBy}
+                                                    </Badge>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="text-right ml-2">
+                                          <p className="text-sm font-medium">{percentage}%</p>
+                                          <p className="text-xs text-gray-500">Capacity</p>
+                                        </div>
+                                      </div>
+                                      
+                                      {/* Tank Level Progress Bar */}
+                                      <div className="w-full bg-gray-200 rounded-full h-2">
+                                        <div 
+                                          className={`h-2 rounded-full transition-all duration-300 ${levelColor}`}
+                                          style={{ width: `${Math.min(percentage, 100)}%` }}
+                                        />
                                       </div>
                                     </div>
-                                  ) : (
-                                    <div className="text-xs text-red-500">No manual update</div>
-                                  )}
-                                  {tank.lastMovement && (
-                                    <div className="text-xs text-blue-600">
-                                      Move: {tank.daysSinceMovement === 0 ? 'Today' : `${tank.daysSinceMovement}d`}
-                                    </div>
-                                  )}
-                                </div>
+                                  );
+                                })}
                               </div>
-                            ))}
-                            {branch.tankDetails.length > 3 && (
-                              <div className="text-xs text-gray-500 text-center py-1">
-                                +{branch.tankDetails.length - 3} more tanks
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Summary Stats - Compact */}
-                          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
-                            {branch.recentlyUpdatedTanks > 0 && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                                <span className="text-xs text-green-700">{branch.recentlyUpdatedTanks}</span>
-                              </div>
-                            )}
-                            {branch.staleTanks > 0 && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
-                                <span className="text-xs text-yellow-700">{branch.staleTanks}</span>
-                              </div>
-                            )}
-                            {branch.oldTanks > 0 && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
-                                <span className="text-xs text-orange-700">{branch.oldTanks}</span>
-                              </div>
-                            )}
-                            {branch.neverUpdatedTanks > 0 && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                                <span className="text-xs text-red-700">{branch.neverUpdatedTanks}</span>
-                              </div>
+                            ) : (
+                              <p className="text-sm text-gray-500">No tanks found for this branch</p>
                             )}
                           </div>
                         </CardContent>
