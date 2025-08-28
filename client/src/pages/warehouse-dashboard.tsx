@@ -665,6 +665,8 @@ export default function WarehouseDashboard() {
     try {
       // Group updates by branch to avoid race conditions
       const updatesByBranch = new Map();
+      const skippedUpdates: Array<{tank: string, current: number, attempted: any, reason: string}> = [];
+      let actualUpdatesCount = 0;
       
       Object.entries(bulkUpdates).forEach(([tankId, newLevel]) => {
         const tank = oilTanks.find(t => t.id === tankId);
@@ -672,6 +674,37 @@ export default function WarehouseDashboard() {
           console.error(`❌ Tank not found: ${tankId}`);
           return;
         }
+        
+        // Skip transaction recording for unchanged, 0, null, or blank quantities
+        const currentLevel = Number(tank.currentLevel) || 0;
+        const newLevelNum = Number(newLevel);
+        
+        // Skip if:
+        // 1. New level is 0
+        // 2. New level is null/undefined/NaN
+        // 3. New level equals current level (unchanged)
+        // 4. New level is blank/empty string
+        if (String(newLevel) === '' || newLevel === null || newLevel === undefined || 
+            isNaN(newLevelNum) || newLevelNum === 0 || newLevelNum === currentLevel) {
+          
+          const reason = String(newLevel) === '' || newLevel === null || newLevel === undefined ? 'blank/null value' :
+                        isNaN(newLevelNum) ? 'invalid number' :
+                        newLevelNum === 0 ? 'zero quantity' :
+                        'unchanged quantity';
+          
+          skippedUpdates.push({
+            tank: `${tank.branchName} - ${tank.oilTypeName}`,
+            current: currentLevel,
+            attempted: newLevel,
+            reason: reason
+          });
+          
+          console.log(`⏭️ SKIPPING transaction for tank ${tank.branchName} - ${tank.oilTypeName}: ${reason} (${currentLevel}L → ${newLevel})`);
+          return;
+        }
+        
+        // Only process actual changes
+        actualUpdatesCount++;
         
         if (!updatesByBranch.has(tank.branchId)) {
           updatesByBranch.set(tank.branchId, []);
@@ -684,6 +717,28 @@ export default function WarehouseDashboard() {
         });
       });
 
+      // Log summary of what will be processed vs skipped
+      console.log(`📋 Bulk update summary:`, {
+        totalRequested: Object.keys(bulkUpdates).length,
+        actualUpdates: actualUpdatesCount,
+        skippedUpdates: skippedUpdates.length,
+        branchesToProcess: updatesByBranch.size
+      });
+      
+      if (skippedUpdates.length > 0) {
+        console.log(`⏭️ Skipped ${skippedUpdates.length} tanks (no transaction recorded):`, skippedUpdates);
+      }
+      
+      if (actualUpdatesCount === 0) {
+        toast({
+          title: "No valid updates to process",
+          description: `All ${Object.keys(bulkUpdates).length} updates were skipped (unchanged, zero, or blank values)`,
+          variant: "destructive"
+        });
+        setIsBulkSubmitting(false);
+        return;
+      }
+      
       console.log(`📋 Processing updates for ${updatesByBranch.size} branches sequentially to avoid race conditions`);
 
       // Process each branch sequentially to avoid Firebase race conditions
@@ -741,9 +796,14 @@ export default function WarehouseDashboard() {
         console.log(`✅ All tank updates completed for branch ${branch.name}`);
       }
 
+      // Show detailed success message
+      const successMessage = actualUpdatesCount === Object.keys(bulkUpdates).length ?
+        `Updated ${actualUpdatesCount} oil tank levels` :
+        `Updated ${actualUpdatesCount} tanks, skipped ${skippedUpdates.length} (no changes/zero values)`;
+      
       toast({
-        title: "Bulk update successful",
-        description: `Updated ${Object.keys(bulkUpdates).length} oil tank levels`
+        title: "Bulk update completed",
+        description: successMessage
       });
 
       console.log('🔄 Bulk update completed, refreshing data...');
