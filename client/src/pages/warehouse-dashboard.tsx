@@ -2319,7 +2319,7 @@ export default function WarehouseDashboard() {
                                         'Never updated'
                                       }
                                     />
-                                    <span className="font-semibold text-sm text-gray-700 truncate" title={tank.oilTypeName}>
+                                    <span className="font-bold text-sm text-gray-800 truncate" title={tank.oilTypeName}>
                                       {tank.oilTypeName}
                                     </span>
                                   </div>
