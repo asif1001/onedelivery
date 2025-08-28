@@ -2298,13 +2298,12 @@ export const completeDelivery = async (deliveryData: any) => {
             newLevel = targetTank.capacity; // Cap at capacity
           }
           
-          // Update the tank - Driver transactions only update currentLevel, NOT lastUpdated date
-          // lastUpdated should only be modified by Branch/Warehouse manual adjustments
+          // Update the tank
           const updatedTanks = [...oilTanks];
           updatedTanks[selectedTankIndex] = {
             ...targetTank,
-            currentLevel: newLevel
-            // Deliberately NOT updating lastUpdated - this preserves manual update dates
+            currentLevel: newLevel,
+            lastUpdated: new Date()
           };
           
           await updateDoc(doc(db, 'branches', targetBranchId), {
@@ -2556,13 +2555,12 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
           newLevel = targetTank.capacity;
         }
         
-        // Update the tank - Driver transactions only update currentLevel, NOT lastUpdated date
-        // lastUpdated should only be modified by Branch/Warehouse manual adjustments
+        // Update the tank
         const updatedTanks = [...oilTanks];
         updatedTanks[selectedTankIndex] = {
           ...targetTank,
-          currentLevel: newLevel
-          // Deliberately NOT updating lastUpdated - this preserves manual update dates
+          currentLevel: newLevel,
+          lastUpdated: new Date()
         };
         
         await updateDoc(doc(db, 'branches', targetBranchId), {
