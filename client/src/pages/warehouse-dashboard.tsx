@@ -2261,7 +2261,7 @@ export default function WarehouseDashboard() {
                               <div
                                 className={`w-3 h-3 rounded-full flex-shrink-0 ${dotColor}`}
                               />
-                              <h4 className={`font-semibold text-sm truncate ${textColor}`} title={branch.name}>
+                              <h4 className={`font-semibold text-base truncate ${textColor}`} title={branch.name}>
                                 {branch.name}
                               </h4>
                             </div>
@@ -2319,7 +2319,7 @@ export default function WarehouseDashboard() {
                                         'Never updated'
                                       }
                                     />
-                                    <span className="font-medium text-gray-700 truncate" title={tank.oilTypeName}>
+                                    <span className="font-semibold text-sm text-gray-700 truncate" title={tank.oilTypeName}>
                                       {tank.oilTypeName}
                                     </span>
                                   </div>
