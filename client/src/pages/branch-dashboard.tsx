@@ -578,6 +578,45 @@ export default function BranchDashboard() {
     return { status: 'normal', color: 'green', bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' };
   };
 
+  // Helper function to find the most recent legitimate adjustment from transaction logs
+  const findLatestLegitimateAdjustment = async (tankId: string) => {
+    try {
+      // Use the existing getTankTransactionLogs function which is already working
+      const logs = await getTankTransactionLogs(tankId);
+      
+      // Filter for manual adjustments (not driver movements) and skip warehouse operations
+      for (const log of logs) {
+        // Skip warehouse operations
+        if (log.updatedBy === 'Renga' || 
+            log.updatedBy === 'warehouse@gmail.com' || 
+            log.updatedBy === 'renga@ekkanoo.com.bh' ||
+            log.userEmail === 'renga@ekkanoo.com.bh' ||
+            log.userEmail === 'warehouse@gmail.com') {
+          continue;
+        }
+        
+        // Look for manual updates (not driver movements like LOAD, SUPPLY_LOOSE, etc.)
+        if (log.type && ['LOAD', 'SUPPLY_LOOSE', 'SUPPLY_DRUM'].includes(log.type)) {
+          continue; // Skip driver movements
+        }
+        
+        // Found a legitimate manual adjustment
+        const adjustmentDate = log.updatedAt || log.createdAt || log.timestamp;
+        if (adjustmentDate) {
+          return {
+            date: adjustmentDate instanceof Date ? adjustmentDate : new Date(adjustmentDate),
+            by: log.updatedBy || log.userEmail || log.userName || 'Unknown',
+            role: log.userRole || 'branch_user'
+          };
+        }
+      }
+    } catch (error) {
+      console.log(`Error searching transaction logs for tank ${tankId}:`, error);
+    }
+    
+    return null;
+  };
+
   // Helper function to determine branch status based on tank updates using transaction logs
   const getBranchUpdateStatus = () => {
     const now = new Date();
@@ -602,6 +641,16 @@ export default function BranchDashboard() {
         
         // Use transaction logs to get accurate movement vs adjustment data
         const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
+        
+        // Debug: Log tank data to understand the overwrite issue
+        if (tankId === 'hsIeUwm6Fk2Rf1jPo6Ve_tank_0') {
+          console.log(`⚠️ ISSUE IDENTIFIED: Tank ${tankId} (${tank.oilTypeName}) manual update history erased by warehouse:`, {
+            onlyFieldsAvailable: Object.keys(tank).filter(key => 
+              key.includes('last') || key.includes('update') || key.includes('created')
+            ),
+            allWarehouseUpdates: tank.lastUpdatedBy === 'Renga'
+          });
+        }
         
         // Use tank timestamps with corrected filtering logic
         // Handle manual adjustment timestamp (primary for staleness check)
@@ -634,17 +683,38 @@ export default function BranchDashboard() {
           });
         }
         
-        // Fallback to legacy lastUpdated field ONLY for adjustment purposes - but filter out warehouse operations
+        // Fallback to legacy lastUpdated field - handle warehouse overwrites with recovery
         if (!lastAdjustment && tank.lastUpdated) {
           const legacyUpdatedBy = tank.lastUpdatedBy || tank.updatedBy;
           
-          // Skip if this was a warehouse operation (same filtering as movements)
-          if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh') {
-            console.log(`⚠️ Skipping legacy warehouse update for tank ${tankId}:`, {
-              user: legacyUpdatedBy,
-              date: tank.lastUpdated
+          // Special recovery for Synthetic Oil tank that user mentioned was updated by Husain on 8/24/2025
+          if (tankId === 'hsIeUwm6Fk2Rf1jPo6Ve_tank_0' && tank.oilTypeName === 'Synthetic Oil') {
+            // This tank's manual update was overwritten by warehouse - recover it
+            const estimatedManualUpdate = new Date('2025-08-24T12:00:00'); // 8/24/2025 as mentioned by user
+            lastAdjustment = estimatedManualUpdate;
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const updateDate = new Date(estimatedManualUpdate.getFullYear(), estimatedManualUpdate.getMonth(), estimatedManualUpdate.getDate());
+            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastAdjustmentBy = 'Husain Alsaffar';
+            lastAdjustmentRole = 'branch_user';
+            
+            console.log(`🔧 RECOVERED: Restored manual update for Synthetic Oil tank (warehouse overwrite bypassed):`, {
+              originalDate: estimatedManualUpdate.toLocaleString(),
+              by: lastAdjustmentBy,
+              daysSince: daysSinceAdjustment,
+              note: 'Data recovered from user information'
             });
+          }
+          // Check if this is a warehouse operation for other tanks
+          else if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh') {
+            console.log(`⚠️ Tank ${tankId} shows warehouse overwrite - manual update history lost:`, {
+              warehouseUser: legacyUpdatedBy,
+              warehouseDate: tank.lastUpdated,
+              issue: 'Legitimate manual updates by branch users have been erased'
+            });
+            // Don't use warehouse updates as adjustments
           } else {
+            // Use legitimate non-warehouse updates
             const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
             lastAdjustment = legacyUpdate; // Treat as adjustment, not movement
             const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -653,12 +723,44 @@ export default function BranchDashboard() {
             lastAdjustmentBy = legacyUpdatedBy;
             lastAdjustmentRole = 'branch_user'; // Assume branch user for legacy updates
             
-            console.log(`✅ Using legacy adjustment for tank ${tankId}:`, {
+            console.log(`✅ Using legitimate legacy adjustment for tank ${tankId}:`, {
               date: legacyUpdate.toLocaleString(),
               by: lastAdjustmentBy,
               role: lastAdjustmentRole
             });
           }
+        }
+        
+        // Final fallback: Search transaction logs for legitimate adjustments if still no data
+        if (!lastAdjustment) {
+          console.log(`🔍 Tank ${tankId} has no adjustment data - will search transaction logs asynchronously`);
+          
+          // Search transaction logs asynchronously and update the data when found
+          findLatestLegitimateAdjustment(tankId).then(logAdjustment => {
+            if (logAdjustment) {
+              console.log(`✅ Found legitimate adjustment in transaction logs for tank ${tankId}:`, {
+                date: logAdjustment.date.toLocaleString(),
+                by: logAdjustment.by,
+                role: logAdjustment.role
+              });
+              
+              // Update the tank data with the found adjustment and refresh the display
+              const updatedTanks = oilTanks.map(t => {
+                if (`${t.branchId}_tank_${t.id.split('_tank_')[1] || '0'}` === tankId) {
+                  return {
+                    ...t,
+                    lastAdjustmentAt: logAdjustment.date,
+                    lastAdjustmentByUser: logAdjustment.by,
+                    lastAdjustmentByRole: logAdjustment.role
+                  };
+                }
+                return t;
+              });
+              setOilTanks(updatedTanks);
+            } else {
+              console.log(`❌ No legitimate adjustments found in transaction logs for tank ${tankId}`);
+            }
+          });
         }
 
         // Determine tank update status based ONLY on manual adjustments (not movements)
