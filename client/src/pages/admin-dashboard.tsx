@@ -1801,7 +1801,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex h-[calc(100vh-64px)]">
+      <div className="flex lg:h-[calc(100vh-64px)] min-h-[calc(100vh-64px)]">
         {/* Left Sidebar */}
         <div className={`hidden lg:flex lg:flex-col lg:w-64 ${themeClasses.sidebar} shadow-lg border-r`}>
           <div className="flex-1 px-4 py-6">
@@ -1952,7 +1952,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <div className="flex items-center">
                 <button
                   onClick={() => {
-                    console.log('Mobile menu toggle clicked, current state:', isMobileMenuOpen);
                     setIsMobileMenuOpen(!isMobileMenuOpen);
                   }}
                   className={`p-2 rounded-md ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`}
@@ -2105,8 +2104,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-auto">
-          <div className="p-6">
+        <div className="flex-1 overflow-auto lg:overflow-auto">
+          <div className="p-3 lg:p-6 min-h-full">
             {/* Overview Content */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
