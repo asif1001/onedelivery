@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -46,7 +46,8 @@ import {
   updateOilTankLevel,
   getOilTanksForBranches,
   createSampleTanks,
-  fixExistingTankCapacities
+  fixExistingTankCapacities,
+  subscribeToTankUpdates
 } from "@/lib/firebase";
 import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -229,6 +230,14 @@ export default function BranchDashboard() {
   const [updateNotes, setUpdateNotes] = useState<string>('');
   const [isCreatingTanks, setIsCreatingTanks] = useState(false);
   const [myUpdateLogs, setMyUpdateLogs] = useState<any[]>([]);
+  
+  // Enhanced concurrent handling states
+  const [realtimeTanks, setRealtimeTanks] = useState<any[]>([]);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [conflictDetails, setConflictDetails] = useState<any>(null);
+  const [retryUpdateData, setRetryUpdateData] = useState<any>(null);
+  const [optimisticUpdates, setOptimisticUpdates] = useState<Map<string, any>>(new Map());
+  const [activeUsers, setActiveUsers] = useState<Map<string, string>>(new Map());
   const [showMyLogsDialog, setShowMyLogsDialog] = useState(false);
   const [allowGalleryAccess, setAllowGalleryAccess] = useState(true);
 
@@ -294,6 +303,56 @@ export default function BranchDashboard() {
       loadSystemSettings();
     }
   }, [currentUser]);
+
+  // Enhanced real-time tank updates with concurrent user support
+  useEffect(() => {
+    if (!branches.length) return;
+    
+    const unsubscribeFunctions: (() => void)[] = [];
+    
+    // Subscribe to tank updates for all branches
+    branches.forEach((branch: any) => {
+      const unsubscribe = subscribeToTankUpdates(branch.id, (updatedTanks) => {
+        console.log(`🔄 Real-time tank update for branch ${branch.name}:`, updatedTanks);
+        
+        // Update oil tanks state with real-time data
+        setOilTanks(prevTanks => {
+          const newTanks = [...prevTanks];
+          updatedTanks.forEach((updatedTank, index) => {
+            const tankId = `${branch.id}_tank_${index}`;
+            const existingIndex = newTanks.findIndex(tank => tank.id === tankId);
+            
+            if (existingIndex >= 0) {
+              newTanks[existingIndex] = {
+                ...newTanks[existingIndex],
+                ...updatedTank,
+                id: tankId,
+                branchId: branch.id
+              };
+            }
+          });
+          
+          return newTanks;
+        });
+        
+        // Clear optimistic updates that are now confirmed
+        setOptimisticUpdates(prev => {
+          const newOptimistic = new Map(prev);
+          updatedTanks.forEach((_, index) => {
+            const tankId = `${branch.id}_tank_${index}`;
+            newOptimistic.delete(tankId);
+          });
+          return newOptimistic;
+        });
+      });
+      
+      unsubscribeFunctions.push(unsubscribe);
+    });
+    
+    return () => {
+      unsubscribeFunctions.forEach(unsubscribe => unsubscribe());
+    };
+  }, [branches]);
 
   // Also load user complaints when global complaints data changes
   useEffect(() => {
@@ -727,6 +786,7 @@ export default function BranchDashboard() {
     }
   };
 
+  // Enhanced tank update with concurrent user support and conflict resolution
   const handleSubmitTankUpdate = async () => {
     try {
       if (!selectedTankForUpdate || !manualQuantity || !gaugePhoto || !systemPhoto) {
@@ -776,13 +836,23 @@ export default function BranchDashboard() {
       }
 
       setLoading(true);
-      console.log('🚀 Starting tank update:', {
+      console.log('🚀 Starting concurrent-safe tank update:', {
         tankId: selectedTankForUpdate,
         previousLevel: selectedTank.currentLevel,
         newLevel,
         capacity: selectedTank.capacity,
         user: currentUser.displayName || currentUser.email
       });
+
+      // Apply optimistic update immediately
+      const optimisticUpdate = {
+        currentLevel: newLevel,
+        lastUpdatedBy: currentUser.displayName || currentUser.email,
+        lastUpdated: new Date(),
+        updating: true
+      };
+      
+      setOptimisticUpdates(prev => new Map(prev.set(selectedTankForUpdate, optimisticUpdate)));
 
       // Add watermarks to photos
       const timestamp = new Date().toLocaleString();
@@ -795,18 +865,34 @@ export default function BranchDashboard() {
       const gaugePhotoUrl = await uploadPhoto(watermarkedGaugePhoto, `tank-updates/${selectedTankForUpdate}/gauge-${Date.now()}`);
       const systemPhotoUrl = await uploadPhoto(watermarkedSystemPhoto, `tank-updates/${selectedTankForUpdate}/system-${Date.now()}`);
 
-      // Update tank level in database
-      await updateOilTankLevel(selectedTankForUpdate, {
-        currentLevel: parseFloat(manualQuantity),
+      // Enhanced update data with concurrent handling
+      const updateData = {
+        currentLevel: newLevel,
         lastUpdatedBy: currentUser.displayName || currentUser.email,
-        notes: updateNotes,
+        notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
-        systemScreenPhoto: systemPhotoUrl
+        systemScreenPhoto: systemPhotoUrl,
+        lastSeenUpdate: selectedTank.lastUpdated,
+        expectedPreviousLevel: selectedTank.currentLevel,
+        updateType: 'manual_with_photos',
+        sessionId: `${currentUser.uid}_${Date.now()}`,
+        userAgent: navigator.userAgent.substring(0, 100),
+        concurrent: true
+      };
+
+      // Update tank level in database with concurrent support
+      const result = await updateOilTankLevel(selectedTankForUpdate, updateData);
+
+      // Clear optimistic update on success
+      setOptimisticUpdates(prev => {
+        const newOptimistic = new Map(prev);
+        newOptimistic.delete(selectedTankForUpdate);
+        return newOptimistic;
       });
 
       toast({
         title: "Success",
-        description: "Tank level updated successfully with photo evidence"
+        description: `Tank level updated: ${result.levelDifference > 0 ? '+' : ''}${result.levelDifference}L with photo evidence`
       });
 
       // Reset dialog state
@@ -819,14 +905,13 @@ export default function BranchDashboard() {
       setManualQuantity('');
       setUpdateNotes('');
       
-      // Reload data
-      loadData();
-      
-      // Log the update action for user feedback
-      console.log('✅ Tank level updated successfully:', {
+      // Log the successful update
+      console.log('✅ Concurrent-safe tank update completed:', {
         tankId: selectedTankForUpdate,
         previousLevel: selectedTank.currentLevel,
-        newLevel: parseFloat(manualQuantity),
+        newLevel: result.newLevel,
+        levelDifference: result.levelDifference,
+        updateVersion: result.updateVersion,
         updatedBy: currentUser.displayName || currentUser.email,
         timestamp: new Date().toLocaleString(),
         photos: { gauge: gaugePhotoUrl, system: systemPhotoUrl }
@@ -838,11 +923,34 @@ export default function BranchDashboard() {
     } catch (error: any) {
       console.error('Error updating tank:', error);
       
-      // Provide more specific error messages based on error type
+      // Clear optimistic update on error
+      setOptimisticUpdates(prev => {
+        const newOptimistic = new Map(prev);
+        newOptimistic.delete(selectedTankForUpdate);
+        return newOptimistic;
+      });
+      
+      // Enhanced error handling for concurrent updates
       let errorMessage = "Failed to update tank level";
       let errorTitle = "Update Failed";
+      let showRetryButton = false;
 
-      if (error?.message?.includes('permission-denied')) {
+      if (error?.type === 'CONFLICT') {
+        errorTitle = "Update Conflict";
+        errorMessage = `Tank was updated by ${error.details?.serverUpdatedBy || 'another user'}. Current level: ${error.details?.serverLevel}L. Please refresh and try again.`;
+        setConflictDetails(error.details);
+        setRetryUpdateData({ 
+          tankId: selectedTankForUpdate, 
+          newLevel: parseFloat(manualQuantity),
+          photos: { gauge: gaugePhoto, system: systemPhoto }
+        });
+        setConflictDialogOpen(true);
+        return;
+      } else if (error?.type === 'TRANSACTION_ABORTED') {
+        errorTitle = "Concurrent Update";
+        errorMessage = "Tank was being updated by another user. Would you like to retry?";
+        showRetryButton = true;
+      } else if (error?.message?.includes('permission-denied')) {
         errorTitle = "Permission Denied";
         errorMessage = "You don't have permission to update this tank. Please contact your administrator.";
       } else if (error?.message?.includes('not-found') || error?.message?.includes('Tank not found')) {
@@ -851,6 +959,7 @@ export default function BranchDashboard() {
       } else if (error?.message?.includes('network') || error?.code === 'unavailable') {
         errorTitle = "Connection Error";
         errorMessage = "Network connection failed. Please check your internet connection and try again.";
+        showRetryButton = true;
       } else if (error?.message?.includes('quota-exceeded')) {
         errorTitle = "Storage Limit Reached";
         errorMessage = "Photo storage limit exceeded. Please contact your administrator.";
@@ -861,19 +970,30 @@ export default function BranchDashboard() {
         errorMessage = `Update failed: ${error.message}`;
       }
 
-      toast({
+      const toastOptions: any = {
         title: errorTitle,
         description: errorMessage,
         variant: "destructive"
-      });
+      };
+
+      if (showRetryButton) {
+        toastOptions.action = {
+          label: "Retry",
+          onClick: () => handleSubmitTankUpdate()
+        };
+      }
+
+      toast(toastOptions);
 
       // Log detailed error information for debugging
       console.error('❌ Tank update failed with detailed error:', {
         error: error.message || error,
         errorCode: error.code,
+        errorType: error.type,
         tankId: selectedTankForUpdate,
         user: currentUser?.email,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        conflictDetails: error.details
       });
     } finally {
       setLoading(false);
@@ -2360,6 +2480,105 @@ export default function BranchDashboard() {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Conflict Resolution Dialog for Concurrent Updates */}
+      <Dialog open={conflictDialogOpen} onOpenChange={setConflictDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertTriangleIcon className="h-5 w-5 text-yellow-500" />
+              <span>Update Conflict Detected</span>
+            </DialogTitle>
+            <DialogDescription>
+              Another user updated this tank while you were making changes. Please review the conflict and choose how to proceed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {conflictDetails && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Server Level:</span>
+                  <span className="text-lg font-bold text-blue-600">
+                    {conflictDetails.serverLevel?.toLocaleString()}L
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Updated By:</span>
+                  <span className="text-sm text-gray-900">
+                    {conflictDetails.serverUpdatedBy || 'Another user'}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Updated At:</span>
+                  <span className="text-sm text-gray-600">
+                    {conflictDetails.serverUpdatedAt ? 
+                      new Date(conflictDetails.serverUpdatedAt).toLocaleString() : 
+                      'Just now'
+                    }
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">Your Intended Level:</span>
+                <span className="text-lg font-bold text-green-600">
+                  {retryUpdateData?.newLevel?.toLocaleString()}L
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setConflictDialogOpen(false);
+                setConflictDetails(null);
+                setRetryUpdateData(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="secondary"
+              onClick={() => {
+                setConflictDialogOpen(false);
+                // Refresh data to see the latest changes
+                loadData();
+                setConflictDetails(null);
+                setRetryUpdateData(null);
+              }}
+            >
+              Refresh & Start Over
+            </Button>
+            <Button 
+              onClick={async () => {
+                if (retryUpdateData) {
+                  setConflictDialogOpen(false);
+                  // Retry with the original data but fresh conflict check
+                  setManualQuantity(retryUpdateData.newLevel.toString());
+                  if (retryUpdateData.photos?.gauge) setGaugePhoto(retryUpdateData.photos.gauge);
+                  if (retryUpdateData.photos?.system) setSystemPhoto(retryUpdateData.photos.system);
+                  
+                  // Force refresh the tank data first, then retry
+                  await loadData();
+                  setTimeout(() => {
+                    handleSubmitTankUpdate();
+                  }, 500);
+                }
+                setConflictDetails(null);
+                setRetryUpdateData(null);
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Retry Update
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

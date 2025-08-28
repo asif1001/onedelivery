@@ -24,7 +24,9 @@ import {
   where,
   writeBatch,
   addDoc,
-  Timestamp
+  Timestamp,
+  runTransaction,
+  onSnapshot
 } from 'firebase/firestore';
 import { 
   getStorage, 
@@ -2976,12 +2978,12 @@ export const addTaskComment = async (taskId: string, commentData: any) => {
 };
 
 // Oil Tank Management Functions  
+// Enhanced function to update oil tank level with concurrent user support
 export const updateOilTankLevel = async (tankId: string, updateData: any) => {
   try {
-    console.log('🔧 Updating embedded tank level:', { tankId, updateData });
+    console.log('🔧 Starting concurrent-safe tank update:', { tankId, updateData });
     
     // Parse tank ID to extract branch ID and tank index
-    // Tank ID format: "branchId_tank_index" (e.g., "8qO1PLPEZa3ybM4XRoM0_tank_0")
     const tankIdParts = tankId.split('_tank_');
     if (tankIdParts.length !== 2) {
       throw new Error(`Invalid tank ID format: ${tankId}. Expected format: branchId_tank_index`);
@@ -2989,107 +2991,174 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
     
     const branchId = tankIdParts[0];
     const tankIndex = parseInt(tankIdParts[1]);
-    
-    console.log('🔍 Parsed tank ID:', { branchId, tankIndex });
-    
-    // Get branch document containing embedded tanks
     const branchRef = doc(db, 'branches', branchId);
-    const branchSnapshot = await getDoc(branchRef);
     
-    if (!branchSnapshot.exists()) {
-      throw new Error(`Branch not found: ${branchId}`);
-    }
-    
-    const branchData = branchSnapshot.data();
-    const oilTanks = branchData.oilTanks || [];
-    
-    if (tankIndex < 0 || tankIndex >= oilTanks.length) {
-      throw new Error(`Tank index ${tankIndex} out of range. Branch has ${oilTanks.length} tanks.`);
-    }
-    
-    const currentTankData = oilTanks[tankIndex];
-    const previousLevel = currentTankData.currentLevel || 0;
-    
-    console.log('🔍 Found tank in branch:', {
-      branchName: branchData.name,
-      tankIndex,
-      currentLevel: previousLevel,
-      newLevel: updateData.currentLevel
-    });
-    
-    // Fetch oil type name from oilTypes collection
-    let oilTypeName = 'Unknown Oil Type';
-    if (currentTankData.oilTypeId) {
-      try {
-        const oilTypeRef = doc(db, 'oilTypes', currentTankData.oilTypeId);
-        const oilTypeSnapshot = await getDoc(oilTypeRef);
-        if (oilTypeSnapshot.exists()) {
-          oilTypeName = oilTypeSnapshot.data().name || oilTypeName;
+    // Use Firestore transaction for atomic updates
+    const result = await runTransaction(db, async (transaction) => {
+      // Read current state
+      const branchSnapshot = await transaction.get(branchRef);
+      
+      if (!branchSnapshot.exists()) {
+        throw new Error(`Branch not found: ${branchId}`);
+      }
+      
+      const branchData = branchSnapshot.data();
+      const oilTanks = branchData.oilTanks || [];
+      
+      if (tankIndex < 0 || tankIndex >= oilTanks.length) {
+        throw new Error(`Tank index ${tankIndex} out of range. Branch has ${oilTanks.length} tanks.`);
+      }
+      
+      const currentTankData = oilTanks[tankIndex];
+      const previousLevel = currentTankData.currentLevel || 0;
+      
+      // Detect conflicts - check if tank was updated during our operation
+      const lastServerUpdate = currentTankData.lastUpdated?.toDate?.() || currentTankData.lastUpdated;
+      const clientLastSeen = updateData.lastSeenUpdate ? new Date(updateData.lastSeenUpdate) : null;
+      
+      if (clientLastSeen && lastServerUpdate && lastServerUpdate > clientLastSeen) {
+        // Conflict detected - tank was updated by someone else
+        const conflictError = new Error('CONCURRENT_UPDATE_CONFLICT');
+        (conflictError as any).conflictDetails = {
+          serverLevel: currentTankData.currentLevel,
+          serverUpdatedBy: currentTankData.lastUpdatedBy,
+          serverUpdatedAt: lastServerUpdate,
+          clientExpectedLevel: updateData.expectedPreviousLevel
+        };
+        throw conflictError;
+      }
+      
+      // Validate capacity constraints
+      if (updateData.currentLevel > currentTankData.capacity) {
+        throw new Error(`Level ${updateData.currentLevel}L exceeds tank capacity ${currentTankData.capacity}L`);
+      }
+      
+      console.log('🔄 Transaction: Updating tank with conflict check passed:', {
+        branchName: branchData.name,
+        tankIndex,
+        previousLevel,
+        newLevel: updateData.currentLevel,
+        updatedBy: updateData.lastUpdatedBy
+      });
+      
+      // Fetch oil type name
+      let oilTypeName = 'Unknown Oil Type';
+      if (currentTankData.oilTypeId) {
+        try {
+          const oilTypeRef = doc(db, 'oilTypes', currentTankData.oilTypeId);
+          const oilTypeSnapshot = await transaction.get(oilTypeRef);
+          if (oilTypeSnapshot.exists()) {
+            oilTypeName = oilTypeSnapshot.data().name || oilTypeName;
+          }
+        } catch (error) {
+          console.warn('Could not fetch oil type name:', error);
         }
-      } catch (error) {
-        console.warn('Could not fetch oil type name:', error);
       }
+      
+      // Create updated tank data with version control
+      const updatedTanks = [...oilTanks];
+      const now = new Date();
+      updatedTanks[tankIndex] = {
+        ...currentTankData,
+        ...updateData,
+        lastUpdated: now,
+        updateVersion: (currentTankData.updateVersion || 0) + 1,
+        lastConflictCheck: now
+      };
+      
+      // Update branch document atomically
+      transaction.update(branchRef, {
+        oilTanks: updatedTanks,
+        updatedAt: now,
+        lastTankUpdate: now
+      });
+      
+      // Create comprehensive log entry
+      const logEntry = {
+        tankId: tankId,
+        branchId: branchId,
+        oilTypeId: currentTankData.oilTypeId || '',
+        branchName: branchData.name || 'Unknown Branch',
+        oilTypeName: oilTypeName,
+        previousLevel: previousLevel,
+        newLevel: updateData.currentLevel,
+        levelDifference: updateData.currentLevel - previousLevel,
+        updatedBy: updateData.lastUpdatedBy,
+        updatedAt: now,
+        notes: updateData.notes || '',
+        updateType: updateData.updateType || 'manual',
+        updateVersion: updatedTanks[tankIndex].updateVersion,
+        photos: {
+          gaugePhoto: updateData.tankGaugePhoto || '',
+          systemPhoto: updateData.systemScreenPhoto || ''
+        },
+        metadata: {
+          userAgent: updateData.userAgent || '',
+          sessionId: updateData.sessionId || '',
+          concurrent: updateData.concurrent || false
+        }
+      };
+      
+      // Add to tankUpdateLogs collection
+      const logRef = doc(collection(db, 'tankUpdateLogs'));
+      transaction.set(logRef, logEntry);
+      
+      return {
+        success: true,
+        tankId: tankId,
+        previousLevel: previousLevel,
+        newLevel: updateData.currentLevel,
+        levelDifference: updateData.currentLevel - previousLevel,
+        updatedAt: now,
+        updateVersion: updatedTanks[tankIndex].updateVersion,
+        logId: logRef.id,
+        branchName: branchData.name
+      };
+    });
+    
+    console.log('✅ Concurrent-safe tank update completed:', result);
+    return result;
+    
+  } catch (error: any) {
+    console.error('❌ Error in concurrent tank update:', error);
+    
+    // Enhanced error handling for different scenarios
+    if (error.message === 'CONCURRENT_UPDATE_CONFLICT') {
+      console.warn('⚠️ Concurrent update conflict detected:', error.conflictDetails);
+      throw {
+        type: 'CONFLICT',
+        message: 'Tank was updated by another user. Please refresh and try again.',
+        details: error.conflictDetails,
+        retryable: true
+      };
     }
     
-    // Update the specific tank in the embedded array
-    const updatedTanks = [...oilTanks];
-    updatedTanks[tankIndex] = {
-      ...currentTankData,
-      ...updateData,
-      lastUpdated: new Date()
-    };
+    if (error.code === 'aborted') {
+      console.warn('⚠️ Transaction aborted due to conflict, retry recommended');
+      throw {
+        type: 'TRANSACTION_ABORTED',
+        message: 'Update failed due to concurrent modifications. Please try again.',
+        retryable: true
+      };
+    }
     
-    // Update the branch document with the modified tanks array
-    await updateDoc(branchRef, {
-      oilTanks: updatedTanks,
-      updatedAt: new Date()
-    });
-    
-    console.log('✅ Tank updated successfully in branch document');
-    
-    // Create update log entry for warehouse visibility
-    const logEntry = {
-      tankId: tankId,
-      branchId: branchId,
-      oilTypeId: currentTankData.oilTypeId || '',
-      branchName: branchData.name || 'Unknown Branch',
-      oilTypeName: oilTypeName,
-      previousLevel: previousLevel,
-      newLevel: updateData.currentLevel,
-      updatedBy: updateData.lastUpdatedBy,
-      updatedAt: new Date(),
-      notes: updateData.notes || '',
-      photos: {
-        gaugePhoto: updateData.tankGaugePhoto || '',
-        systemPhoto: updateData.systemScreenPhoto || ''
-      }
-    };
-    
-    // Add to tankUpdateLogs collection for warehouse dashboard
-    const logRef = await addDoc(collection(db, 'tankUpdateLogs'), logEntry);
-    
-    console.log('📋 Created tank update log entry:', {
-      logId: logRef.id,
-      tankId: tankId,
-      branchId: logEntry.branchId,
-      branch: logEntry.branchName,
-      oilTypeId: logEntry.oilTypeId,
-      oilType: logEntry.oilTypeName,
-      change: `${previousLevel}L → ${updateData.currentLevel}L`,
-      updatedBy: updateData.lastUpdatedBy,
-      hasPhotos: {
-        gauge: !!logEntry.photos.gaugePhoto,
-        system: !!logEntry.photos.systemPhoto
-      },
-      notes: logEntry.notes
-    });
-    
-    console.log('✅ Tank level updated successfully in embedded structure with tracking log');
-    
-  } catch (error) {
-    console.error('Error updating embedded oil tank level:', error);
     throw error;
   }
+};
+
+// Real-time listener for tank updates
+export const subscribeToTankUpdates = (branchId: string, callback: (tanks: any[]) => void) => {
+  const branchRef = doc(db, 'branches', branchId);
+  
+  return onSnapshot(branchRef, (snapshot) => {
+    if (snapshot.exists()) {
+      const branchData = snapshot.data();
+      const tanks = branchData.oilTanks || [];
+      callback(tanks);
+    }
+  }, (error) => {
+    console.error('Error subscribing to tank updates:', error);
+  });
 };
 
 // Create oil tank for branch
