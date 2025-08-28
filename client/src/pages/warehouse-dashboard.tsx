@@ -853,7 +853,7 @@ export default function WarehouseDashboard() {
   }
 
   // Enhanced function to get detailed branch update status with tank-level tracking
-  const getBranchUpdateStatus = () => {
+  const getBranchUpdateStatus = (transactionData = recentTransactions) => {
     const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -984,10 +984,10 @@ export default function WarehouseDashboard() {
         if (!lastMovement) {
           // Get the tank ID in the format expected by transaction logs
           const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
-          const tankTransactions = allTransactions.filter(t => 
-            t.tankId === tankId && 
-            t.lastMovementByRole === 'driver' &&
-            (t.operationType === 'LOAD' || t.operationType === 'SUPPLY_LOOSE' || t.operationType === 'SUPPLY_DRUM')
+          const tankTransactions = transactionData.filter(t => 
+            (t.tankId === tankId || t.branchId === tank.branchId) && 
+            (t.type === 'loading' || t.type === 'supply' || t.type === 'delivery') &&
+            t.driverName
           );
           
           if (tankTransactions.length > 0) {
@@ -998,8 +998,14 @@ export default function WarehouseDashboard() {
               return dateB.getTime() - dateA.getTime();
             })[0];
             
-            lastMovement = recentTransaction.timestamp?.toDate ? recentTransaction.timestamp.toDate() : new Date(recentTransaction.timestamp);
-            lastMovementBy = recentTransaction.lastMovementByUser || recentTransaction.driver;
+            const transactionDate = recentTransaction.timestamp?.toDate ? 
+              recentTransaction.timestamp.toDate() : 
+              recentTransaction.createdAt?.toDate ? 
+                recentTransaction.createdAt.toDate() : 
+                new Date(recentTransaction.timestamp || recentTransaction.createdAt);
+            
+            lastMovement = transactionDate;
+            lastMovementBy = recentTransaction.driverName || recentTransaction.driver || 'Driver';
             lastMovementRole = 'driver';
             const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
             const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
@@ -1008,7 +1014,7 @@ export default function WarehouseDashboard() {
             console.log(`🚛 WAREHOUSE: Found transaction for tank ${tankId}:`, {
               date: lastMovement.toLocaleString(),
               driver: lastMovementBy,
-              type: recentTransaction.operationType,
+              type: recentTransaction.type,
               daysSince: daysSinceMovement
             });
           }
