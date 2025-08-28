@@ -1801,7 +1801,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       {/* Main Content */}
-      <div className="flex lg:h-[calc(100vh-64px)] min-h-[calc(100vh-64px)]">
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-64px)] min-h-[calc(100vh-64px)]">
         {/* Left Sidebar */}
         <div className={`hidden lg:flex lg:flex-col lg:w-64 ${themeClasses.sidebar} shadow-lg border-r`}>
           <div className="flex-1 px-4 py-6">
