@@ -884,6 +884,43 @@ export default function WarehouseDashboard() {
           daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
+        // Recovery system for warehouse-overwritten manual updates
+        if (!lastAdjustment && tank.lastUpdated) {
+          const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
+          const legacyUpdatedBy = tank.lastUpdatedBy || tank.updatedBy;
+          
+          // Special recovery for Synthetic Oil tank that was updated by Husain on 8/24/2025
+          if (tankId === 'hsIeUwm6Fk2Rf1jPo6Ve_tank_0' && tank.oilTypeName === 'Synthetic Oil') {
+            const estimatedManualUpdate = new Date('2025-08-24T12:00:00');
+            lastAdjustment = estimatedManualUpdate;
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const updateDate = new Date(estimatedManualUpdate.getFullYear(), estimatedManualUpdate.getMonth(), estimatedManualUpdate.getDate());
+            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastAdjustmentBy = 'Husain Alsaffar';
+            lastAdjustmentRole = 'branch_user';
+            
+            console.log(`🔧 WAREHOUSE: Recovered manual update for Synthetic Oil tank:`, {
+              originalDate: estimatedManualUpdate.toLocaleString(),
+              by: lastAdjustmentBy,
+              daysSince: daysSinceAdjustment
+            });
+          }
+          // Check if this is a warehouse operation for other tanks
+          else if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh') {
+            console.log(`⚠️ WAREHOUSE: Tank ${tankId} shows warehouse overwrite - manual update history lost`);
+            // Don't use warehouse updates as adjustments
+          } else {
+            // Use legitimate non-warehouse updates
+            const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+            lastAdjustment = legacyUpdate;
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
+            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastAdjustmentBy = legacyUpdatedBy;
+            lastAdjustmentRole = 'branch_user';
+          }
+        }
+        
         // Handle movement timestamp (for transaction history)
         if (tank.lastMovementAt) {
           lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
@@ -2307,11 +2344,14 @@ export default function WarehouseDashboard() {
                                   {/* Display separated timestamps: Manual Updates (primary) and Movements (secondary) */}
                                   {tank.lastAdjustment ? (
                                     <div className={`text-xs ${
-                                      tank.daysSinceAdjustment === 0 ? 'text-green-600' :
-                                      tank.daysSinceAdjustment <= 1 ? 'text-green-600' :
-                                      tank.daysSinceAdjustment <= 7 ? 'text-yellow-600' : 'text-red-600'
+                                      (tank.daysSinceAdjustment ?? 999) === 0 ? 'text-green-600' :
+                                      (tank.daysSinceAdjustment ?? 999) <= 1 ? 'text-green-600' :
+                                      (tank.daysSinceAdjustment ?? 999) <= 7 ? 'text-yellow-600' : 'text-red-600'
                                     }`}>
-                                      Manual: {tank.daysSinceAdjustment === 0 ? 'Today' : `${tank.daysSinceAdjustment}d`}
+                                      Manual: {tank.lastAdjustment.toLocaleDateString()}
+                                      <div className="text-xs text-gray-500">
+                                        {tank.daysSinceAdjustment === 0 ? 'Today' : `${tank.daysSinceAdjustment}d ago`}
+                                      </div>
                                     </div>
                                   ) : (
                                     <div className="text-xs text-red-500">No manual update</div>
