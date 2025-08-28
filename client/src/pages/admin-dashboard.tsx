@@ -2054,7 +2054,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     🕐 Logs
                   </button>
                   <button
-                    onClick={() => { setActiveTab('tasks'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { 
+                      console.log('Mobile Tasks clicked, setting activeTab to tasks');
+                      setActiveTab('tasks'); 
+                      setIsMobileMenuOpen(false); 
+                    }}
                     className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
                       activeTab === 'tasks' 
                         ? 'bg-orange-100 text-orange-900' 
@@ -2065,7 +2069,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     📋 Tasks
                   </button>
                   <button
-                    onClick={() => { setActiveTab('complaints'); setIsMobileMenuOpen(false); }}
+                    onClick={() => { 
+                      console.log('Mobile Complaints clicked, setting activeTab to complaints');
+                      setActiveTab('complaints'); 
+                      setIsMobileMenuOpen(false); 
+                    }}
                     className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
                       activeTab === 'complaints' 
                         ? 'bg-orange-100 text-orange-900' 
@@ -2105,6 +2113,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
         {/* Main Content Area */}
         <div className="flex-1 overflow-auto lg:overflow-auto">
+          {/* Debug info - remove after fixing */}
+          <div className="lg:hidden bg-yellow-100 p-2 text-xs">
+            Current activeTab: {activeTab}
+          </div>
           <div className={`${activeTab === 'tasks' || activeTab === 'complaints' ? 'p-2 lg:p-6' : 'p-3 lg:p-6'} min-h-full`}>
             {/* Overview Content */}
             {activeTab === 'overview' && (
@@ -3076,7 +3088,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Tasks Management Section */}
       {activeTab === 'tasks' && (
-        <div className="space-y-4 lg:space-y-6">
+        <div className="space-y-4 lg:space-y-6" style={{ display: 'block' }}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Task Management</h2>
@@ -3230,7 +3242,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Complaints Management Section */}
       {activeTab === 'complaints' && (
-        <div className="space-y-4 lg:space-y-6">
+        <div className="space-y-4 lg:space-y-6" style={{ display: 'block' }}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Complaint Management</h2>
