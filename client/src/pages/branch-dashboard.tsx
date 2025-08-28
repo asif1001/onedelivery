@@ -585,7 +585,8 @@ export default function BranchDashboard() {
         let daysSinceUpdate = null;
         
         if (tank.lastUpdatedBy && tank.lastUpdated) {
-          lastUpdate = new Date(tank.lastUpdated);
+          // Handle Firebase Firestore timestamp properly
+          lastUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
           daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
