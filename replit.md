@@ -14,29 +14,6 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
-### ✅ Fixed Warehouse Dashboard Movement Data with Transaction Integration (Latest - August 28, 2025)
-- **Critical fix completed**: Resolved `allTransactions is not defined` error preventing warehouse dashboard from loading
-- **Transaction integration**: Warehouse dashboard now properly fetches driver movement data from existing transaction logs
-- **Movement details display**: Tank cards show complete movement information including driver names and timestamps
-- **Data source alignment**: Uses same transaction structure as branch dashboard for consistency
-- **Enhanced filtering**: Only shows movements from actual drivers, excludes warehouse bulk operations
-- **Real movement tracking**: Displays actual dates like "8/28/2025, 8:37:07 AM by Kannan" from transaction records
-
-### ✅ Enhanced Tank Card Display with Real Dates and User Names (August 28, 2025)
-- **Real date display**: Tank cards now show actual dates (e.g., "8/24/2025, 12:00:00 PM") instead of relative times (e.g., "4 days ago")
-- **Full user names**: Display complete user names (e.g., "Husain Alsaffar") instead of abbreviated versions (e.g., "Husain")
-- **Improved layout**: Separated date/time and user information onto different lines for better readability
-- **Enhanced user experience**: Tank status cards provide precise timestamp and attribution information
-- **Recovery system integration**: Leverages existing data recovery system to show accurate historical updates
-
-### ✅ Fixed Movement vs Adjustment Timestamp Separation (August 28, 2025)
-- **Critical fix completed**: Warehouse adjustments no longer incorrectly show as "Last Movement"  
-- **Enhanced movement filtering**: Dashboard only shows movements where `lastMovementByRole === 'driver'`
-- **Transaction log analysis**: Added `getTankTransactionLogs` function to query actual driver movements vs manual adjustments
-- **Strict classification**: Only LOAD, SUPPLY_LOOSE, SUPPLY_DRUM operations create movement timestamps
-- **Data integrity**: Manual adjustments by warehouse/branch/admin users only update adjustment timestamps
-- **Dashboard accuracy**: "Last Movement" now correctly shows only actual driver operations
-
 ### ✅ GitHub Repository Sync Completed (Latest - August 27, 2025)
 - **Successful force push**: All 58 commits (1492 objects, 214.43 MiB) pushed to GitHub
 - **Repository URL**: https://github.com/asif1001/onedelivery.git 

@@ -30,7 +30,6 @@ import {
   TruckIcon,
   Package,
   MapPin,
-  MapPinIcon,
   DownloadIcon,
   DownloadCloudIcon,
   Edit,
@@ -665,8 +664,6 @@ export default function WarehouseDashboard() {
     try {
       // Group updates by branch to avoid race conditions
       const updatesByBranch = new Map();
-      const skippedUpdates: Array<{tank: string, current: number, attempted: any, reason: string}> = [];
-      let actualUpdatesCount = 0;
       
       Object.entries(bulkUpdates).forEach(([tankId, newLevel]) => {
         const tank = oilTanks.find(t => t.id === tankId);
@@ -674,37 +671,6 @@ export default function WarehouseDashboard() {
           console.error(`❌ Tank not found: ${tankId}`);
           return;
         }
-        
-        // Skip transaction recording for unchanged, 0, null, or blank quantities
-        const currentLevel = Number(tank.currentLevel) || 0;
-        const newLevelNum = Number(newLevel);
-        
-        // Skip if:
-        // 1. New level is 0
-        // 2. New level is null/undefined/NaN
-        // 3. New level equals current level (unchanged)
-        // 4. New level is blank/empty string
-        if (String(newLevel) === '' || newLevel === null || newLevel === undefined || 
-            isNaN(newLevelNum) || newLevelNum === 0 || newLevelNum === currentLevel) {
-          
-          const reason = String(newLevel) === '' || newLevel === null || newLevel === undefined ? 'blank/null value' :
-                        isNaN(newLevelNum) ? 'invalid number' :
-                        newLevelNum === 0 ? 'zero quantity' :
-                        'unchanged quantity';
-          
-          skippedUpdates.push({
-            tank: `${tank.branchName} - ${tank.oilTypeName}`,
-            current: currentLevel,
-            attempted: newLevel,
-            reason: reason
-          });
-          
-          console.log(`⏭️ SKIPPING transaction for tank ${tank.branchName} - ${tank.oilTypeName}: ${reason} (${currentLevel}L → ${newLevel})`);
-          return;
-        }
-        
-        // Only process actual changes
-        actualUpdatesCount++;
         
         if (!updatesByBranch.has(tank.branchId)) {
           updatesByBranch.set(tank.branchId, []);
@@ -717,28 +683,6 @@ export default function WarehouseDashboard() {
         });
       });
 
-      // Log summary of what will be processed vs skipped
-      console.log(`📋 Bulk update summary:`, {
-        totalRequested: Object.keys(bulkUpdates).length,
-        actualUpdates: actualUpdatesCount,
-        skippedUpdates: skippedUpdates.length,
-        branchesToProcess: updatesByBranch.size
-      });
-      
-      if (skippedUpdates.length > 0) {
-        console.log(`⏭️ Skipped ${skippedUpdates.length} tanks (no transaction recorded):`, skippedUpdates);
-      }
-      
-      if (actualUpdatesCount === 0) {
-        toast({
-          title: "No valid updates to process",
-          description: `All ${Object.keys(bulkUpdates).length} updates were skipped (unchanged, zero, or blank values)`,
-          variant: "destructive"
-        });
-        setIsBulkSubmitting(false);
-        return;
-      }
-      
       console.log(`📋 Processing updates for ${updatesByBranch.size} branches sequentially to avoid race conditions`);
 
       // Process each branch sequentially to avoid Firebase race conditions
@@ -796,14 +740,9 @@ export default function WarehouseDashboard() {
         console.log(`✅ All tank updates completed for branch ${branch.name}`);
       }
 
-      // Show detailed success message
-      const successMessage = actualUpdatesCount === Object.keys(bulkUpdates).length ?
-        `Updated ${actualUpdatesCount} oil tank levels` :
-        `Updated ${actualUpdatesCount} tanks, skipped ${skippedUpdates.length} (no changes/zero values)`;
-      
       toast({
-        title: "Bulk update completed",
-        description: successMessage
+        title: "Bulk update successful",
+        description: `Updated ${Object.keys(bulkUpdates).length} oil tank levels`
       });
 
       console.log('🔄 Bulk update completed, refreshing data...');
@@ -913,7 +852,7 @@ export default function WarehouseDashboard() {
   }
 
   // Enhanced function to get detailed branch update status with tank-level tracking
-  const getBranchUpdateStatus = (transactionData = recentTransactions) => {
+  const getBranchUpdateStatus = () => {
     const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -924,195 +863,45 @@ export default function WarehouseDashboard() {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
 
-      // Get detailed tank update status using new separated timestamps
+      // Get detailed tank update status
       const tankUpdateDetails = branchTanks.map(tank => {
-        let lastAdjustment = null;
-        let lastMovement = null;
-        let daysSinceAdjustment = null;
-        let daysSinceMovement = null;
-        let lastAdjustmentBy = null;
-        let lastMovementBy = null;
-        let lastAdjustmentRole = null;
-        let lastMovementRole = null;
-        
-        // Handle manual adjustment timestamp (primary for staleness check)
-        if (tank.lastAdjustmentAt) {
-          const adjustmentUser = tank.lastAdjustmentByUser;
-          
-          // CRITICAL FIX: Filter out warehouse operations from showing as manual updates
-          if (adjustmentUser === 'Renga' || adjustmentUser === 'warehouse@gmail.com' || adjustmentUser === 'renga@ekkanoo.com.bh') {
-            console.log(`⚠️ WAREHOUSE: Rejecting warehouse adjustment for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-              warehouseUser: adjustmentUser,
-              adjustmentDate: tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate().toLocaleString() : 'Unknown',
-              reason: 'Warehouse bulk operation incorrectly recorded as manual adjustment'
-            });
-            // Don't use warehouse adjustments - skip this adjustment completely
-          } else {
-            // Only use legitimate manual adjustments
-            lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
-            // Try multiple user name sources in order of preference
-            lastAdjustmentBy = tank.lastAdjustmentByUser || tank.lastUpdatedBy || tank.updatedBy || tank.lastAdjustmentBy;
-            lastAdjustmentRole = tank.lastAdjustmentByRole || tank.userRole;
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const adjustmentDate = new Date(lastAdjustment.getFullYear(), lastAdjustment.getMonth(), lastAdjustment.getDate());
-            daysSinceAdjustment = Math.floor((nowDate.getTime() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            console.log(`✅ WAREHOUSE: Using legitimate manual adjustment for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-              date: lastAdjustment.toLocaleString(),
-              by: lastAdjustmentBy,
-              daysSince: daysSinceAdjustment
-            });
-          }
-        }
-        
-        // Recovery system for warehouse-overwritten manual updates
-        if (!lastAdjustment && tank.lastUpdated) {
-          const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
-          const legacyUpdatedBy = tank.lastUpdatedBy || tank.updatedBy;
-          
-          // Special recovery for Synthetic Oil tank that was updated by Husain on 8/24/2025
-          if (tankId === 'hsIeUwm6Fk2Rf1jPo6Ve_tank_0' && tank.oilTypeName === 'Synthetic Oil') {
-            const estimatedManualUpdate = new Date('2025-08-24T12:00:00');
-            lastAdjustment = estimatedManualUpdate;
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const updateDate = new Date(estimatedManualUpdate.getFullYear(), estimatedManualUpdate.getMonth(), estimatedManualUpdate.getDate());
-            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-            lastAdjustmentBy = 'Husain Alsaffar';
-            lastAdjustmentRole = 'branch_user';
-            
-            console.log(`🔧 WAREHOUSE: Recovered manual update for Synthetic Oil tank:`, {
-              originalDate: estimatedManualUpdate.toLocaleString(),
-              by: lastAdjustmentBy,
-              daysSince: daysSinceAdjustment
-            });
-          }
-          // STRICT FILTERING: Reject ALL warehouse operations - don't show as manual updates
-          else if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh' || tank.notes?.includes('warehouse bulk update')) {
-            console.log(`⚠️ WAREHOUSE: Rejecting warehouse operation for tank ${tankId} (${tank.oilTypeName}):`, {
-              warehouseUser: legacyUpdatedBy,
-              warehouseDate: tank.lastUpdated?.toDate ? tank.lastUpdated.toDate().toLocaleString() : 'Unknown',
-              branch: tank.branchName,
-              reason: 'Warehouse bulk operation should not appear as manual update'
-            });
-            // Explicitly don't use warehouse updates - leave lastAdjustment as null
-          } else {
-            // Use legitimate non-warehouse updates only
-            const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-            lastAdjustment = legacyUpdate;
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
-            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-            lastAdjustmentBy = legacyUpdatedBy;
-            lastAdjustmentRole = 'branch_user';
-            
-            console.log(`✅ WAREHOUSE: Using legitimate manual update for tank ${tankId}:`, {
-              date: legacyUpdate.toLocaleString(),
-              by: lastAdjustmentBy,
-              branch: tank.branchName
-            });
-          }
-        }
-        
-        // Handle movement timestamp - STRICT FILTERING: only use actual driver movements
-        if (tank.lastMovementAt && tank.lastMovementByRole === 'driver') {
-          lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
-          lastMovementBy = tank.lastMovementByUser;
-          lastMovementRole = tank.lastMovementByRole;
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
-          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          console.log(`🚛 WAREHOUSE: Using driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-            date: lastMovement.toLocaleString(),
-            driver: lastMovementBy,
-            daysSince: daysSinceMovement
-          });
-        } else if (tank.lastMovementAt) {
-          console.log(`⚠️ WAREHOUSE: Ignoring non-driver movement for tank ${tank.branchName} (${tank.oilTypeName}):`, {
-            role: tank.lastMovementByRole,
-            user: tank.lastMovementByUser
-          });
-        }
-        
-        // If no movement from tank fields, try to get from transaction logs
-        // BUT ONLY if we have a specific tank ID match and confirmed driver role
-        if (!lastMovement) {
-          const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
-          const tankTransactions = transactionData.filter(t => 
-            t.branchId === tank.branchId && 
-            t.oilTypeId === tank.oilTypeId &&
-            (t.type === 'loading' || t.type === 'supply' || t.type === 'delivery') &&
-            t.driverName && // Must have driver name
-            // Additional validation: exclude generic "Driver" names that might be placeholders
-            t.driverName !== 'Driver' && t.driverName !== 'Unknown Driver'
-          );
-          
-          if (tankTransactions.length > 0) {
-            // Get the most recent confirmed driver transaction
-            const recentTransaction = tankTransactions.sort((a, b) => {
-              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.createdAt);
-              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.createdAt);
-              return dateB.getTime() - dateA.getTime();
-            })[0];
-            
-            const transactionDate = recentTransaction.timestamp?.toDate ? 
-              recentTransaction.timestamp.toDate() : 
-              recentTransaction.createdAt?.toDate ? 
-                recentTransaction.createdAt.toDate() : 
-                new Date(recentTransaction.timestamp || recentTransaction.createdAt);
-            
-            lastMovement = transactionDate;
-            lastMovementBy = recentTransaction.driverName;
-            lastMovementRole = 'driver';
-            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
-            daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            console.log(`🚛 WAREHOUSE: Found confirmed driver transaction for tank ${tankId}:`, {
-              date: lastMovement.toLocaleString(),
-              driver: lastMovementBy,
-              type: recentTransaction.type,
-              daysSince: daysSinceMovement,
-              oilType: tank.oilTypeName
-            });
-          } else {
-            console.log(`ℹ️ WAREHOUSE: No confirmed driver movements found for tank ${tankId} (${tank.oilTypeName})`);
-          }
-        }
-        
-        // Fallback to tank update logs for backward compatibility
+        // Find the most recent update for this specific tank
         const tankLogs = branchLogs.filter(log => 
           log.oilTypeName === tank.oilTypeName && log.branchName === branch.name
         );
+
+        let lastUpdate = null;
+        let lastUpdateBy = null;
+        let daysSinceUpdate = null;
         
-        if (!lastAdjustment && !lastMovement && tankLogs.length > 0) {
+        if (tankLogs.length > 0) {
           const mostRecentLog = tankLogs.reduce((latest, current) => {
             const currentDate = current.updatedAt?.toDate ? current.updatedAt.toDate() : new Date(current.updatedAt);
             const latestDate = latest.updatedAt?.toDate ? latest.updatedAt.toDate() : new Date(latest.updatedAt);
             return currentDate > latestDate ? current : latest;
           });
-          const legacyUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
-          lastMovement = legacyUpdate;
-          lastMovementBy = mostRecentLog.updatedBy;
+          lastUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
+          lastUpdateBy = mostRecentLog.updatedBy;
+          // Calculate calendar days difference (not 24-hour periods)
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
-          daysSinceMovement = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-        } else if (!lastAdjustment && !lastMovement && tank.lastUpdated) {
-          const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-          lastMovement = legacyUpdate;
+          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        } else {
+          // Check tank's lastUpdated field if no logs found
+          if (tank.lastUpdated) {
+            lastUpdate = new Date(tank.lastUpdated);
+            // Calculate calendar days difference (not 24-hour periods)
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
-          daysSinceMovement = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          }
         }
 
-        // Determine tank update status based on manual adjustments (not movements)
-        let updateStatus = 'never';
-        const referenceDate = lastAdjustment || lastMovement; // Prefer adjustment over movement
-        const referenceDays = daysSinceAdjustment !== null ? daysSinceAdjustment : daysSinceMovement;
-        
-        if (referenceDate) {
-          if (referenceDate > oneDayAgo) updateStatus = 'recent';
-          else if (referenceDate > sevenDaysAgo) updateStatus = 'stale';
+        // Determine tank update status
+        let updateStatus = 'never'; // never, recent, stale, old
+        if (lastUpdate) {
+          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
+          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
           else updateStatus = 'old';
         }
 
@@ -1121,20 +910,11 @@ export default function WarehouseDashboard() {
           oilTypeName: tank.oilTypeName,
           currentLevel: tank.currentLevel,
           capacity: tank.capacity,
-          lastAdjustment,
-          lastMovement,
-          daysSinceAdjustment,
-          daysSinceMovement,
-          lastAdjustmentBy,
-          lastMovementBy,
-          lastAdjustmentRole,
-          lastMovementRole,
+          lastUpdate,
+          lastUpdateBy,
+          daysSinceUpdate,
           updateStatus,
-          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1),
-          // Legacy fields for backward compatibility
-          lastUpdate: lastAdjustment || lastMovement,
-          lastUpdateBy: lastAdjustmentBy || lastMovementBy,
-          daysSinceUpdate: referenceDays
+          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1)
         };
       });
 
@@ -2367,166 +2147,171 @@ export default function WarehouseDashboard() {
               )}
             </div>
 
-            {/* Enhanced Branch Tank Status - User Requested Format */}
+            {/* Branch Stock Update Tracking Card - Moved to Bottom */}
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   <AlertCircleIcon className="h-4 w-4 text-blue-600" />
-                  Branch Tank Status
+                  Branch Stock Update Tracking
                 </CardTitle>
                 <CardDescription className="text-sm text-gray-600">
-                  Real-time tank update status across all branches. Shows manual updates and driver movements.
+                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="grid gap-4">
+                {/* Gallery-style grid layout: 4 cards per row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {getBranchUpdateStatus().map((branch) => {
-                    // Determine branch styling and status based on update status
-                    let branchCardClass = 'hover:shadow-lg transition-shadow border-2';
-                    let headerTextColor = 'text-gray-900';
-                    let branchStatusText = '';
-                    let branchStatusBadge = null;
+                    // Determine branch status based on update timeline:
+                    // Red = not updated for more than 7 days (includes never updated and old tanks)
+                    // Yellow = updated 1-7 days ago (stale tanks)
+                    // Green = updated within 24 hours (recent tanks)
+                    let branchStatus = 'green'; // default to green (current)
+                    let bgColor = 'bg-green-50';
+                    let borderColor = 'border-green-200';
+                    let textColor = 'text-green-800';
+                    let dotColor = 'bg-green-500';
+                    let badgeVariant: 'default' | 'destructive' | 'secondary' = 'default';
                     
+                    // Color coding based on branch status:
+                    // Red: All tanks not updated for 7+ days
+                    // Yellow: Partial tank level updates (mixed status)
+                    // Green: All tanks up to date
                     if (branch.status === 'needs-attention') {
-                      branchCardClass = 'bg-red-50 border-red-400 shadow-red-100 hover:shadow-red-200 transition-shadow border-2';
-                      headerTextColor = 'text-red-800';
-                      branchStatusText = 'Needs Attention';
-                      branchStatusBadge = (
-                        <Badge variant="destructive" className="text-xs ml-2">
-                          Critical
-                        </Badge>
-                      );
+                      // Red for branches not updated for more than 7 days
+                      branchStatus = 'red';
+                      bgColor = 'bg-red-50';
+                      borderColor = 'border-red-400';
+                      textColor = 'text-red-800';
+                      dotColor = 'bg-red-500';
+                      badgeVariant = 'destructive';
                     } else if (branch.status === 'partially-updated') {
-                      branchCardClass = 'bg-yellow-50 border-yellow-400 shadow-yellow-100 hover:shadow-yellow-200 transition-shadow border-2';
-                      headerTextColor = 'text-yellow-800';
-                      branchStatusText = 'Partial Updated';
-                      branchStatusBadge = (
-                        <Badge variant="secondary" className="text-xs ml-2 bg-yellow-100 text-yellow-800">
-                          Partial
-                        </Badge>
-                      );
-                    } else {
-                      branchCardClass = 'bg-green-50 border-green-400 shadow-green-100 hover:shadow-green-200 transition-shadow border-2';
-                      headerTextColor = 'text-green-800';
-                      branchStatusText = 'Up-to-date';
-                      branchStatusBadge = (
-                        <Badge variant="default" className="text-xs ml-2 bg-green-100 text-green-800">
-                          Good
-                        </Badge>
-                      );
+                      // Yellow for branches with partial tank level updates
+                      branchStatus = 'yellow';
+                      bgColor = 'bg-yellow-50';
+                      borderColor = 'border-yellow-400';
+                      textColor = 'text-yellow-800';
+                      dotColor = 'bg-yellow-500';
+                      badgeVariant = 'secondary';
                     }
                     
                     return (
-                      <Card key={branch.id} className={branchCardClass}>
-                        <CardHeader className="pb-3">
-                          <div className="flex justify-between items-center">
-                            <div className="min-w-0 flex-1">
-                              <CardTitle className={`flex items-center gap-2 text-base ${headerTextColor}`}>
-                                <BuildingIcon className="h-5 w-5 flex-shrink-0" />
-                                <span className="truncate">{branch.name}</span>
-                                {branchStatusBadge}
-                                <span className="text-sm font-normal">Tank Status: [{branchStatusText}]</span>
-                              </CardTitle>
+                      <Card key={branch.id} className={`${
+                        branchStatus === 'red' ? `${borderColor} ${bgColor} shadow-red-100` :
+                        branchStatus === 'yellow' ? `${borderColor} ${bgColor} shadow-yellow-100` :
+                        `${borderColor} ${bgColor} shadow-green-100 hover:shadow-md`
+                      } transition-shadow duration-200 h-fit`}>
+                        <CardContent className="p-4 space-y-3">
+                          {/* Branch Header with Red Highlighting */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`w-3 h-3 rounded-full flex-shrink-0 ${dotColor}`}
+                              />
+                              <h4 className={`font-semibold text-sm truncate ${textColor}`} title={branch.name}>
+                                {branch.name}
+                              </h4>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-1">
+                              <Badge 
+                                variant={badgeVariant}
+                                className="text-xs"
+                              >
+                                {branch.recentlyUpdatedTanks}/{branch.totalTanks} updated
+                              </Badge>
+                              {branchStatus === 'red' && (
+                                <Badge variant="destructive" className="text-xs">
+                                  7+ Days
+                                </Badge>
+                              )}
+                              {branchStatus === 'yellow' && (
+                                <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
+                                  1-7 Days
+                                </Badge>
+                              )}
+                              {branchStatus === 'green' && (
+                                <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                                  Current
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="text-xs text-gray-500">
+                              {branch.lastUpdate 
+                                ? `Last: ${branch.lastUpdate.toLocaleDateString()}`
+                                : 'No updates'
+                              }
                             </div>
                           </div>
-                        </CardHeader>
-                        <CardContent className="pt-0">
-                          <div className="space-y-4">
-                            {branch.tankDetails.length > 0 ? (
-                              <div className="space-y-4">
-                                {branch.tankDetails.map((tank, index) => {
-                                  const percentage = Math.round(tank.percentage || 0);
-                                  
-                                  // Determine tank level status
-                                  const levelStatus = percentage <= 5 ? 
-                                    { status: 'critical', label: 'Critical', color: 'red' } :
-                                    percentage <= 25 ? 
-                                    { status: 'low', label: 'Low', color: 'yellow' } :
-                                    { status: 'normal', label: 'Normal', color: 'green' };
-                                  
-                                  const progressBarColor = levelStatus.color === 'red' ? 'bg-red-500' :
-                                                          levelStatus.color === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
-                                  
-                                  return (
-                                    <div key={index} className="border-l-4 border-gray-300 pl-4 py-2">
-                                      {/* Tank Header with Oil Type and Level Info */}
-                                      <div className="flex items-center justify-between mb-2">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <span className="text-lg font-bold">•</span>
-                                          <span className="font-medium text-base">{tank.oilTypeName}</span>
-                                          <span className="text-gray-600">
-                                            Current Level: {(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L ({percentage}%)
-                                          </span>
-                                        </div>
-                                        <Badge 
-                                          variant={levelStatus.status === 'critical' ? 'destructive' : 
-                                                  levelStatus.status === 'low' ? 'secondary' : 'default'}
-                                          className="text-xs ml-2"
-                                        >
-                                          {levelStatus.label}
-                                        </Badge>
-                                      </div>
-                                      
-                                      {/* Progress Bar */}
-                                      <div className="w-full bg-gray-200 rounded-full h-3 mb-3">
-                                        <div 
-                                          className={`h-3 rounded-full transition-all duration-300 ${progressBarColor}`}
-                                          style={{ 
-                                            width: `${Math.min(percentage, 100)}%` 
-                                          }}
-                                        />
-                                      </div>
-                                      
-                                      {/* Last Manual Update */}
-                                      <div className="text-sm mb-2">
-                                        {tank.lastAdjustment ? (
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium">Last Manual Update:</span>
-                                            <span>
-                                              {tank.lastAdjustment.toLocaleDateString()} {tank.lastAdjustment.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                            </span>
-                                            <span className="text-gray-500">by:</span>
-                                            <Badge variant="outline" className="text-xs px-2 py-0 h-5">
-                                              {tank.lastAdjustmentRole === 'admin' ? '👑' : 
-                                               tank.lastAdjustmentRole === 'warehouse' ? '📦' : 
-                                               tank.lastAdjustmentRole === 'branch_user' ? '🏢' : ''}
-                                              {tank.lastAdjustmentBy || tank.lastAdjustmentByUser || tank.lastUpdatedBy || tank.updatedBy || 'Unknown User'}
-                                            </Badge>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-2 text-red-600">
-                                            <span className="font-medium">Last Manual Update:</span>
-                                            <span>Never updated</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                      
-                                      {/* Last Movement */}
-                                      <div className="text-sm">
-                                        {tank.lastMovement ? (
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="font-medium">Last Movement:</span>
-                                            <span>
-                                              {tank.lastMovement.toLocaleDateString()} {tank.lastMovement.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                            </span>
-                                            <span className="text-gray-500">Driver:</span>
-                                            <Badge variant="outline" className="text-xs px-2 py-0 h-5 bg-blue-50">
-                                              🚛{tank.lastMovementBy || tank.lastMovementByUser || tank.driverName || 'Unknown Driver'}
-                                            </Badge>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-2 text-gray-500">
-                                            <span className="font-medium">Last Movement:</span>
-                                            <span>No driver movements recorded</span>
-                                          </div>
-                                        )}
-                                      </div>
+
+                          {/* Tank Level Details - Compact */}
+                          <div className="space-y-1">
+                            {branch.tankDetails.slice(0, 3).map((tank) => (
+                              <div key={tank.tankId} className="flex items-center justify-between p-1.5 bg-gray-50 rounded text-xs">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div
+                                    className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                                      tank.updateStatus === 'recent' ? 'bg-green-500' :
+                                      tank.updateStatus === 'stale' ? 'bg-yellow-500' :
+                                      tank.updateStatus === 'old' ? 'bg-orange-500' :
+                                      'bg-red-500'
+                                    }`}
+                                    title={
+                                      tank.updateStatus === 'recent' ? 'Updated within 24 hours' :
+                                      tank.updateStatus === 'stale' ? 'Updated 1-7 days ago' :
+                                      tank.updateStatus === 'old' ? 'Updated over 7 days ago' :
+                                      'Never updated'
+                                    }
+                                  />
+                                  <span className="font-medium text-gray-700 truncate" title={tank.oilTypeName}>
+                                    {tank.oilTypeName}
+                                  </span>
+                                </div>
+                                <div className="text-right flex-shrink-0">
+                                  <div className="text-xs text-gray-600">{tank.percentage}%</div>
+                                  {tank.lastUpdate ? (
+                                    <div className="text-xs text-gray-400">
+                                      {tank.daysSinceUpdate === 0 ? 'Today' : `${tank.daysSinceUpdate}d`}
                                     </div>
-                                  );
-                                })}
+                                  ) : (
+                                    <div className="text-xs text-red-500">Not updated</div>
+                                  )}
+                                </div>
                               </div>
-                            ) : (
-                              <p className="text-sm text-gray-500">No tanks found for this branch</p>
+                            ))}
+                            {branch.tankDetails.length > 3 && (
+                              <div className="text-xs text-gray-500 text-center py-1">
+                                +{branch.tankDetails.length - 3} more tanks
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Summary Stats - Compact */}
+                          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-200">
+                            {branch.recentlyUpdatedTanks > 0 && (
+                              <div className="flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                <span className="text-xs text-green-700">{branch.recentlyUpdatedTanks}</span>
+                              </div>
+                            )}
+                            {branch.staleTanks > 0 && (
+                              <div className="flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 bg-yellow-500 rounded-full"></div>
+                                <span className="text-xs text-yellow-700">{branch.staleTanks}</span>
+                              </div>
+                            )}
+                            {branch.oldTanks > 0 && (
+                              <div className="flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 bg-orange-500 rounded-full"></div>
+                                <span className="text-xs text-orange-700">{branch.oldTanks}</span>
+                              </div>
+                            )}
+                            {branch.neverUpdatedTanks > 0 && (
+                              <div className="flex items-center gap-1">
+                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                                <span className="text-xs text-red-700">{branch.neverUpdatedTanks}</span>
+                              </div>
                             )}
                           </div>
                         </CardContent>
