@@ -581,29 +581,53 @@ export default function BranchDashboard() {
       
       // Calculate tank update status
       const tankUpdateDetails = branchTanks.map(tank => {
-        let lastUpdate = null;
-        let daysSinceUpdate = null;
+        let lastManualUpdate = null;
+        let lastManualUpdateBy = null;
+        let lastMovement = null;
+        let lastMovementBy = null;
+        let daysSinceManualUpdate = null;
+        let daysSinceMovement = null;
         
+        // Check for manual updates (bulk update/branch update)
         if (tank.lastUpdatedBy && tank.lastUpdated) {
           // Handle Firebase Firestore timestamp properly
-          lastUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+          lastManualUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+          lastManualUpdateBy = tank.lastUpdatedBy;
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
-          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
+          daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // Determine tank update status
+        // Check for oil movements (supply/loading) - look for different fields that indicate actual oil movement
+        if (tank.lastMovementAt || tank.lastSupplyAt || tank.lastLoadAt) {
+          const movementTimestamp = tank.lastMovementAt || tank.lastSupplyAt || tank.lastLoadAt;
+          lastMovement = movementTimestamp?.toDate ? movementTimestamp.toDate() : new Date(movementTimestamp);
+          lastMovementBy = tank.lastMovementBy || tank.lastSupplyBy || tank.lastLoadBy || 'Unknown';
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+          daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Determine overall update status based on most recent activity
+        const mostRecentUpdate = lastManualUpdate && lastMovement ? 
+          (lastManualUpdate > lastMovement ? lastManualUpdate : lastMovement) :
+          (lastManualUpdate || lastMovement);
+        
         let updateStatus = 'never';
-        if (lastUpdate) {
-          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
-          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
+        if (mostRecentUpdate) {
+          if (mostRecentUpdate > oneDayAgo) updateStatus = 'recent';
+          else if (mostRecentUpdate > sevenDaysAgo) updateStatus = 'stale';
           else updateStatus = 'old';
         }
 
         return {
           ...tank,
-          lastUpdate,
-          daysSinceUpdate,
+          lastManualUpdate,
+          lastManualUpdateBy,
+          lastMovement,
+          lastMovementBy,
+          daysSinceManualUpdate,
+          daysSinceMovement,
           updateStatus,
           levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1)
         };
@@ -1422,16 +1446,61 @@ export default function BranchDashboard() {
                                         <p className="text-xs text-gray-500">
                                           Capacity: {tank.capacity?.toLocaleString() || '0'}L
                                         </p>
-                                        {tank.daysSinceUpdate !== null && (
-                                          <p className={`text-xs mt-1 ${
-                                            tank.updateStatus === 'old' || tank.updateStatus === 'never' ? 'text-red-600 font-medium' :
-                                            tank.updateStatus === 'stale' ? 'text-yellow-600' : 'text-green-600'
-                                          }`}>
-                                            {tank.updateStatus === 'never' ? 'Never updated' :
-                                             tank.daysSinceUpdate === 0 ? 'Updated today' :
-                                             tank.daysSinceUpdate === 1 ? 'Updated yesterday' :
-                                             `Updated ${tank.daysSinceUpdate} days ago`}
-                                          </p>
+                                        
+                                        {/* Manual Update Information */}
+                                        {tank.lastManualUpdate ? (
+                                          <div className="mt-2 p-2 bg-blue-50 rounded border-l-2 border-blue-300">
+                                            <p className="text-xs font-medium text-blue-800 flex items-center gap-1">
+                                              <span>📝</span>
+                                              Manual Update
+                                            </p>
+                                            <p className="text-xs text-blue-700">
+                                              {tank.daysSinceManualUpdate === 0 ? 'Today' :
+                                               tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
+                                               `${tank.daysSinceManualUpdate} days ago`}
+                                            </p>
+                                            <p className="text-xs text-blue-600">
+                                              by {tank.lastManualUpdateBy}
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <div className="mt-2 p-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                            <p className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                                              <span>📝</span>
+                                              Manual Update
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                              Never updated manually
+                                            </p>
+                                          </div>
+                                        )}
+
+                                        {/* Movement Information */}
+                                        {tank.lastMovement ? (
+                                          <div className="mt-2 p-2 bg-green-50 rounded border-l-2 border-green-300">
+                                            <p className="text-xs font-medium text-green-800 flex items-center gap-1">
+                                              <span>🚛</span>
+                                              Last Movement
+                                            </p>
+                                            <p className="text-xs text-green-700">
+                                              {tank.daysSinceMovement === 0 ? 'Today' :
+                                               tank.daysSinceMovement === 1 ? 'Yesterday' :
+                                               `${tank.daysSinceMovement} days ago`}
+                                            </p>
+                                            <p className="text-xs text-green-600">
+                                              by {tank.lastMovementBy}
+                                            </p>
+                                          </div>
+                                        ) : (
+                                          <div className="mt-2 p-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                            <p className="text-xs font-medium text-gray-600 flex items-center gap-1">
+                                              <span>🚛</span>
+                                              Last Movement
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                              No movement recorded
+                                            </p>
+                                          </div>
                                         )}
                                       </div>
                                       <div className="text-right ml-2">
