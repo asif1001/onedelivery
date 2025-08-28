@@ -1506,60 +1506,40 @@ export default function BranchDashboard() {
                                           Capacity: {tank.capacity?.toLocaleString() || '0'}L
                                         </p>
                                         
-                                        {/* Last Manual Update Information */}
-                                        <div className="mt-2 space-y-2">
+                                        {/* Last Manual Update Information - Compact Single Line */}
+                                        <div className="mt-2 space-y-1">
                                           {tank.lastManualUpdate ? (
                                             <div className="p-2 bg-blue-50 rounded border-l-2 border-blue-300">
-                                              <p className="text-xs font-medium text-blue-800">
-                                                Last Manual Update
-                                              </p>
-                                              <p className="text-xs text-blue-700">
+                                              <p className="text-xs text-blue-800">
+                                                <span className="font-medium">Last Manual Update:</span>{' '}
                                                 {tank.daysSinceManualUpdate === 0 ? 'Today' :
                                                  tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
-                                                 `${tank.daysSinceManualUpdate} days ago`}
+                                                 `${tank.daysSinceManualUpdate} days ago`} by {tank.lastManualUpdateBy}
+                                                {(tank as any).notes ? ` - ${(tank as any).notes}` : ''}
                                               </p>
-                                              <p className="text-xs text-blue-600">
-                                                by {tank.lastManualUpdateBy}
-                                              </p>
-                                              {(tank as any).notes && (
-                                                <p className="text-xs text-blue-500 mt-1 truncate">
-                                                  {(tank as any).notes}
-                                                </p>
-                                              )}
                                             </div>
                                           ) : (
                                             <div className="p-2 bg-gray-50 rounded border-l-2 border-gray-300">
-                                              <p className="text-xs font-medium text-gray-600">
-                                                Last Manual Update
-                                              </p>
-                                              <p className="text-xs text-gray-500">
-                                                Never updated
+                                              <p className="text-xs text-gray-600">
+                                                <span className="font-medium">Last Manual Update:</span> Never updated
                                               </p>
                                             </div>
                                           )}
 
-                                          {/* Last Supply/Loading Information */}
+                                          {/* Last Supply/Loading Information - Compact Single Line */}
                                           {tank.lastSupplyLoading ? (
                                             <div className="p-2 bg-orange-50 rounded border-l-2 border-orange-300">
-                                              <p className="text-xs font-medium text-orange-800">
-                                                Last Supply/Loading
-                                              </p>
-                                              <p className="text-xs text-orange-700">
+                                              <p className="text-xs text-orange-800">
+                                                <span className="font-medium">Last Supply/Loading:</span>{' '}
                                                 {tank.daysSinceSupplyLoading === 0 ? 'Today' :
                                                  tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
-                                                 `${tank.daysSinceSupplyLoading} days ago`}
-                                              </p>
-                                              <p className="text-xs text-orange-600">
-                                                by {tank.lastSupplyLoadingBy}
+                                                 `${tank.daysSinceSupplyLoading} days ago`} by {tank.lastSupplyLoadingBy}
                                               </p>
                                             </div>
                                           ) : (
                                             <div className="p-2 bg-gray-50 rounded border-l-2 border-gray-300">
-                                              <p className="text-xs font-medium text-gray-600">
-                                                Last Supply/Loading
-                                              </p>
-                                              <p className="text-xs text-gray-500">
-                                                No recent activity
+                                              <p className="text-xs text-gray-600">
+                                                <span className="font-medium">Last Supply/Loading:</span> No recent activity
                                               </p>
                                             </div>
                                           )}
