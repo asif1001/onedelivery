@@ -634,14 +634,31 @@ export default function BranchDashboard() {
           });
         }
         
-        // Fallback to legacy lastUpdated field ONLY for adjustment purposes
+        // Fallback to legacy lastUpdated field ONLY for adjustment purposes - but filter out warehouse operations
         if (!lastAdjustment && tank.lastUpdated) {
-          const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-          lastAdjustment = legacyUpdate; // Treat as adjustment, not movement
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
-          daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-          lastAdjustmentBy = tank.lastUpdatedBy || tank.updatedBy;
+          const legacyUpdatedBy = tank.lastUpdatedBy || tank.updatedBy;
+          
+          // Skip if this was a warehouse operation (same filtering as movements)
+          if (legacyUpdatedBy === 'Renga' || legacyUpdatedBy === 'warehouse@gmail.com' || legacyUpdatedBy === 'renga@ekkanoo.com.bh') {
+            console.log(`⚠️ Skipping legacy warehouse update for tank ${tankId}:`, {
+              user: legacyUpdatedBy,
+              date: tank.lastUpdated
+            });
+          } else {
+            const legacyUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+            lastAdjustment = legacyUpdate; // Treat as adjustment, not movement
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const updateDate = new Date(legacyUpdate.getFullYear(), legacyUpdate.getMonth(), legacyUpdate.getDate());
+            daysSinceAdjustment = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+            lastAdjustmentBy = legacyUpdatedBy;
+            lastAdjustmentRole = 'branch_user'; // Assume branch user for legacy updates
+            
+            console.log(`✅ Using legacy adjustment for tank ${tankId}:`, {
+              date: legacyUpdate.toLocaleString(),
+              by: lastAdjustmentBy,
+              role: lastAdjustmentRole
+            });
+          }
         }
 
         // Determine tank update status based ONLY on manual adjustments (not movements)
