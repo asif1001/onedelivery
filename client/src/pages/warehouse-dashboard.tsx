@@ -30,6 +30,7 @@ import {
   TruckIcon,
   Package,
   MapPin,
+  MapPinIcon,
   DownloadIcon,
   DownloadCloudIcon,
   Edit,
