@@ -683,6 +683,40 @@ export default function BranchDashboard() {
           daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
         }
         
+        // Get last transaction/movement data for this tank from recent transactions
+        if (!lastMovement) {
+          const tankTransactions = recentTransactions.filter((transaction: any) => 
+            transaction.branchId === tank.branchId && 
+            transaction.oilTypeId === tank.oilTypeId &&
+            (transaction.type === 'loading' || transaction.type === 'supply' || transaction.type === 'delivery')
+          );
+          
+          if (tankTransactions.length > 0) {
+            // Sort by most recent first
+            const sortedTransactions = tankTransactions.sort((a: any, b: any) => {
+              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.createdAt);
+              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.createdAt);
+              return dateB.getTime() - dateA.getTime();
+            });
+            
+            const latestTransaction = sortedTransactions[0];
+            lastMovement = latestTransaction.timestamp?.toDate ? latestTransaction.timestamp.toDate() : new Date(latestTransaction.timestamp || latestTransaction.createdAt);
+            lastMovementBy = latestTransaction.driverName || latestTransaction.reporterName || latestTransaction.reportedByName || 'Unknown Driver';
+            lastMovementRole = 'driver';
+            
+            const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
+            daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`🚛 Found transaction for tank ${tankId}:`, {
+              date: lastMovement.toLocaleString(),
+              driver: lastMovementBy,
+              type: latestTransaction.type,
+              daysSince: daysSinceMovement
+            });
+          }
+        }
+        
         // Use tank timestamps with corrected filtering logic (fallback)
         // Handle manual adjustment timestamp (primary for staleness check)
         if (tank.lastAdjustmentAt) {
