@@ -584,28 +584,41 @@ export default function BranchDashboard() {
         let lastManualUpdate = null;
         let lastManualUpdateBy = null;
         let daysSinceManualUpdate = null;
-        let isManualUpdate = false;
+        let lastSupplyLoading = null;
+        let lastSupplyLoadingBy = null;
+        let daysSinceSupplyLoading = null;
         
-        // Check for any updates using actual Firebase fields (with type assertions)
+        // Check for manual updates using actual Firebase fields (with type assertions)
         const firebaseTank = tank as any; // Firebase tank has additional fields not in schema
         if (firebaseTank.updatedBy && firebaseTank.lastAdjustmentAt) {
           // Handle Firebase Firestore timestamp properly  
           lastManualUpdate = firebaseTank.lastAdjustmentAt?.toDate ? firebaseTank.lastAdjustmentAt.toDate() : new Date(firebaseTank.lastAdjustmentAt);
           lastManualUpdateBy = firebaseTank.updatedBy;
           
-          // Determine if this was a manual update based on updateType
-          isManualUpdate = firebaseTank.updateType?.includes('manual') || firebaseTank.updateType === 'manual_with_photos';
-          
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
           daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
-
-        // Movement data comes from admin logs/transactions collection (TRANSACTION entries)
-        // For now, we'll just show the manual update data from tank records
-        let lastMovement = null;
-        let lastMovementBy = null;
-        let daysSinceMovement = null;
+        
+        // Find most recent SUPPLY or LOADING transaction for this tank
+        const tankTransactions = recentTransactions.filter(transaction => 
+          transaction.branchId === branch.id && 
+          ((transaction as any).tankId === tank.id || (transaction as any).tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`) &&
+          (transaction.type === 'supply' || transaction.type === 'loading')
+        ).sort((a, b) => {
+          const dateA = new Date(a.createdAt || 0);
+          const dateB = new Date(b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+        
+        if (tankTransactions.length > 0) {
+          const lastTransaction = tankTransactions[0];
+          lastSupplyLoading = new Date(lastTransaction.createdAt);
+          lastSupplyLoadingBy = lastTransaction.driverName || (lastTransaction as any).reporterName || (lastTransaction as any).reportedByName || 'Unknown Driver';
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
+          daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
 
         // Determine overall update status based on available data
         let updateStatus = 'never';
@@ -619,11 +632,10 @@ export default function BranchDashboard() {
           ...tank,
           lastManualUpdate,
           lastManualUpdateBy,
-          lastMovement,
-          lastMovementBy,
+          lastSupplyLoading,
+          lastSupplyLoadingBy,
           daysSinceManualUpdate,
-          daysSinceMovement,
-          isManualUpdate,
+          daysSinceSupplyLoading,
           updateStatus,
           levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1)
         };
@@ -1443,36 +1455,64 @@ export default function BranchDashboard() {
                                           Capacity: {tank.capacity?.toLocaleString() || '0'}L
                                         </p>
                                         
-                                        {/* Last Update Information - using real Firebase data */}
-                                        {tank.lastManualUpdate ? (
-                                          <div className="mt-2 p-2 bg-blue-50 rounded border-l-2 border-blue-300">
-                                            <p className="text-xs font-medium text-blue-800">
-                                              Last Updated
-                                            </p>
-                                            <p className="text-xs text-blue-700">
-                                              {tank.daysSinceManualUpdate === 0 ? 'Today' :
-                                               tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
-                                               `${tank.daysSinceManualUpdate} days ago`}
-                                            </p>
-                                            <p className="text-xs text-blue-600">
-                                              by {tank.lastManualUpdateBy}
-                                            </p>
-                                            {(tank as any).notes && (
-                                              <p className="text-xs text-blue-500 mt-1 truncate">
-                                                {(tank as any).notes}
+                                        {/* Last Manual Update Information */}
+                                        <div className="mt-2 space-y-2">
+                                          {tank.lastManualUpdate ? (
+                                            <div className="p-2 bg-blue-50 rounded border-l-2 border-blue-300">
+                                              <p className="text-xs font-medium text-blue-800">
+                                                Last Manual Update
                                               </p>
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <div className="mt-2 p-2 bg-gray-50 rounded border-l-2 border-gray-300">
-                                            <p className="text-xs font-medium text-gray-600">
-                                              Last Updated
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                              Never updated
-                                            </p>
-                                          </div>
-                                        )}
+                                              <p className="text-xs text-blue-700">
+                                                {tank.daysSinceManualUpdate === 0 ? 'Today' :
+                                                 tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
+                                                 `${tank.daysSinceManualUpdate} days ago`}
+                                              </p>
+                                              <p className="text-xs text-blue-600">
+                                                by {tank.lastManualUpdateBy}
+                                              </p>
+                                              {(tank as any).notes && (
+                                                <p className="text-xs text-blue-500 mt-1 truncate">
+                                                  {(tank as any).notes}
+                                                </p>
+                                              )}
+                                            </div>
+                                          ) : (
+                                            <div className="p-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                              <p className="text-xs font-medium text-gray-600">
+                                                Last Manual Update
+                                              </p>
+                                              <p className="text-xs text-gray-500">
+                                                Never updated
+                                              </p>
+                                            </div>
+                                          )}
+
+                                          {/* Last Supply/Loading Information */}
+                                          {tank.lastSupplyLoading ? (
+                                            <div className="p-2 bg-orange-50 rounded border-l-2 border-orange-300">
+                                              <p className="text-xs font-medium text-orange-800">
+                                                Last Supply/Loading
+                                              </p>
+                                              <p className="text-xs text-orange-700">
+                                                {tank.daysSinceSupplyLoading === 0 ? 'Today' :
+                                                 tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
+                                                 `${tank.daysSinceSupplyLoading} days ago`}
+                                              </p>
+                                              <p className="text-xs text-orange-600">
+                                                by {tank.lastSupplyLoadingBy}
+                                              </p>
+                                            </div>
+                                          ) : (
+                                            <div className="p-2 bg-gray-50 rounded border-l-2 border-gray-300">
+                                              <p className="text-xs font-medium text-gray-600">
+                                                Last Supply/Loading
+                                              </p>
+                                              <p className="text-xs text-gray-500">
+                                                No recent activity
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                       <div className="text-right ml-2">
                                         <p className={`text-xs mb-1 font-medium ${tank.levelStatus.textColor}`}>
