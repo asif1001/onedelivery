@@ -1607,7 +1607,7 @@ export default function WarehouseDashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <TrendingUpIcon className="h-4 w-4" />
               Overview Stats
@@ -1615,6 +1615,10 @@ export default function WarehouseDashboard() {
             <TabsTrigger value="branches" className="flex items-center gap-2">
               <BuildingIcon className="h-4 w-4" />
               Branch Management
+            </TabsTrigger>
+            <TabsTrigger value="tracking" className="flex items-center gap-2">
+              <AlertCircleIcon className="h-4 w-4" />
+              Stock Tracking
             </TabsTrigger>
             <TabsTrigger value="transactions" className="flex items-center gap-2">
               <ClipboardListIcon className="h-4 w-4" />
@@ -2193,7 +2197,10 @@ export default function WarehouseDashboard() {
               )}
             </div>
 
-            {/* Branch Stock Update Tracking Card - Moved to Bottom */}
+          </TabsContent>
+
+          {/* Branch Stock Update Tracking Tab */}
+          <TabsContent value="tracking" className="space-y-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
@@ -2201,7 +2208,7 @@ export default function WarehouseDashboard() {
                   Branch Stock Update Tracking
                 </CardTitle>
                 <CardDescription className="text-sm text-gray-600">
-                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently.
+                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
