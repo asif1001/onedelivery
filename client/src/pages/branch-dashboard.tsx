@@ -589,7 +589,7 @@ export default function BranchDashboard() {
     return branches.map(branch => {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       
-      // Calculate tank update status using transaction logs for accurate data
+      // Calculate tank update status using corrected logic for accurate data
       const tankUpdateDetails = branchTanks.map((tank) => {
         let lastAdjustment = null;
         let lastMovement = null;
@@ -603,9 +603,7 @@ export default function BranchDashboard() {
         // Use transaction logs to get accurate movement vs adjustment data
         const tankId = `${tank.branchId}_tank_${tank.id.split('_tank_')[1] || '0'}`;
         
-        // For now, use the corrected tank timestamp logic
-        // TODO: Implement real-time transaction log querying for 100% accuracy
-        
+        // Use tank timestamps with corrected filtering logic
         // Handle manual adjustment timestamp (primary for staleness check)
         if (tank.lastAdjustmentAt) {
           lastAdjustment = tank.lastAdjustmentAt?.toDate ? tank.lastAdjustmentAt.toDate() : new Date(tank.lastAdjustmentAt);
@@ -618,18 +616,17 @@ export default function BranchDashboard() {
         
         // Handle movement timestamp - only use actual driver movements
         if (tank.lastMovementAt && tank.lastMovementByRole === 'driver') {
-          console.log(`✅ Using driver movement for tank ${tankId}:`, {
-            lastMovementAt: tank.lastMovementAt,
-            lastMovementByRole: tank.lastMovementByRole,
-            lastMovementByUser: tank.lastMovementByUser
-          });
-          
           lastMovement = tank.lastMovementAt?.toDate ? tank.lastMovementAt.toDate() : new Date(tank.lastMovementAt);
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const movementDate = new Date(lastMovement.getFullYear(), lastMovement.getMonth(), lastMovement.getDate());
           daysSinceMovement = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
           lastMovementBy = tank.lastMovementByUser;
           lastMovementRole = tank.lastMovementByRole;
+          console.log(`✅ Using driver movement for tank ${tankId}:`, {
+            date: lastMovement.toLocaleString(),
+            by: lastMovementBy,
+            role: lastMovementRole
+          });
         } else if (tank.lastMovementAt) {
           console.log(`⚠️ Ignoring non-driver movement for tank ${tankId}:`, {
             role: tank.lastMovementByRole,
@@ -647,14 +644,13 @@ export default function BranchDashboard() {
           lastAdjustmentBy = tank.lastUpdatedBy || tank.updatedBy;
         }
 
-        // Determine tank update status based on manual adjustments (not movements)
+        // Determine tank update status based ONLY on manual adjustments (not movements)
         let updateStatus = 'never';
-        const referenceDate = lastAdjustment || lastMovement; // Prefer adjustment over movement
-        const referenceDays = daysSinceAdjustment !== null ? daysSinceAdjustment : daysSinceMovement;
+        const referenceDays = daysSinceAdjustment;
         
-        if (referenceDate) {
-          if (referenceDate > oneDayAgo) updateStatus = 'recent';
-          else if (referenceDate > sevenDaysAgo) updateStatus = 'stale';
+        if (lastAdjustment) {
+          if (daysSinceAdjustment === 0) updateStatus = 'recent';
+          else if (daysSinceAdjustment <= 7) updateStatus = 'stale';
           else updateStatus = 'old';
         }
 
@@ -670,22 +666,39 @@ export default function BranchDashboard() {
           lastMovementRole,
           updateStatus,
           levelStatus: getTankLevelStatus(tank.currentLevel || 0, tank.capacity || 1),
-          // Legacy field for backward compatibility
-          lastUpdate: lastAdjustment || lastMovement,
+          // Legacy field for backward compatibility (use adjustment for staleness, not movement)
+          lastUpdate: lastAdjustment,
           daysSinceUpdate: referenceDays
         };
       });
 
-      // Determine overall branch status
-      const outdatedTanks = tankUpdateDetails.filter(tank => tank.updateStatus === 'old' || tank.updateStatus === 'never');
-      const upToDateTanks = tankUpdateDetails.filter(tank => tank.updateStatus === 'recent');
+      // Determine overall branch status based ONLY on manual adjustments (not movements)
+      const outdatedTanks = tankUpdateDetails.filter(tank => 
+        tank.daysSinceAdjustment === null || tank.daysSinceAdjustment > 7
+      );
+      const upToDateTanks = tankUpdateDetails.filter(tank => 
+        tank.daysSinceAdjustment !== null && tank.daysSinceAdjustment <= 7
+      );
       
       let branchStatus = 'up-to-date';
       if (outdatedTanks.length === tankUpdateDetails.length) {
-        branchStatus = 'needs-attention'; // All tanks outdated
+        branchStatus = 'needs-attention'; // All tanks have stale manual updates
       } else if (outdatedTanks.length > 0) {
-        branchStatus = 'partially-updated'; // Some tanks outdated
+        branchStatus = 'partially-updated'; // Some tanks have stale manual updates
       }
+      
+      console.log(`🏢 Branch ${branch.name} status calculation:`, {
+        totalTanks: tankUpdateDetails.length,
+        outdatedTanks: outdatedTanks.length,
+        upToDateTanks: upToDateTanks.length,
+        branchStatus,
+        tankDetails: tankUpdateDetails.map(t => ({
+          tank: t.oilTypeName,
+          daysSinceAdjustment: t.daysSinceAdjustment,
+          daysSinceMovement: t.daysSinceMovement,
+          isOutdated: t.daysSinceAdjustment === null || t.daysSinceAdjustment > 7
+        }))
+      });
 
       return {
         ...branch,
