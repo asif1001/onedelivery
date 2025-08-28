@@ -586,25 +586,23 @@ export default function BranchDashboard() {
         let daysSinceManualUpdate = null;
         let isManualUpdate = false;
         
-        // Check for any updates using actual Firebase fields
-        if (tank.lastUpdatedBy && tank.lastUpdated) {
-          // Handle Firebase Firestore timestamp properly
-          lastManualUpdate = tank.lastUpdated?.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-          lastManualUpdateBy = tank.lastUpdatedBy;
+        // Check for any updates using actual Firebase fields (with type assertions)
+        const firebaseTank = tank as any; // Firebase tank has additional fields not in schema
+        if (firebaseTank.updatedBy && firebaseTank.lastAdjustmentAt) {
+          // Handle Firebase Firestore timestamp properly  
+          lastManualUpdate = firebaseTank.lastAdjustmentAt?.toDate ? firebaseTank.lastAdjustmentAt.toDate() : new Date(firebaseTank.lastAdjustmentAt);
+          lastManualUpdateBy = firebaseTank.updatedBy;
           
-          // Determine if this was a manual update vs movement based on updateType or notes
-          isManualUpdate = tank.updateType?.includes('manual') || 
-                          tank.notes?.includes('bulk update') || 
-                          tank.notes?.includes('warehouse') ||
-                          tank.notes?.includes('Updated via');
+          // Determine if this was a manual update based on updateType
+          isManualUpdate = firebaseTank.updateType?.includes('manual') || firebaseTank.updateType === 'manual_with_photos';
           
           const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
           daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // For movement data, we would need to query the transactions collection separately
-        // This is a placeholder - we'll need to enhance this with actual transaction data
+        // Movement data comes from admin logs/transactions collection (TRANSACTION entries)
+        // For now, we'll just show the manual update data from tank records
         let lastMovement = null;
         let lastMovementBy = null;
         let daysSinceMovement = null;
@@ -760,8 +758,8 @@ export default function BranchDashboard() {
           id: complaint.id,
           branchId: complaint.branchId,
           status: complaint.status,
-          reportedBy: complaint.reportedBy,
-          reportedByName: complaint.reportedByName,
+          reportedBy: (complaint as any).reportedBy,
+          reportedByName: (complaint as any).reportedByName,
           createdBy: complaint.createdBy,
           currentUserId: currentUser.uid,
           currentUserName: currentUser.displayName,
@@ -769,9 +767,9 @@ export default function BranchDashboard() {
           currentUserBranches: currentUser.branchIds
         });
         
-        const isUserComplaint = complaint.reportedBy === currentUser.uid ||
-                                complaint.reportedByName === currentUser.displayName ||
-                                complaint.reportedByName === currentUser.email ||
+        const isUserComplaint = (complaint as any).reportedBy === currentUser.uid ||
+                                (complaint as any).reportedByName === currentUser.displayName ||
+                                (complaint as any).reportedByName === currentUser.email ||
                                 complaint.createdBy === currentUser.uid ||
                                 complaint.createdBy === currentUser.displayName ||
                                 complaint.createdBy === currentUser.email ||
@@ -964,7 +962,7 @@ export default function BranchDashboard() {
         notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
         systemScreenPhoto: systemPhotoUrl,
-        lastSeenUpdate: selectedTank.lastUpdated,
+        lastSeenUpdate: (selectedTank as any).lastAdjustmentAt,
         expectedPreviousLevel: selectedTank.currentLevel,
         updateType: 'manual_with_photos',
         sessionId: `${currentUser.uid}_${Date.now()}`,
@@ -1459,9 +1457,9 @@ export default function BranchDashboard() {
                                             <p className="text-xs text-blue-600">
                                               by {tank.lastManualUpdateBy}
                                             </p>
-                                            {tank.notes && (
+                                            {(tank as any).notes && (
                                               <p className="text-xs text-blue-500 mt-1 truncate">
-                                                {tank.notes}
+                                                {(tank as any).notes}
                                               </p>
                                             )}
                                           </div>
@@ -1558,7 +1556,7 @@ export default function BranchDashboard() {
                             }`}>
                               {transaction.type === 'loading' ? 'LOADING' : 
                                transaction.type === 'supply' ? 
-                                 (transaction.supplyType === 'drum' || transaction.numberOfDrums) ? 'SUPPLY (DRUM)' : 'SUPPLY'
+                                 ((transaction as any).supplyType === 'drum' || (transaction as any).numberOfDrums) ? 'SUPPLY (DRUM)' : 'SUPPLY'
                                : 'DELIVERY'}
                             </span>
                             <span className="font-medium text-sm truncate">{transaction.oilTypeName || 'Unknown Oil Type'}</span>
@@ -1567,7 +1565,7 @@ export default function BranchDashboard() {
                             {transaction.quantity?.toLocaleString()}L
                             {(() => {
                               if (transaction.type === 'loading') {
-                                const locationName = transaction.loadLocationName || transaction.branchName || 'Loading Location';
+                                const locationName = (transaction as any).loadLocationName || transaction.branchName || 'Loading Location';
                                 return <span className="text-xs"> • Loaded from {locationName}</span>;
                               } else if (transaction.branchName) {
                                 return <span className="text-xs"> • {transaction.branchName}</span>;
@@ -1588,9 +1586,9 @@ export default function BranchDashboard() {
                             {transaction.driverName && (
                               <div className="truncate">Driver: {transaction.driverName}</div>
                             )}
-                            {transaction.type === 'supply' && (transaction.supplyType === 'drum' || transaction.numberOfDrums) && (
+                            {transaction.type === 'supply' && ((transaction as any).supplyType === 'drum' || (transaction as any).numberOfDrums) && (
                               <div className="text-blue-600 text-xs">
-                                Method: {transaction.numberOfDrums} drums × {transaction.drumCapacity}L each
+                                Method: {(transaction as any).numberOfDrums} drums × {(transaction as any).drumCapacity}L each
                               </div>
                             )}
                             {transaction.photos && Object.keys(transaction.photos).length > 0 && (
@@ -1660,7 +1658,7 @@ export default function BranchDashboard() {
                   }`}>
                     {selectedTransaction.type === 'loading' ? 'Oil Loading' : 
                      selectedTransaction.type === 'supply' ? 
-                       (selectedTransaction.supplyType === 'drum' || selectedTransaction.numberOfDrums) ? 'Oil Supply (via Drums)' : 'Oil Supply'
+                       ((selectedTransaction as any).supplyType === 'drum' || (selectedTransaction as any).numberOfDrums) ? 'Oil Supply (via Drums)' : 'Oil Supply'
                      : 'Oil Delivery'}
                   </p>
                 </div>
@@ -1675,7 +1673,7 @@ export default function BranchDashboard() {
                 <div>
                   <label className="text-sm font-medium text-gray-600">Driver</label>
                   <p className="font-medium">
-                    {selectedTransaction.driverName || selectedTransaction.reporterName || selectedTransaction.reportedByName || 'Unknown Driver'}
+                    {selectedTransaction.driverName || (selectedTransaction as any).reporterName || (selectedTransaction as any).reportedByName || 'Unknown Driver'}
                   </p>
                 </div>
                 <div>
