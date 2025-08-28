@@ -1728,127 +1728,100 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   return (
     <div className={`min-h-screen ${themeClasses.background}`}>
-      {/* Fixed Header */}
-      <div className={`sticky top-0 z-40 ${themeClasses.header} shadow-sm border-b`}>
-        <div className="max-w-7xl mx-auto px-4 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Left Side - Logo and Mobile Menu */}
+      {/* Header */}
+      <div className={`${themeClasses.header} shadow-sm border-b`}>
+        <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
+          <div className="flex justify-between items-center h-14 sm:h-16">
             <div className="flex items-center">
-              {/* Mobile Menu Button - Only visible on mobile */}
-              <button
-                className="lg:hidden mr-3 p-2 rounded-md hover:bg-gray-100"
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                data-testid="mobile-menu-toggle"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-              
-              {/* Logo and Title */}
-              <div className="flex items-center">
-                <OilDeliveryLogo className="w-10 h-10 mr-3" />
-                <div>
-                  <h1 className={`text-xl font-bold ${themeClasses.text}`}>OneDelivery</h1>
-                  <p className={`text-sm ${themeClasses.secondaryText}`}>Admin Dashboard</p>
-                </div>
+              <div className="mr-3">
+                <OilDeliveryLogo className="w-10 h-10 sm:w-12 sm:h-12" />
+              </div>
+              <div>
+                <h1 className={`text-lg sm:text-xl font-bold ${themeClasses.text}`}>OneDelivery</h1>
+                <p className={`text-xs sm:text-sm ${themeClasses.secondaryText}`}>Admin Dashboard</p>
               </div>
             </div>
             
-            {/* Right Side - Theme Switcher and User Info */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4">
               {/* Theme Switcher */}
-              <div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-100">
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-100 dark:bg-gray-700">
                 <button
                   onClick={() => setTheme('light')}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     theme === 'light' 
                       ? 'bg-white shadow text-gray-900' 
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                   data-testid="theme-light"
                 >
-                  ☀️
+                  ☀️ Light
                 </button>
                 <button
                   onClick={() => setTheme('midday')}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     theme === 'midday' 
                       ? 'bg-blue-500 shadow text-white' 
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                   data-testid="theme-midday"
                 >
-                  🌤️
+                  🌤️ Midday
                 </button>
                 <button
                   onClick={() => setTheme('night')}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-all ${
+                  className={`px-3 py-1 rounded text-xs font-medium transition-all ${
                     theme === 'night' 
                       ? 'bg-gray-800 shadow text-white' 
                       : 'text-gray-600 hover:text-gray-900'
                   }`}
                   data-testid="theme-night"
                 >
-                  🌙
+                  🌙 Night
                 </button>
               </div>
               
-              {/* User Info - Hidden on mobile */}
-              <div className="hidden md:block text-right">
+              <div className={`text-right hidden sm:block`}>
                 <p className={`text-sm font-medium ${themeClasses.text}`}>{user.displayName}</p>
                 <p className={`text-xs ${themeClasses.secondaryText}`}>{user.email}</p>
               </div>
-              
-              {/* Logout Button */}
               <Button
                 onClick={handleLogout}
                 variant="outline"
                 size="sm"
-                className="flex items-center"
+                className="flex items-center text-xs sm:text-sm px-2 sm:px-4"
                 data-testid="button-logout"
               >
-                <LogOutIcon className="h-4 w-4 mr-2" />
-                <span className="hidden md:inline">Logout</span>
+                <LogOutIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Exit</span>
               </Button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Layout Container */}
-      <div className="flex h-[calc(100vh-64px)]">
-        {/* Desktop Sidebar Navigation */}
+      {/* Main Content */}
+      <div className="flex lg:h-[calc(100vh-64px)] min-h-[calc(100vh-64px)]">
+        {/* Left Sidebar */}
         <div className={`hidden lg:flex lg:flex-col lg:w-64 ${themeClasses.sidebar} shadow-lg border-r`}>
-          <div className="flex-1 px-4 py-6 overflow-y-auto">
-            <nav className="space-y-2">
-              {/* Navigation Items */}
-              {[
-                { key: 'overview', label: 'Overview', icon: BarChart3Icon },
-                { key: 'drivers', label: 'Users', icon: UsersIcon },
-                { key: 'branches', label: 'Branches', icon: MapPinIcon },
-                { key: 'oil-types', label: 'Oil Types', icon: DropletIcon },
-                { key: 'drum-capacities', label: 'Drum Capacities', icon: PackageIcon },
-                { key: 'recent-transactions', label: 'Transactions', icon: FileTextIcon },
-                { key: 'logs-update', label: 'Logs', icon: ClockIcon },
-                { key: 'tasks', label: 'Tasks', icon: ClipboardListIcon },
-                { key: 'complaints', label: 'Complaints', icon: AlertTriangleIcon },
-                { key: 'warehouse', label: 'Warehouse', icon: Package },
-                { key: 'settings', label: 'Settings', icon: SettingsIcon }
-              ].map(({ key, label, icon: Icon }) => (
+          <div className="flex-1 px-4 py-6">
+            <h2 className={`text-lg font-semibold ${themeClasses.text} mb-6`}>Admin Panel</h2>
+            <nav className="space-y-1">
+              {/* Main Navigation */}
+              <div className="mb-4">
+                <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Dashboard</h3>
                 <button
-                  key={key}
-                  onClick={() => setActiveTab(key)}
-                  className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-all ${
-                    activeTab === key 
-                      ? 'bg-orange-100 text-orange-900 shadow-sm' 
-                      : `${themeClasses.text} hover:bg-gray-100 hover:text-gray-900`
+                  onClick={() => setActiveTab('overview')}
+                  className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                    activeTab === 'overview' 
+                      ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
+                      : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
                   }`}
                 >
-                  <Icon className="mr-3 h-5 w-5" />
-                  {label}
+                  <BarChart3Icon className="mr-3 h-5 w-5" />
+                  Overview
                 </button>
-              ))}
+              </div>
 
               {/* Management Section */}
               <div className="mb-4">
@@ -1971,64 +1944,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             </nav>
           </div>
         </div>
-
-        {/* Mobile Navigation Overlay */}
-        {isMobileMenuOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setIsMobileMenuOpen(false)}>
-            <div 
-              className={`fixed top-0 left-0 w-64 h-full ${themeClasses.sidebar} shadow-xl transform transition-transform duration-300 ease-in-out`}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex flex-col h-full">
-                {/* Mobile Menu Header */}
-                <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                  <h2 className={`text-lg font-semibold ${themeClasses.text}`}>Menu</h2>
-                  <button
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`p-2 rounded-md ${themeClasses.text} hover:bg-gray-100`}
-                  >
-                    <XIcon className="h-5 w-5" />
-                  </button>
-                </div>
-                
-                {/* Mobile Navigation Items */}
-                <div className="flex-1 px-4 py-4 overflow-y-auto">
-                  <nav className="space-y-2">
-                    {[
-                      { key: 'overview', label: 'Overview', icon: '📊' },
-                      { key: 'drivers', label: 'Users', icon: '👥' },
-                      { key: 'branches', label: 'Branches', icon: '🏢' },
-                      { key: 'oil-types', label: 'Oil Types', icon: '💧' },
-                      { key: 'drum-capacities', label: 'Drum Capacities', icon: '📦' },
-                      { key: 'recent-transactions', label: 'Transactions', icon: '📄' },
-                      { key: 'logs-update', label: 'Logs', icon: '🕐' },
-                      { key: 'tasks', label: 'Tasks', icon: '📋' },
-                      { key: 'complaints', label: 'Complaints', icon: '⚠️' },
-                      { key: 'warehouse', label: 'Warehouse', icon: '🏭' },
-                      { key: 'settings', label: 'Settings', icon: '⚙️' }
-                    ].map(({ key, label, icon }) => (
-                      <button
-                        key={key}
-                        onClick={() => {
-                          setActiveTab(key);
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center px-3 py-3 text-sm font-medium rounded-md transition-all ${
-                          activeTab === key 
-                            ? 'bg-orange-100 text-orange-900' 
-                            : `${themeClasses.text} hover:bg-gray-100`
-                        }`}
-                      >
-                        <span className="mr-3 text-lg">{icon}</span>
-                        {label}
-                      </button>
-                    ))}
-                  </nav>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Mobile Navigation Menu (shown on smaller screens) */}
         <div className="lg:hidden w-full">
@@ -2189,8 +2104,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 overflow-auto">
-          <div className="p-4 lg:p-6 h-full">
+        <div className="flex-1 overflow-auto lg:overflow-auto">
+          <div className="p-3 lg:p-6 min-h-full">
             {/* Overview Content */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
