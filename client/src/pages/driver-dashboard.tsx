@@ -980,10 +980,10 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                     }
                   </p>
                 </div>
-                {selectedTransaction.loadSessionId && (
+                {(selectedTransaction.loadSessionId || selectedTransaction.deliveryOrderId) && (
                   <div>
-                    <label className="text-sm font-medium text-gray-600">Load Session ID</label>
-                    <p className="font-medium text-xs">{selectedTransaction.loadSessionId}</p>
+                    <label className="text-sm font-medium text-gray-600">Transaction ID</label>
+                    <p className="font-medium text-xs">{selectedTransaction.loadSessionId || selectedTransaction.deliveryOrderId}</p>
                   </div>
                 )}
                 {selectedTransaction.startMeterReading && (

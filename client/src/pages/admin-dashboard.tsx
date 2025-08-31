@@ -1607,7 +1607,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
     // Prepare CSV data with enriched information
     const csvData = allTransactions.map(transaction => [
-      transaction.id || transaction.loadSessionId || '',
+      transaction.loadSessionId || transaction.deliveryOrderId || transaction.id || '',
       transaction.type || (transaction.deliveredLiters ? 'Supply' : 'Loading'),
       formatDate(transaction.timestamp, transaction.createdAt),
       transaction.driverName || transaction.reporterName || transaction.reportedByName || getDriverName(transaction.driverUid),

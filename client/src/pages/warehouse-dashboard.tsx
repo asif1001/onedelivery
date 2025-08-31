@@ -517,8 +517,8 @@ export default function WarehouseDashboard() {
         
         // Extract fields directly from Firebase transaction data as per mapping
         
-        // ID No - loadSessionId from Firebase
-        const idNo = transaction.loadSessionId || transaction.sessionId || transaction.id || 'N/A';
+        // ID No - Use formatted ID from Firebase (yyyy-00000 format)
+        const idNo = transaction.loadSessionId || transaction.deliveryOrderId || transaction.sessionId || transaction.id || 'N/A';
         
         // Order / Delivery No - deliveryOrderNo from Firebase (entered by driver in supply workflows)
         const orderDeliveryNo = transaction.deliveryOrderNo || transaction.deliveryOrderId || transaction.orderNumber || 'N/A';
@@ -3223,6 +3223,14 @@ export default function WarehouseDashboard() {
                     {selectedTransaction.type === 'loading' ? 'Oil Loading' : 'Oil Supply'}
                   </p>
                 </div>
+                {(selectedTransaction.loadSessionId || selectedTransaction.deliveryOrderId) && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Transaction ID</label>
+                    <p className="font-medium text-sm text-gray-900">
+                      {selectedTransaction.loadSessionId || selectedTransaction.deliveryOrderId}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-gray-600">Oil Type</label>
                   <p className="font-medium">
