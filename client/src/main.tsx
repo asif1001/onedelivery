@@ -6,7 +6,13 @@ import "./index.css";
 const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js', {
+      // First check if we're in development mode
+      const isDevelopment = import.meta.env.DEV;
+      const swPath = isDevelopment ? '/sw.js' : '/sw.js';
+      
+      console.log('Attempting to register service worker at:', swPath);
+      
+      const registration = await navigator.serviceWorker.register(swPath, {
         scope: '/'
       });
       
