@@ -483,6 +483,7 @@ export default function WarehouseDashboard() {
       const headers = [
         'ID No',
         'Date and Time',
+        'Type',
         'Order / Delivery No',
         'Supply Type',
         'Branch Name',
@@ -520,8 +521,24 @@ export default function WarehouseDashboard() {
         // ID No - Use formatted ID from Firebase (yyyy-00000 format)
         const idNo = transaction.loadSessionId || transaction.deliveryOrderId || transaction.sessionId || transaction.id || 'N/A';
         
-        // Order / Delivery No - deliveryOrderNo from Firebase (entered by driver in supply workflows)
-        const orderDeliveryNo = transaction.deliveryOrderNo || transaction.deliveryOrderId || transaction.orderNumber || 'N/A';
+        // Type - Enhanced type classification 
+        let transactionType = 'Unknown';
+        if (transaction.type === 'loading') {
+          transactionType = 'Loading';
+        } else if (transaction.type === 'supply') {
+          if (transaction.numberOfDrums && transaction.numberOfDrums > 0) {
+            transactionType = 'Supply by Drum';
+          } else {
+            transactionType = 'Supply loose';
+          }
+        } else if (transaction.supplyType === 'drum') {
+          transactionType = 'Supply by Drum';
+        } else if (transaction.supplyType === 'loose') {
+          transactionType = 'Supply loose';
+        }
+        
+        // Order / Delivery No - Include loading session order numbers and delivery order numbers
+        const orderDeliveryNo = transaction.deliveryOrderNo || transaction.deliveryOrderId || transaction.orderNumber || transaction.orderNo || 'N/A';
         
         // Supply Type - supplyType from Firebase
         const supplyType = transaction.supplyType || transaction.type || 'N/A';
@@ -567,6 +584,7 @@ export default function WarehouseDashboard() {
         const row = [
           escapeCSV(idNo),
           escapeCSV(dateTime),
+          escapeCSV(transactionType),
           escapeCSV(orderDeliveryNo),
           escapeCSV(supplyType),
           escapeCSV(branchName),
