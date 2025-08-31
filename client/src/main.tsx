@@ -2,10 +2,17 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Register Service Worker for PWA functionality
+// Register Service Worker for PWA functionality (only in production)
 const registerServiceWorker = async () => {
+  // Skip service worker registration in development to avoid conflicts
+  if (import.meta.env.DEV) {
+    console.log('Development mode: Skipping service worker registration');
+    return;
+  }
+  
   if ('serviceWorker' in navigator) {
     try {
+      console.log('Attempting to register service worker at:', '/sw.js');
       const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });

@@ -14,9 +14,16 @@ export function PWAInstallPrompt({ onInstall, onDismiss }: PWAInstallPromptProps
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Skip PWA prompts in development mode
+    if (import.meta.env.DEV) {
+      console.log('Development mode: PWA install prompt disabled');
+      return;
+    }
+
     // Check if app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstalled(true);
+      console.log('OneDelivery is already installed as PWA');
       return;
     }
 

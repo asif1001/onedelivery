@@ -55,7 +55,7 @@ export default function LoginSimple() {
           
           // Determine role based on email
           let role = 'driver';
-          let branchIds = [];
+          let branchIds: string[] = [];
           
           if (firebaseUser.email === 'asif.s@ekkanoo.com.bh' || firebaseUser.email === 'asif1001@gmail.com') {
             role = 'admin';
@@ -76,7 +76,7 @@ export default function LoginSimple() {
             role: role,
             displayName: firebaseUser.displayName || firebaseUser.email.split('@')[0],
             active: true,
-            branchIds: branchIds,
+            branchIds: branchIds as string[],
             createdAt: new Date(),
             lastLoginAt: new Date()
           });
@@ -98,6 +98,13 @@ export default function LoginSimple() {
       
       // Get user data (might be newly created)
       const userDocData = userDoc.exists() ? userDoc.data() : (await getDoc(userDocRef)).data();
+      
+      if (!userDocData) {
+        console.log('❌ Failed to get user data');
+        await auth.signOut();
+        throw new Error('USER_DATA_ERROR');
+      }
+      
       console.log('✅ User found in database with role:', userDocData.role);
       
       // Step 3: Check if user account is active
