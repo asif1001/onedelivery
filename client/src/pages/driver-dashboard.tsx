@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { LoadingWorkflow } from "@/components/LoadingWorkflow";
 import { SupplyWorkflow } from "@/components/SupplyWorkflow";
 import { DrumSupplyWorkflow } from "@/components/DrumSupplyWorkflow";
-import { getAllDeliveries, getUserByUid, getAllTransactions, getAllOilTypes, getUserComplaints, saveComplaint, getActiveBranchesOnly, uploadComplaintPhoto } from "@/lib/firebase";
+import { getAllDeliveries, getUserByUid, getAllTransactions, getAllOilTypes, getUserComplaints, saveComplaint, getActiveBranchesOnly, uploadComplaintPhoto, getAllUsers } from "@/lib/firebase";
 import { PhotoCaptureButton } from "@/components/PhotoCaptureButton";
 import { useUserProfile, useTransactions } from "@/hooks/useFirebaseAPI";
 
@@ -46,6 +46,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{url: string, label: string} | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [drivers, setDrivers] = useState<any[]>([]);
   
   // Complaint state
   const [complaints, setComplaints] = useState<any[]>([]);
@@ -67,6 +68,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
     loadUserProfile();
     loadTransactions();
     loadComplaints();
+    loadDrivers();
   }, [user.id]);
 
   const loadDeliveries = async () => {
@@ -167,6 +169,16 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
       console.error('Error loading complaints:', error);
       // Set empty array but don't show error - complaints are optional
       setComplaints([]);
+    }
+  };
+
+  const loadDrivers = async () => {
+    try {
+      const driversData = await getAllUsers().catch(() => []);
+      console.log('👥 Driver Dashboard - Got drivers:', driversData.length);
+      setDrivers(driversData);
+    } catch (error) {
+      console.error('Error loading drivers:', error);
     }
   };
 
@@ -932,7 +944,10 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                 <div>
                   <label className="text-sm font-medium text-gray-600">Driver</label>
                   <p className="font-medium">
-                    {userProfile?.displayName || user.displayName || user.email}
+                    {(() => {
+                      const driver = drivers.find(d => d.uid === selectedTransaction.driverUid || d.id === selectedTransaction.driverUid);
+                      return driver ? (driver.displayName || driver.email) : selectedTransaction.driverName || selectedTransaction.driverUid || 'Unknown Driver';
+                    })()}
                   </p>
                 </div>
                 {selectedTransaction.type === 'supply' && selectedTransaction.branchName && (
