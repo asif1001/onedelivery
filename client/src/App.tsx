@@ -53,7 +53,7 @@ function Router() {
           You don't have permission to access this page. This page requires <strong>{requiredRole}</strong> role access.
         </p>
         <p className="text-sm text-gray-500 mb-6">
-          Your current role: <strong>{userData.role}</strong>
+          Your current role: <strong>{userData?.role}</strong>
         </p>
         <button 
           onClick={() => window.location.href = '/'}
@@ -67,7 +67,7 @@ function Router() {
 
   return (
     <Switch>
-      {userData.role === 'admin' ? (
+      {userData?.role === 'admin' ? (
         <>
           <Route path="/" component={() => <AdminDashboard user={userData} />} />
           <Route path="/admin-dashboard" component={() => <AdminDashboard user={userData} />} />
@@ -79,7 +79,7 @@ function Router() {
           <Route path="/driver-dashboard" component={() => <AccessDenied requiredRole="driver" />} />
           <Route path="/branch-dashboard" component={() => <AccessDenied requiredRole="branch user" />} />
         </>
-      ) : userData.role === 'driver' ? (
+      ) : userData?.role === 'driver' ? (
         <>
           <Route path="/" component={() => <DriverDashboard user={userData as any} />} />
           <Route path="/driver-dashboard" component={() => <DriverDashboard user={userData as any} />} />
@@ -90,7 +90,7 @@ function Router() {
           <Route path="/complaint-management" component={() => <AccessDenied requiredRole="admin" />} />
           <Route path="/admin-branch-users" component={() => <AccessDenied requiredRole="admin" />} />
         </>
-      ) : userData.role === 'branch_user' ? (
+      ) : userData?.role === 'branch_user' ? (
         <>
           <Route path="/" component={() => <BranchDashboard />} />
           <Route path="/branch-dashboard" component={() => <BranchDashboard />} />
@@ -101,7 +101,7 @@ function Router() {
           <Route path="/complaint-management" component={() => <AccessDenied requiredRole="admin" />} />
           <Route path="/admin-branch-users" component={() => <AccessDenied requiredRole="admin" />} />
         </>
-      ) : userData.role === 'warehouse' ? (
+      ) : userData?.role === 'warehouse' ? (
         <>
           <Route path="/" component={() => <WarehouseDashboard />} />
           <Route path="/warehouse" component={() => <WarehouseDashboard />} />

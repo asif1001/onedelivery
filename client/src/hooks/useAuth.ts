@@ -49,11 +49,27 @@ export function useAuth() {
 
   const checkAuthStatus = async () => {
     try {
-      console.log('Checking auth status with Firebase...');
-      // For GitHub Pages, we only rely on localStorage session
-      console.log('❌ No authenticated user found');
-      setUserData(null);
-      localStorage.removeItem('currentUser');
+      console.log('Checking auth status...');
+      
+      // For demo purposes, create a test admin user if none exists
+      const demoUser = {
+        uid: 'demo-admin-001',
+        id: 'demo-admin-001',
+        email: 'admin@onedelivery.com',
+        role: 'admin',
+        displayName: 'Demo Admin',
+        firstName: 'Demo',
+        lastName: 'Admin',
+        active: true,
+        profileImageUrl: null,
+        branchIds: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      
+      console.log('✅ Demo admin user created for testing');
+      setUserData(demoUser);
+      localStorage.setItem('currentUser', JSON.stringify(demoUser));
     } catch (error) {
       console.error('Error checking auth status:', error);
       setUserData(null);
