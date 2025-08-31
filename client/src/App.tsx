@@ -33,8 +33,11 @@ function Router() {
   }
 
   if (!userData) {
+    console.log('No user data, showing login page');
     return <LoginSimple />;
   }
+
+  console.log('User authenticated with role:', userData.role);
 
   // Access Control Component for unauthorized routes
   const AccessDenied = ({ requiredRole }: { requiredRole: string }) => (
@@ -111,7 +114,10 @@ function Router() {
           <Route path="/admin-branch-users" component={() => <AccessDenied requiredRole="admin" />} />
         </>
       ) : (
-        <Route path="/" component={Home} />
+        <>
+          <Route path="/" component={LoginSimple} />
+          <Route component={LoginSimple} />
+        </>
       )}
       <Route path="/test-db" component={() => {
         const { DatabaseConnectionTest } = require('@/test-db-connection');
