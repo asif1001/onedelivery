@@ -19,7 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
-import { completeDelivery, getActiveBranchesOnly, getOilTypes, uploadPhotoToFirebaseStorage, getAllTransactions, updatePhotosWithCorrectWatermarks } from '@/lib/firebase';
+import { completeDelivery, getActiveBranchesOnly, getOilTypes, uploadPhotoToFirebaseStorage, getAllTransactions, updatePhotosWithCorrectWatermarks, getNextFormattedId } from '@/lib/firebase';
 import { watermarkImage, getCurrentTimestamp } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -388,8 +388,8 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
       const selectedBranch = (branches as any[]).find((branch: any) => branch.id === supplyData.branchId);
       
       const deliveryRecord = {
-        loadSessionId: `DIRECT_${Date.now()}`, // Generate simple session ID for tracking
-        deliveryOrderId: supplyData.deliveryOrderNo || `DO_${Date.now()}`,
+        loadSessionId: await getNextFormattedId('direct_sessions'), // Generate formatted session ID
+        deliveryOrderId: supplyData.deliveryOrderNo || await getNextFormattedId('delivery_orders'),
         branchId: supplyData.branchId,
         branchName: selectedBranch?.name || 'Unknown Branch',
         oilTypeId: supplyData.oilTypeId,

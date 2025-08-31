@@ -1283,16 +1283,17 @@ export const getAllComplaints = async () => {
   }
 };
 
-// Function to get next sequential number for complaints
-const getNextComplaintNumber = async (): Promise<number> => {
+// Universal function to get next formatted ID in yyyy-00000 format
+export const getNextFormattedId = async (type: string): Promise<string> => {
   try {
-    const counterRef = doc(db, 'counters', 'complaints');
+    const currentYear = new Date().getFullYear().toString();
+    const counterRef = doc(db, 'counters', `${type}_${currentYear}`);
     const counterDoc = await getDoc(counterRef);
     
     if (!counterDoc.exists()) {
-      // Initialize counter
+      // Initialize counter for this year
       await setDoc(counterRef, { value: 1 });
-      return 1;
+      return `${currentYear}-00001`;
     }
     
     const currentValue = counterDoc.data().value || 0;
@@ -1300,47 +1301,43 @@ const getNextComplaintNumber = async (): Promise<number> => {
     
     // Update counter
     await updateDoc(counterRef, { value: nextValue });
-    return nextValue;
+    
+    // Format as 5-digit number with leading zeros
+    const sequenceNumber = nextValue.toString().padStart(5, '0');
+    return `${currentYear}-${sequenceNumber}`;
   } catch (error) {
-    console.error('Error getting next complaint number:', error);
-    // Fallback to timestamp-based numbering
-    return Date.now() % 100000;
+    console.error(`Error getting next ${type} ID:`, error);
+    // Fallback to timestamp-based numbering with year prefix
+    const currentYear = new Date().getFullYear();
+    const fallbackSequence = (Date.now() % 100000).toString().padStart(5, '0');
+    return `${currentYear}-${fallbackSequence}`;
   }
 };
 
-// Function to get next sequential number for tasks
+// Function to get next sequential number for complaints (legacy compatibility)
+const getNextComplaintNumber = async (): Promise<number> => {
+  const formattedId = await getNextFormattedId('complaints');
+  // Extract the sequence number for legacy compatibility
+  return parseInt(formattedId.split('-')[1]);
+};
+
+// Function to get next sequential number for tasks (legacy compatibility)
 const getNextTaskNumber = async (): Promise<number> => {
-  try {
-    const counterRef = doc(db, 'counters', 'tasks');
-    const counterDoc = await getDoc(counterRef);
-    
-    if (!counterDoc.exists()) {
-      // Initialize counter
-      await setDoc(counterRef, { value: 1 });
-      return 1;
-    }
-    
-    const currentValue = counterDoc.data().value || 0;
-    const nextValue = currentValue + 1;
-    
-    // Update counter
-    await updateDoc(counterRef, { value: nextValue });
-    return nextValue;
-  } catch (error) {
-    console.error('Error getting next task number:', error);
-    // Fallback to timestamp-based numbering
-    return Date.now() % 100000;
-  }
+  const formattedId = await getNextFormattedId('tasks');
+  // Extract the sequence number for legacy compatibility
+  return parseInt(formattedId.split('-')[1]);
 };
 
 export const saveComplaint = async (complaintData: any) => {
   try {
     const complaintRef = doc(collection(db, 'complaints'));
     const complaintNumber = await getNextComplaintNumber();
+    const complaintId = await getNextFormattedId('complaints'); // New formatted ID
     
     // Create clean data object with Firestore-compatible fields
     const cleanComplaintData = {
-      complaintNumber, // Sequential number (1, 2, 3...)
+      complaintNumber, // Sequential number (for legacy compatibility)
+      complaintId, // New formatted ID (yyyy-00000)
       title: complaintData.title || '',
       description: complaintData.description || '',
       category: complaintData.category || 'other',
@@ -1409,10 +1406,12 @@ export const createTask = async (taskData: any) => {
   try {
     const taskRef = doc(collection(db, 'tasks'));
     const taskNumber = await getNextTaskNumber();
+    const taskId = await getNextFormattedId('tasks'); // New formatted ID
     
     // Create clean data object with Firestore-compatible fields
     const cleanTaskData = {
-      taskNumber, // Sequential number (1, 2, 3...)
+      taskNumber, // Sequential number (for legacy compatibility)
+      taskId, // New formatted ID (yyyy-00000)
       title: taskData.title || '',
       description: taskData.description || '',
       priority: taskData.priority || 'medium',
@@ -2137,7 +2136,7 @@ export const createLoadSession = async (loadSessionData: any) => {
     
     // 5. Create load session
     const loadSessionRef = doc(collection(db, 'loadSessions'));
-    const loadSessionId = `LS_${Date.now()}_${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const loadSessionId = await getNextFormattedId('load_sessions');
     
     const loadSessionWithId = {
       ...loadSessionData,
@@ -2195,9 +2194,11 @@ export const createLoadSession = async (loadSessionData: any) => {
 export const saveTransaction = async (transactionData: any) => {
   try {
     const transactionRef = doc(collection(db, 'transactions'));
+    const transactionId = await getNextFormattedId('transactions');
     const transactionWithId = {
       ...transactionData,
       id: transactionRef.id,
+      transactionId, // New formatted transaction ID (yyyy-00000)
       timestamp: new Date(),
       createdAt: new Date()
     };
