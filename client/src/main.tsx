@@ -6,13 +6,7 @@ import "./index.css";
 const registerServiceWorker = async () => {
   if ('serviceWorker' in navigator) {
     try {
-      // First check if we're in development mode
-      const isDevelopment = import.meta.env.DEV;
-      const swPath = isDevelopment ? '/sw.js' : '/sw.js';
-      
-      console.log('Attempting to register service worker at:', swPath);
-      
-      const registration = await navigator.serviceWorker.register(swPath, {
+      const registration = await navigator.serviceWorker.register('/sw.js', {
         scope: '/'
       });
       
@@ -75,10 +69,9 @@ try {
   createRoot(rootElement).render(<App />);
   console.log("React app rendered successfully");
   
-  // Temporarily disable PWA features for debugging
-  // registerServiceWorker();
-  // detectPWAInstallPrompt();
-  console.log("PWA features temporarily disabled for debugging");
+  // Initialize PWA features
+  registerServiceWorker();
+  detectPWAInstallPrompt();
   
 } catch (error) {
   console.error("App initialization failed:", error);
