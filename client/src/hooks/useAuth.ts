@@ -9,6 +9,10 @@ interface User {
   firstName?: string;
   lastName?: string;
   active?: boolean;
+  profileImageUrl?: string | null;
+  branchIds?: string[] | null;
+  createdAt?: Date | null;
+  updatedAt?: Date | null;
 }
 
 export function useAuth() {

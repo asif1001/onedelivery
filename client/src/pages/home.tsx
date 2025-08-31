@@ -6,7 +6,7 @@ import { LogOutIcon, UserIcon, SettingsIcon, ImageIcon } from "lucide-react";
 import { signOut } from "@/lib/firebase";
 
 export default function Home() {
-  const { user, isLoading } = useAuth();
+  const { userData: user, isLoading } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -68,7 +68,7 @@ export default function Home() {
           <CardContent>
             <div className="flex items-center space-x-4 mb-4">
               <Avatar className="w-16 h-16">
-                <AvatarImage src={user?.photoURL || undefined} alt="Profile" />
+                <AvatarImage src={undefined} alt="Profile" />
                 <AvatarFallback className="bg-blue-100 text-blue-600">
                   {user?.displayName?.charAt(0) || 'U'}
                 </AvatarFallback>
@@ -81,8 +81,7 @@ export default function Home() {
                   {user?.email}
                 </p>
                 <p className="text-gray-500 text-xs">
-                  Member since: {user?.metadata?.creationTime ? 
-                    new Date(user.metadata.creationTime).toLocaleDateString() : 'Unknown'}
+                  Role: {user?.role || 'No role assigned'}
                 </p>
               </div>
             </div>

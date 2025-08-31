@@ -78,8 +78,8 @@ function Router() {
         </>
       ) : userData.role === 'driver' ? (
         <>
-          <Route path="/" component={() => <DriverDashboard user={userData} />} />
-          <Route path="/driver-dashboard" component={() => <DriverDashboard user={userData} />} />
+          <Route path="/" component={() => <DriverDashboard user={userData as any} />} />
+          <Route path="/driver-dashboard" component={() => <DriverDashboard user={userData as any} />} />
           <Route path="/warehouse-dashboard" component={() => <AccessDenied requiredRole="warehouse or admin" />} />
           <Route path="/admin-dashboard" component={() => <AccessDenied requiredRole="admin" />} />
           <Route path="/branch-dashboard" component={() => <AccessDenied requiredRole="branch user" />} />
