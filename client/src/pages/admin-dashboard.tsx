@@ -2560,10 +2560,22 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                               </div>
                               <div className="text-xs text-gray-500 flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {transaction.timestamp?.toDate ? 
-                                  transaction.timestamp.toDate().toLocaleString() : 
-                                  'Unknown date'
-                                }
+                                {(() => {
+                                  if (transaction.timestamp?.toDate) {
+                                    return transaction.timestamp.toDate().toLocaleString();
+                                  } else if (transaction.timestamp && typeof transaction.timestamp === 'string') {
+                                    return new Date(transaction.timestamp).toLocaleString();
+                                  } else if (transaction.createdAt?.toDate) {
+                                    return transaction.createdAt.toDate().toLocaleString();
+                                  } else if (transaction.createdAt) {
+                                    return new Date(transaction.createdAt).toLocaleString();
+                                  } else if (transaction.actualDeliveryEndTime) {
+                                    return new Date(transaction.actualDeliveryEndTime).toLocaleString();
+                                  } else if (transaction.actualDeliveryStartTime) {
+                                    return new Date(transaction.actualDeliveryStartTime).toLocaleString();
+                                  }
+                                  return 'Unknown date';
+                                })()}
                               </div>
                               <div className="text-xs text-gray-500">Driver: {(() => {
                                 // Enhanced driver name resolution with multiple fallbacks
