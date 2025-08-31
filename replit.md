@@ -14,7 +14,22 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (August 2025)
 
-### ✅ Multi-Dashboard Mobile Navigation Improvements (Latest - August 28, 2025)
+### ✅ Progressive Web App (PWA) Implementation (Latest - August 31, 2025)
+- **Windows Desktop App Installation**: Complete PWA functionality enabling users to install OneDelivery as a desktop application on Windows
+- **Enhanced App Manifest**: Comprehensive manifest.json with shortcuts, proper icons, and Windows-specific configuration
+- **Service Worker**: Full offline functionality with caching strategies for Firebase data and static assets
+- **Install Prompt Component**: Smart PWA install prompt that appears automatically and guides users through installation
+- **Windows-Specific Meta Tags**: Proper tile configuration and Windows PWA integration via browserconfig.xml
+- **Cross-Platform Support**: Installation available on Windows, Mac, Android, and iOS devices
+- **Desktop Experience**: Standalone app window without browser chrome, taskbar integration, and Start Menu shortcuts
+
+### ✅ Warehouse CSV Report Enhancements (August 31, 2025)
+- **New "Type" Column**: Added transaction type classification (Loading, Supply loose, Supply by Drum) 
+- **Enhanced "Order / Delivery No"**: Now includes loading session order numbers from new "Order No" field
+- **Comprehensive Transaction Tracking**: Complete order number mapping across all workflow types
+- **Improved Data Export**: More detailed transaction reports for warehouse operations
+
+### ✅ Multi-Dashboard Mobile Navigation Improvements (August 28, 2025)
 - **Admin Dashboard Mobile Navigation Fixed**: 
   - Resolved inconsistent activeTab vs activeSection state variables for Tasks/Complaints
   - Reduced mobile gaps with responsive spacing (space-y-4 on mobile)
@@ -113,8 +128,12 @@ Preferred communication style: Simple, everyday language.
 - **Photo download and management** tools for compliance
 - **Real-time dashboard metrics** for operational oversight
 
-### Mobile Optimization
-- **Progressive Web App (PWA)** capabilities with offline support
+### Progressive Web App (PWA) & Mobile Optimization
+- **Desktop App Installation** - Users can install OneDelivery as a native-like desktop application on Windows, Mac, and mobile devices
+- **Service Worker** - Comprehensive offline functionality with intelligent caching for Firebase data and static assets
+- **Smart Install Prompts** - Automatic PWA installation prompts that guide users through the installation process
+- **Windows Integration** - Full Windows desktop integration including Start Menu shortcuts, taskbar pinning, and tile configuration
+- **App Shortcuts** - Quick access to Driver, Admin, and Warehouse dashboards directly from installed app
 - **Responsive design** optimized for mobile devices and tablets
 - **Camera integration** for photo capture with automatic timestamps
 - **Touch-friendly interfaces** for field operations

@@ -16,6 +16,7 @@ import AdminBranchUsers from "@/pages/admin-branch-users";
 import WarehouseDashboard from "@/pages/warehouse-dashboard";
 import FirestoreStats from "@/pages/firestore-stats";
 import NotFound from "@/pages/not-found";
+import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
 
 function Router() {
   const { userData, isLoading } = useAuth();
@@ -126,6 +127,10 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
+        <PWAInstallPrompt 
+          onInstall={() => console.log('OneDelivery installed as desktop app!')}
+          onDismiss={() => console.log('PWA install prompt dismissed')}
+        />
         <Router />
       </TooltipProvider>
     </QueryClientProvider>
