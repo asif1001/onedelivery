@@ -51,7 +51,16 @@ export function useAuth() {
     try {
       console.log('Checking auth status...');
       
-      // For demo purposes, create a test admin user if none exists
+      // Check if stored user exists first
+      const savedUser = localStorage.getItem('currentUser');
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        console.log('✅ Using existing stored user:', parsedUser.email);
+        setUserData(parsedUser);
+        return;
+      }
+
+      // For demo purposes, create a test admin user
       const demoUser = {
         uid: 'demo-admin-001',
         id: 'demo-admin-001',

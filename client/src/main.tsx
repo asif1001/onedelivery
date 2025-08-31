@@ -75,9 +75,10 @@ try {
   createRoot(rootElement).render(<App />);
   console.log("React app rendered successfully");
   
-  // Initialize PWA features
-  registerServiceWorker();
-  detectPWAInstallPrompt();
+  // Temporarily disable PWA features for debugging
+  // registerServiceWorker();
+  // detectPWAInstallPrompt();
+  console.log("PWA features temporarily disabled for debugging");
   
 } catch (error) {
   console.error("App initialization failed:", error);
