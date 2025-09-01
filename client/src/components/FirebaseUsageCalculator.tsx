@@ -183,11 +183,15 @@ export function FirebaseUsageCalculator() {
       );
       
       const storageOperation = async () => {
+        console.log('🔍 VERIFICATION: Connecting to your real Firebase Storage...');
+        console.log('🔍 Storage Bucket:', storage.app.options.storageBucket);
+        
         const result = await listAll(storageRef);
-        console.log(`📁 Found ${result.items.length} files and ${result.prefixes.length} folders`);
+        console.log(`📁 REAL DATA - Found ${result.items.length} files and ${result.prefixes.length} folders in your Firebase Storage`);
         
         let totalSize = 0;
         let filesCount = 0;
+        const fileSamples: string[] = [];
 
         // Get metadata for files in batches to avoid timeout
         const batchSize = 10;
@@ -198,6 +202,11 @@ export function FirebaseUsageCalculator() {
               const metadata = await getMetadata(item);
               totalSize += metadata.size || 0;
               filesCount++;
+              
+              // Sample first few file names for verification
+              if (fileSamples.length < 5) {
+                fileSamples.push(`${item.name} (${((metadata.size || 0) / 1024).toFixed(1)} KB)`);
+              }
             } catch (error) {
               console.warn('Could not get metadata for file:', item.name);
               filesCount++; // Count file even if metadata fails
@@ -206,18 +215,27 @@ export function FirebaseUsageCalculator() {
         }
 
         // Process folders with limited depth to avoid timeout
+        console.log(`🔍 Processing ${result.prefixes.length} folders...`);
         for (const folder of result.prefixes.slice(0, 5)) { // Limit to first 5 folders
           try {
+            console.log(`📁 Processing folder: ${folder.name}`);
             const folderFiles = await getAllFilesInFolder(folder);
             totalSize += folderFiles.totalSize;
             filesCount += folderFiles.filesCount;
+            console.log(`✅ Folder ${folder.name}: ${folderFiles.filesCount} files, ${(folderFiles.totalSize / (1024*1024)).toFixed(2)} MB`);
           } catch (error) {
             console.warn('Could not process folder:', folder.name);
           }
         }
 
         const totalSizeGb = totalSize / (1024 * 1024 * 1024);
-        console.log(`📊 Storage calculation complete: ${totalSizeGb.toFixed(3)} GB, ${filesCount} files`);
+        const totalSizeMb = totalSize / (1024 * 1024);
+        
+        console.log('✅ VERIFICATION: Real Storage calculation complete!');
+        console.log(`📁 REAL FILES: ${filesCount} total files`);
+        console.log(`💾 REAL SIZE: ${totalSizeGb.toFixed(3)} GB (${totalSizeMb.toFixed(1)} MB)`);
+        console.log('🔍 Sample files from your storage:', fileSamples);
+        console.log('🔍 COMPARE WITH YOUR FIREBASE CONSOLE Storage tab');
         
         return {
           totalSizeGb,
@@ -282,30 +300,40 @@ export function FirebaseUsageCalculator() {
       );
 
       const firestoreOperation = async () => {
+        console.log('🔍 VERIFICATION: Connecting to your real Firebase Firestore...');
+        console.log('🔍 Firebase Project ID:', db.app.options.projectId);
+        
         for (const collectionName of collections) {
           try {
+            console.log(`🔍 Counting documents in collection: ${collectionName}...`);
             const snapshot = await getCountFromServer(collection(db, collectionName));
             const count = snapshot.data().count;
             collectionCounts[collectionName] = count;
             totalDocuments += count;
-            console.log(`📄 ${collectionName}: ${count} documents`);
+            console.log(`✅ REAL DATA - ${collectionName}: ${count} documents`);
           } catch (error) {
-            console.warn(`Could not get count for collection: ${collectionName}`, error);
-            // Estimate based on typical usage
-            const estimatedCount = collectionName === 'users' ? 50 : 
-                                 collectionName === 'branches' ? 20 :
-                                 collectionName === 'transactions' ? 500 : 100;
-            collectionCounts[collectionName] = estimatedCount;
-            totalDocuments += estimatedCount;
+            console.error(`❌ FAILED to get count for collection: ${collectionName}`, error);
+            console.log(`⚠️  This collection might not exist or have permission issues`);
+            collectionCounts[collectionName] = 0; // Set to 0 instead of estimates
           }
         }
+        
+        console.log('📊 VERIFICATION COMPLETE - Total real documents:', totalDocuments);
+        console.log('📊 Collection breakdown (REAL DATA):', collectionCounts);
 
         // Estimate storage size (average 2KB per document)
         const avgDocumentSizeKb = 2;
         const totalSizeKb = totalDocuments * avgDocumentSizeKb;
         const sizeGb = totalSizeKb / (1024 * 1024);
 
-        console.log(`📊 Firestore calculation complete: ${totalDocuments} documents, ${sizeGb.toFixed(3)} GB`);
+        console.log('✅ VERIFICATION: Real Firestore calculation complete!');
+        console.log(`📄 REAL DOCUMENTS: ${totalDocuments} total`);
+        console.log(`💾 ESTIMATED SIZE: ${sizeGb.toFixed(3)} GB (${(sizeGb * 1024).toFixed(1)} MB)`);
+        
+        // Verify this matches what user sees in Firebase Console
+        console.log('🔍 COMPARE WITH YOUR FIREBASE CONSOLE:');
+        console.log(`   - Documents: ${totalDocuments} (should match your Firebase Console)`);
+        console.log(`   - Storage: ${(sizeGb * 1024).toFixed(1)} MB (approximate - Firebase Console shows exact)`);
 
         return {
           sizeGb,
