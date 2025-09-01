@@ -43,7 +43,8 @@ import {
   ClipboardListIcon,
   BarChart3Icon,
   UserIcon,
-  CameraIcon
+  CameraIcon,
+  DollarSignIcon
 
 } from "lucide-react";
 import { 
@@ -90,6 +91,7 @@ import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
 import { TransactionViewer } from "@/components/TransactionViewer";
 import EnhancedTaskModal from "@/components/EnhancedTaskModal";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
+import { FirebaseUsageCalculator } from "@/components/FirebaseUsageCalculator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Switch } from "@/components/ui/switch";
@@ -3090,8 +3092,27 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </CardContent>
               </Card>
               
+              {/* Firebase Usage & Billing Estimate */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-green-600">
+                    <DollarSignIcon className="h-5 w-5 mr-2" />
+                    Usage & Billing Estimate
+                  </CardTitle>
+                  <CardDescription>
+                    Firebase Blaze plan cost estimation based on current usage
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <FirebaseUsageCalculator />
+                </CardContent>
+              </Card>
+
               {/* Settings Panel - Data Export & Filtering */}
-              <SettingsPanel />
+              <SettingsPanel 
+                storageUsage={null}
+                onDeleteRecords={handleDeleteRecords}
+              />
             </div>
             )}
           </div>

@@ -35,8 +35,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { 
   getAllComplaints,
-  getAllTasks 
+  getAllTasks,
+  db,
+  deleteRecordsByDateRange
 } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 interface StorageUsage {
   collections: Array<{
@@ -167,7 +170,7 @@ export default function SettingsPanel({ storageUsage, onDeleteRecords }: Setting
       // Get driver name if reportedBy exists
       if (item.reportedBy) {
         try {
-          const userDoc = await getDoc(firestoreDoc(db, 'users', item.reportedBy));
+          const userDoc = await getDoc(doc(db, 'users', item.reportedBy));
           if (userDoc.exists()) {
             enhanced.driverName = userDoc.data().displayName || userDoc.data().email || 'Unknown Driver';
             enhanced.driverEmail = userDoc.data().email || 'No Email';
@@ -182,7 +185,7 @@ export default function SettingsPanel({ storageUsage, onDeleteRecords }: Setting
       // Get assignedTo name if it exists (for tasks)
       if (item.assignedTo) {
         try {
-          const assignedUserDoc = await getDoc(firestoreDoc(db, 'users', item.assignedTo));
+          const assignedUserDoc = await getDoc(doc(db, 'users', item.assignedTo));
           if (assignedUserDoc.exists()) {
             enhanced.assignedDriverName = assignedUserDoc.data().displayName || assignedUserDoc.data().email || 'Unknown Driver';
             enhanced.assignedDriverEmail = assignedUserDoc.data().email || 'No Email';
