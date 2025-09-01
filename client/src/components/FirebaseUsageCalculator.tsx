@@ -186,8 +186,16 @@ export function FirebaseUsageCalculator() {
         console.log('🔍 VERIFICATION: Connecting to your real Firebase Storage...');
         console.log('🔍 Storage Bucket:', storage.app.options.storageBucket);
         
+        console.log('🔍 Attempting to list all files in Firebase Storage...');
         const result = await listAll(storageRef);
         console.log(`📁 REAL DATA - Found ${result.items.length} files and ${result.prefixes.length} folders in your Firebase Storage`);
+        
+        if (result.items.length === 0 && result.prefixes.length === 0) {
+          console.log('⚠️  No files or folders found! This could mean:');
+          console.log('   - Photos are stored in a different bucket');
+          console.log('   - Storage permissions issue'); 
+          console.log('   - Photos not uploaded to Firebase Storage yet');
+        }
         
         let totalSize = 0;
         let filesCount = 0;
@@ -245,15 +253,25 @@ export function FirebaseUsageCalculator() {
         };
       };
 
-      return await Promise.race([storageOperation(), timeout]);
+      const result = await Promise.race([storageOperation(), timeout]);
+      console.log('✅ Firebase Storage calculation succeeded:', result);
+      return result;
     } catch (error) {
-      console.error('Error getting storage usage:', error);
-      // Return estimated values based on typical usage
+      console.error('❌ FIREBASE STORAGE ERROR:', error);
+      console.log('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
+      console.log('⚠️  This means your photos are NOT being counted in usage costs!');
+      console.log('⚠️  Returning ZERO values to clearly show when real data fails');
+      
+      // Return zero values to clearly show when real data isn't available
       return {
-        totalSizeGb: 0.5, // Estimate 500MB if can't calculate
-        filesCount: 100, // Estimate 100 files
-        estimatedDownloadGb: 1.0, // Estimate 1GB downloads
-        estimatedDownloads: 5000 // Estimate 5k downloads
+        totalSizeGb: 0,
+        filesCount: 0, 
+        estimatedDownloadGb: 0,
+        estimatedDownloads: 0
       };
     }
   };
