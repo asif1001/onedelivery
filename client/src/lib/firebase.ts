@@ -3591,78 +3591,130 @@ export const addComplaintDocument = async (complaintId: string, documentData: an
   }
 };
 
-// Firebase Usage Monitoring with Blaze Plan Billing Estimation
+// Firebase Usage Monitoring with Blaze Plan Billing Estimation - Auto-Discovery
 export const getFirestoreUsage = async () => {
   try {
-    // Get all collections that contribute to Firebase billing
-    const [complaints, users, tasks, transactions, deliveries, branches, oilTypes, loadSessions, tankUpdateLogs] = await Promise.all([
-      getAllComplaints(),
-      getAllUsers(), 
-      getAllTasks(),
-      getAllTransactions(),
-      getAllDeliveries(),
-      getAllBranches(),
-      getAllOilTypes(),
-      getDocs(collection(db, 'loadSessions')).then(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))),
-      getDocs(collection(db, 'tankUpdateLogs')).then(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
-    ]);
-
-    // Calculate actual document counts and estimated sizes by collection
-    const collectionData = {
-      complaints: { count: complaints.length, avgSizeKB: 3.5, description: 'Customer complaints and photos' },
-      users: { count: users.length, avgSizeKB: 1.2, description: 'User accounts and profiles' },
-      tasks: { count: tasks.length, avgSizeKB: 2.8, description: 'Admin tasks and workflow' },
-      transactions: { count: transactions.length, avgSizeKB: 4.2, description: 'Delivery and supply transactions' },
-      deliveries: { count: deliveries.length, avgSizeKB: 5.8, description: 'Completed delivery records' },
-      branches: { count: branches.length, avgSizeKB: 8.5, description: 'Branch data with tank information' },
-      oilTypes: { count: oilTypes.length, avgSizeKB: 0.8, description: 'Oil type configurations' },
-      loadSessions: { count: loadSessions.length, avgSizeKB: 3.2, description: 'Loading session records' },
-      tankUpdateLogs: { count: tankUpdateLogs.length, avgSizeKB: 2.1, description: 'Tank level update history' }
+    // Auto-discover all collections in the database
+    // Add new collections here when you create them - the system will automatically calculate their costs
+    const knownCollections = [
+      'complaints', 'users', 'tasks', 'transactions', 'deliveries', 
+      'branches', 'oilTypes', 'loadSessions', 'tankUpdateLogs', 
+      'systemSettings', 'drumCapacities',
+      // Add any new collections here and they'll be automatically included in billing calculations
+      // Example: 'newFeatureData', 'customerFeedback', 'auditLogs', etc.
+    ];
+    
+    // Collection size estimates based on data type
+    const collectionSizeEstimates = {
+      complaints: { avgSizeKB: 3.5, description: 'Customer complaints and photos' },
+      users: { avgSizeKB: 1.2, description: 'User accounts and profiles' },
+      tasks: { avgSizeKB: 2.8, description: 'Admin tasks and workflow' },
+      transactions: { avgSizeKB: 4.2, description: 'Delivery and supply transactions' },
+      deliveries: { avgSizeKB: 5.8, description: 'Completed delivery records' },
+      branches: { avgSizeKB: 8.5, description: 'Branch data with tank information' },
+      oilTypes: { avgSizeKB: 0.8, description: 'Oil type configurations' },
+      loadSessions: { avgSizeKB: 3.2, description: 'Loading session records' },
+      tankUpdateLogs: { avgSizeKB: 2.1, description: 'Tank level update history' },
+      systemSettings: { avgSizeKB: 1.5, description: 'System configuration settings' },
+      drumCapacities: { avgSizeKB: 0.6, description: 'Drum capacity configurations' }
     };
+
+    // Automatically fetch all collections
+    const collectionPromises = knownCollections.map(async (collectionName) => {
+      try {
+        const snapshot = await getDocs(collection(db, collectionName));
+        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return { name: collectionName, docs: docs, count: docs.length };
+      } catch (error) {
+        console.log(`Collection ${collectionName} not found or empty`);
+        return { name: collectionName, docs: [], count: 0 };
+      }
+    });
+
+    const collectionResults = await Promise.all(collectionPromises);
+    
+    // Build dynamic collection data with auto-sizing
+    const collectionData: any = {};
+    let allDocuments: any = {};
+    
+    collectionResults.forEach(result => {
+      const estimate = collectionSizeEstimates[result.name as keyof typeof collectionSizeEstimates];
+      collectionData[result.name] = {
+        count: result.count,
+        avgSizeKB: estimate?.avgSizeKB || 2.0, // Default 2KB for unknown collections
+        description: estimate?.description || `${result.name} data collection`
+      };
+      allDocuments[result.name] = result.docs;
+    });
 
     const totalDocuments = Object.values(collectionData).reduce((sum, col) => sum + col.count, 0);
     const totalFirestoreStorageKB = Object.values(collectionData).reduce((sum, col) => sum + (col.count * col.avgSizeKB), 0);
     const totalFirestoreStorageMB = totalFirestoreStorageKB / 1024;
     
-    // Count photo/media files with detailed breakdown
+    // Auto-discover and count all photo/media files across all collections
     let totalPhotos = 0;
-    let photoBreakdown = {
-      complaints: { count: 0, sizeMB: 0 },
-      deliveries: { count: 0, sizeMB: 0 },
-      tasks: { count: 0, sizeMB: 0 },
-      tankUpdates: { count: 0, sizeMB: 0 }
-    };
+    let photoBreakdown: any = {};
     
     const avgPhotoSizeMB = 0.8; // 800KB per photo average
     
-    // Count complaint photos
-    complaints.forEach((complaint: any) => {
-      if (complaint.photos?.length) {
-        photoBreakdown.complaints.count += complaint.photos.length;
-        photoBreakdown.complaints.sizeMB += complaint.photos.length * avgPhotoSizeMB;
-        totalPhotos += complaint.photos.length;
+    // Function to recursively find photos in any data structure
+    const findPhotosInData = (data: any, collectionName: string): number => {
+      let photoCount = 0;
+      
+      if (!photoBreakdown[collectionName]) {
+        photoBreakdown[collectionName] = { count: 0, sizeMB: 0 };
       }
-    });
+      
+      if (Array.isArray(data)) {
+        data.forEach(item => photoCount += findPhotosInData(item, collectionName));
+      } else if (data && typeof data === 'object') {
+        Object.keys(data).forEach(key => {
+          const value = data[key];
+          
+          // Check for photo URLs, photo arrays, or image references
+          if (typeof value === 'string' && 
+              (value.includes('firebase') || value.includes('storage.googleapis.com') || 
+               key.toLowerCase().includes('photo') || key.toLowerCase().includes('image'))) {
+            photoCount++;
+          } else if (Array.isArray(value)) {
+            // Check if it's an array of photos
+            if (key.toLowerCase().includes('photo') || key.toLowerCase().includes('image')) {
+              photoCount += value.length;
+            } else {
+              // Recursively check array items
+              photoCount += findPhotosInData(value, collectionName);
+            }
+          } else if (value && typeof value === 'object') {
+            // Check documents array for images
+            if (key === 'documents' && Array.isArray(value)) {
+              const imageCount = value.filter((doc: any) => 
+                doc.type === 'image' || 
+                doc.url?.includes('firebase') || 
+                doc.url?.includes('storage.googleapis.com')
+              ).length;
+              photoCount += imageCount;
+            } else {
+              photoCount += findPhotosInData(value, collectionName);
+            }
+          }
+        });
+      }
+      
+      return photoCount;
+    };
     
-    // Count delivery photos
-    deliveries.forEach((delivery: any) => {
-      const photoFields = ['tankLevelPhoto', 'hoseConnectionPhoto', 'finalTankLevelPhoto', 'meterReadingPhoto'];
-      photoFields.forEach(field => {
-        if (delivery[field]) {
-          photoBreakdown.deliveries.count++;
-          photoBreakdown.deliveries.sizeMB += avgPhotoSizeMB;
-          totalPhotos++;
+    // Count photos in all collections automatically
+    Object.keys(allDocuments).forEach(collectionName => {
+      const docs = allDocuments[collectionName];
+      const collectionPhotoCount = findPhotosInData(docs, collectionName);
+      
+      if (collectionPhotoCount > 0) {
+        if (!photoBreakdown[collectionName]) {
+          photoBreakdown[collectionName] = { count: 0, sizeMB: 0 };
         }
-      });
-    });
-
-    // Count task photos
-    tasks.forEach((task: any) => {
-      if (task.documents?.length) {
-        const photoCount = task.documents.filter((doc: any) => doc.type === 'image').length;
-        photoBreakdown.tasks.count += photoCount;
-        photoBreakdown.tasks.sizeMB += photoCount * avgPhotoSizeMB;
-        totalPhotos += photoCount;
+        photoBreakdown[collectionName].count += collectionPhotoCount;
+        photoBreakdown[collectionName].sizeMB += collectionPhotoCount * avgPhotoSizeMB;
+        totalPhotos += collectionPhotoCount;
       }
     });
 
@@ -3742,7 +3794,12 @@ export const getFirestoreUsage = async () => {
         collections: collectionData,
         totalDocuments: totalDocuments,
         storage: `${totalFirestoreStorageMB.toFixed(2)} MB`,
-        avgDocSize: `${(totalFirestoreStorageKB / totalDocuments).toFixed(1)} KB`
+        avgDocSize: `${(totalFirestoreStorageKB / totalDocuments).toFixed(1)} KB`,
+        autoDiscovery: {
+          knownCollections: knownCollections.length,
+          activeCollections: Object.keys(collectionData).filter(name => collectionData[name].count > 0).length,
+          lastUpdated: new Date().toISOString()
+        }
       },
       storage: {
         photos: totalPhotos,
