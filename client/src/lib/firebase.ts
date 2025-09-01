@@ -3647,8 +3647,8 @@ export const getFirestoreUsage = async () => {
       allDocuments[result.name] = result.docs;
     });
 
-    const totalDocuments = Object.values(collectionData).reduce((sum, col) => sum + col.count, 0);
-    const totalFirestoreStorageKB = Object.values(collectionData).reduce((sum, col) => sum + (col.count * col.avgSizeKB), 0);
+    const totalDocuments = Object.values(collectionData).reduce((sum: number, col: any) => sum + col.count, 0);
+    const totalFirestoreStorageKB = Object.values(collectionData).reduce((sum: number, col: any) => sum + (col.count * col.avgSizeKB), 0);
     const totalFirestoreStorageMB = totalFirestoreStorageKB / 1024;
     
     // Auto-discover and count all photo/media files across all collections
@@ -3718,7 +3718,7 @@ export const getFirestoreUsage = async () => {
       }
     });
 
-    const totalPhotoStorageMB = Object.values(photoBreakdown).reduce((sum, cat) => sum + cat.sizeMB, 0);
+    const totalPhotoStorageMB = Object.values(photoBreakdown).reduce((sum: number, cat: any) => sum + cat.sizeMB, 0);
     const totalStorageMB = totalFirestoreStorageMB + totalPhotoStorageMB;
 
     // BLAZE PLAN BILLING CALCULATIONS
@@ -3858,25 +3858,25 @@ export const getFirestoreUsage = async () => {
         }
       },
       authentication: {
-        totalUsers: users.length,
-        activeUsers: users.filter((u: any) => u.active !== false).length,
-        adminUsers: users.filter((u: any) => u.role === 'admin').length,
-        driverUsers: users.filter((u: any) => u.role === 'driver').length
+        totalUsers: allDocuments.users?.length || 0,
+        activeUsers: allDocuments.users?.filter((u: any) => u.active !== false).length || 0,
+        adminUsers: allDocuments.users?.filter((u: any) => u.role === 'admin').length || 0,
+        driverUsers: allDocuments.users?.filter((u: any) => u.role === 'driver').length || 0
       },
       dataBreakdown: {
         operational: {
-          deliveries: deliveries.length,
-          complaints: complaints.length,
-          loadSessions: loadSessions.length
+          deliveries: allDocuments.deliveries?.length || 0,
+          complaints: allDocuments.complaints?.length || 0,
+          loadSessions: allDocuments.loadSessions?.length || 0
         },
         configuration: {
-          branches: branches.length,
-          oilTypes: oilTypes.length,
-          users: users.length
+          branches: allDocuments.branches?.length || 0,
+          oilTypes: allDocuments.oilTypes?.length || 0,
+          users: allDocuments.users?.length || 0
         },
         management: {
-          tasks: tasks.length,
-          transactions: transactions.length
+          tasks: allDocuments.tasks?.length || 0,
+          transactions: allDocuments.transactions?.length || 0
         }
       },
       lastUpdated: new Date().toISOString(),

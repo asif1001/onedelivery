@@ -93,6 +93,7 @@ import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
+import { Switch } from "@/components/ui/switch";
 import { OilDeliveryLogo } from "@/components/ui/logo";
 
 // Task interface
@@ -313,7 +314,16 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [showCleanupConfirmModal, setShowCleanupConfirmModal] = useState(false);
 
   // Firebase usage monitoring states
-  const [firestoreUsage, setFirestoreUsage] = useState<any>(null);
+  const [firebaseUsage, setFirebaseUsage] = useState<any>({
+    firestore: { collections: {}, totalDocuments: 0, storage: '0 MB' },
+    storage: { photos: 0, estimatedPhotoStorage: '0 MB' },
+    billing: { 
+      total: { estimatedMonthlyCost: 0 },
+      cloudStorage: { totalCost: 0 },
+      firestore: { totalCost: 0 },
+      hosting: { totalCost: 0 }
+    }
+  });
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   // System settings state
@@ -3224,7 +3234,16 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               </Card>
               
               {/* Settings Panel - Data Export & Filtering */}
-              <SettingsPanel />
+              <SettingsPanel 
+                storageUsage={firebaseUsage}
+                onDeleteRecords={async (recordType: string) => {
+                  toast({
+                    title: "Action Not Available",
+                    description: "Record deletion is handled through individual record management.",
+                    variant: "default"
+                  });
+                }}
+              />
             </div>
             )}
           </div>
