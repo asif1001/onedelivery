@@ -116,7 +116,7 @@ export function FirebaseUsageCalculator() {
       
       // Calculate real values in parallel (no initial estimates)
       const [storageUsage, firestoreUsage] = await Promise.all([
-        getStorageUsage().catch(err => {
+        getStorageUsage().catch((err: any) => {
           console.error('❌ Storage calculation failed:', err);
           return {
             totalSizeGb: 0, 
@@ -125,7 +125,7 @@ export function FirebaseUsageCalculator() {
             estimatedDownloads: 0
           };
         }),
-        getFirestoreUsage().catch(err => {
+        getFirestoreUsage().catch((err: any) => {
           console.error('❌ Firestore calculation failed:', err);
           return {
             sizeGb: 0,
@@ -210,6 +210,22 @@ export function FirebaseUsageCalculator() {
             const folderRef = ref(storage, folderName);
             const folderResult = await listAll(folderRef);
             console.log(`📸 ${folderName}/: ${folderResult.items.length} files, ${folderResult.prefixes.length} subfolders`);
+            
+            // Add files from this folder to totals
+            totalSize += await calculateFolderSize(folderResult);
+            filesCount += folderResult.items.length;
+            
+            // Process subfolders
+            for (const subfolder of folderResult.prefixes) {
+              try {
+                const subfolderFiles = await getAllFilesInFolder(subfolder);
+                totalSize += subfolderFiles.totalSize;
+                filesCount += subfolderFiles.filesCount;
+                console.log(`📸   └─ ${subfolder.name}: ${subfolderFiles.filesCount} files`);
+              } catch (subError) {
+                console.warn(`Could not process subfolder ${subfolder.name}:`, subError);
+              }
+            }
           } catch (error) {
             console.log(`📸 ${folderName}/: Not accessible or doesn't exist`);
           }
@@ -223,7 +239,31 @@ export function FirebaseUsageCalculator() {
         let filesCount = 0;
         const fileSamples: string[] = [];
 
-        // Get metadata for files in batches to avoid timeout
+        // Helper function to calculate folder size
+        const calculateFolderSize = async (folderResult: any): Promise<number> => {
+          let folderSize = 0;
+          const batchSize = 10;
+          
+          for (let i = 0; i < folderResult.items.length; i += batchSize) {
+            const batch = folderResult.items.slice(i, i + batchSize);
+            await Promise.all(batch.map(async (item) => {
+              try {
+                const metadata = await getMetadata(item);
+                folderSize += metadata.size || 0;
+                
+                // Sample first few file names for verification
+                if (fileSamples.length < 10) {
+                  fileSamples.push(`${item.name} (${((metadata.size || 0) / 1024).toFixed(1)} KB)`);
+                }
+              } catch (error) {
+                console.warn('Could not get metadata for file:', item.name);
+              }
+            }));
+          }
+          return folderSize;
+        };
+
+        // Get metadata for files in root (if any)
         const batchSize = 10;
         for (let i = 0; i < result.items.length; i += batchSize) {
           const batch = result.items.slice(i, i + batchSize);
@@ -278,12 +318,12 @@ export function FirebaseUsageCalculator() {
       const result = await Promise.race([storageOperation(), timeout]);
       console.log('✅ Firebase Storage calculation succeeded:', result);
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ FIREBASE STORAGE ERROR:', error);
       console.log('❌ Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
+        message: error?.message,
+        code: error?.code,
+        stack: error?.stack
       });
       console.log('⚠️  This means your photos are NOT being counted in usage costs!');
       console.log('⚠️  Returning ZERO values to clearly show when real data fails');
