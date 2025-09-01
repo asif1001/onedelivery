@@ -112,49 +112,38 @@ export function FirebaseUsageCalculator() {
     console.log('🔥 Firebase Usage Calculator - Starting calculation...');
     
     try {
-      // Show immediate estimates while calculating real values
-      const initialEstimates: UsageData = {
-        storage: {
-          totalSizeGb: 0.5, // 500MB estimate
-          filesCount: 100,
-          estimatedDownloadGb: 1.0,
-          estimatedDownloads: 5000
-        },
-        firestore: {
-          sizeGb: 0.1, // 100MB estimate
-          documentsCount: 1000,
-          estimatedReads: 100000,
-          estimatedWrites: 10000,
-          estimatedDeletes: 100
-        },
-        hosting: {
-          sizeGb: 0.05,
-          estimatedTransferGb: 0.5
-        }
-      };
+      console.log('📊 Calculating real Firebase usage data...');
       
-      // Set initial estimates immediately
-      setUsageData(initialEstimates);
-      setCostBreakdown(calculateCosts(initialEstimates));
-      
-      console.log('📊 Showing initial estimates, now calculating real usage...');
-      
-      // Calculate real values in parallel
+      // Calculate real values in parallel (no initial estimates)
       const [storageUsage, firestoreUsage] = await Promise.all([
         getStorageUsage().catch(err => {
-          console.warn('Storage calculation failed, using estimates:', err);
-          return initialEstimates.storage;
+          console.error('❌ Storage calculation failed:', err);
+          return {
+            totalSizeGb: 0, 
+            filesCount: 0,
+            estimatedDownloadGb: 0,
+            estimatedDownloads: 0
+          };
         }),
         getFirestoreUsage().catch(err => {
-          console.warn('Firestore calculation failed, using estimates:', err);
-          return initialEstimates.firestore;
+          console.error('❌ Firestore calculation failed:', err);
+          return {
+            sizeGb: 0,
+            documentsCount: 0,
+            estimatedReads: 0,
+            estimatedWrites: 0,
+            estimatedDeletes: 0
+          };
         })
       ]);
+      
+      console.log('📊 Real Storage Data:', storageUsage);
+      console.log('📊 Real Firestore Data:', firestoreUsage);
       
       // Estimate Hosting Usage (static files + app bundle)
       const hostingUsage = {
         sizeGb: 0.05, // Estimate 50MB for app bundle
-        estimatedTransferGb: storageUsage.estimatedDownloadGb * 0.1 // 10% of storage downloads as app usage
+        estimatedTransferGb: Math.max(storageUsage.estimatedDownloadGb * 0.1, 0.5) // 10% of storage downloads as app usage, minimum 0.5GB
       };
 
       const finalUsage: UsageData = {
@@ -163,14 +152,21 @@ export function FirebaseUsageCalculator() {
         hosting: hostingUsage
       };
 
-      // Update with real calculated values
+      // Set real calculated values
       setUsageData(finalUsage);
       setCostBreakdown(calculateCosts(finalUsage));
-      console.log('✅ Firebase Usage Calculator - Calculation complete!');
+      console.log('✅ Firebase Usage Calculator - Real calculation complete!', finalUsage);
       
     } catch (error) {
-      console.error('❌ Firebase Usage Calculator - Error:', error);
-      // Keep the initial estimates if everything fails
+      console.error('❌ Firebase Usage Calculator - Critical Error:', error);
+      // Set minimal values if everything fails
+      const fallback: UsageData = {
+        storage: { totalSizeGb: 0, filesCount: 0, estimatedDownloadGb: 0, estimatedDownloads: 0 },
+        firestore: { sizeGb: 0, documentsCount: 0, estimatedReads: 0, estimatedWrites: 0, estimatedDeletes: 0 },
+        hosting: { sizeGb: 0.05, estimatedTransferGb: 0.5 }
+      };
+      setUsageData(fallback);
+      setCostBreakdown(calculateCosts(fallback));
     } finally {
       setLoading(false);
     }
