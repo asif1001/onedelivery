@@ -91,7 +91,7 @@ import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
 import { TransactionViewer } from "@/components/TransactionViewer";
 import EnhancedTaskModal from "@/components/EnhancedTaskModal";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
-import { FirebaseUsageCalculator } from "@/components/FirebaseUsageCalculator";
+import { RealFirebaseUsageCalculator } from "@/components/RealFirebaseUsageCalculator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Switch } from "@/components/ui/switch";
@@ -3104,7 +3104,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <FirebaseUsageCalculator />
+                  <RealFirebaseUsageCalculator />
                 </CardContent>
               </Card>
 

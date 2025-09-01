@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { deleteUserFromFirebaseAuth } from "./firebaseAdmin";
+import { getFirebaseUsage } from "./firebase-usage-api";
 
 export function registerRoutes(app: Express): Server {
   
@@ -12,6 +13,9 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/test", (req, res) => {
     res.json({ message: "POST API is working!", data: req.body });
   });
+
+  // Firebase Usage & Billing Calculator endpoint
+  app.get("/api/firebase-usage", getFirebaseUsage);
 
   // User creation endpoint - now handles Firebase creation on client-side
   app.post('/api/users/create', async (req, res) => {
