@@ -185,16 +185,38 @@ export function FirebaseUsageCalculator() {
       const storageOperation = async () => {
         console.log('🔍 VERIFICATION: Connecting to your real Firebase Storage...');
         console.log('🔍 Storage Bucket:', storage.app.options.storageBucket);
+        console.log('🔍 Project ID:', storage.app.options.projectId);
+        console.log('🔍 Full Firebase Config:', {
+          projectId: storage.app.options.projectId,
+          storageBucket: storage.app.options.storageBucket,
+          appId: storage.app.options.appId
+        });
         
-        console.log('🔍 Attempting to list all files in Firebase Storage...');
+        console.log('🔍 Attempting to list all files in Firebase Storage root...');
         const result = await listAll(storageRef);
-        console.log(`📁 REAL DATA - Found ${result.items.length} files and ${result.prefixes.length} folders in your Firebase Storage`);
+        console.log(`📁 ROOT DIRECTORY - Found ${result.items.length} files and ${result.prefixes.length} folders`);
+        
+        // List all folder names for debugging
+        if (result.prefixes.length > 0) {
+          console.log('📁 Folders found:', result.prefixes.map(folder => folder.name));
+        }
+        
+        // Check specific photo folders where OneDelivery stores photos
+        const photoFolders = ['complaint-photos', 'loading-photos', 'supply-photos', 'photos', 'tasks', 'complaints'];
+        console.log('🔍 Checking specific photo folders...');
+        
+        for (const folderName of photoFolders) {
+          try {
+            const folderRef = ref(storage, folderName);
+            const folderResult = await listAll(folderRef);
+            console.log(`📸 ${folderName}/: ${folderResult.items.length} files, ${folderResult.prefixes.length} subfolders`);
+          } catch (error) {
+            console.log(`📸 ${folderName}/: Not accessible or doesn't exist`);
+          }
+        }
         
         if (result.items.length === 0 && result.prefixes.length === 0) {
-          console.log('⚠️  No files or folders found! This could mean:');
-          console.log('   - Photos are stored in a different bucket');
-          console.log('   - Storage permissions issue'); 
-          console.log('   - Photos not uploaded to Firebase Storage yet');
+          console.log('⚠️  No files or folders found in root! Checking if photos exist in specific folders...');
         }
         
         let totalSize = 0;
