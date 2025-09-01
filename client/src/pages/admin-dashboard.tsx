@@ -419,7 +419,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       // Call actual Firebase usage API
       const usageData = await getFirestoreUsage();
-      setFirestoreUsage(usageData);
+      setFirebaseUsage(usageData);
     } catch (error) {
       console.error('Error loading Firebase usage:', error);
       // Fallback to basic stats if API fails
@@ -447,7 +447,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         totalBilling: "Requires Firebase Billing API",
         error: "Firebase Admin API access required for live data"
       };
-      setFirestoreUsage(basicStats);
+      setFirebaseUsage(basicStats);
       toast({
         title: "Limited Data Available",
         description: "Firebase Admin API setup required for live usage statistics",
@@ -2822,13 +2822,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     <div className="flex items-center justify-center py-8">
                       <Loader2Icon className="h-8 w-8 animate-spin text-gray-400" />
                     </div>
-                  ) : firestoreUsage?.billing ? (
+                  ) : firebaseUsage?.billing ? (
                     <div className="space-y-6">
                       {/* Total Monthly Cost Overview */}
                       <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border-2 border-green-200">
                         <div className="text-center">
                           <div className="text-3xl font-bold text-green-700 mb-2">
-                            ${firestoreUsage.billing.total.estimatedMonthlyCost.toFixed(2)}
+                            ${firebaseUsage.billing.total.estimatedMonthlyCost.toFixed(2)}
                           </div>
                           <div className="text-sm text-gray-600">Estimated Monthly Total</div>
                           <div className="text-xs text-gray-500 mt-1">
@@ -2840,19 +2840,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                         <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
                           <div className="text-center">
                             <div className="font-medium text-blue-700">
-                              ${firestoreUsage.billing.total.breakdown.storage.toFixed(2)}
+                              ${firebaseUsage.billing.total.breakdown.storage.toFixed(2)}
                             </div>
                             <div className="text-gray-500">Cloud Storage</div>
                           </div>
                           <div className="text-center">
                             <div className="font-medium text-purple-700">
-                              ${firestoreUsage.billing.total.breakdown.firestore.toFixed(2)}
+                              ${firebaseUsage.billing.total.breakdown.firestore.toFixed(2)}
                             </div>
                             <div className="text-gray-500">Firestore</div>
                           </div>
                           <div className="text-center">
                             <div className="font-medium text-orange-700">
-                              ${firestoreUsage.billing.total.breakdown.hosting.toFixed(2)}
+                              ${firebaseUsage.billing.total.breakdown.hosting.toFixed(2)}
                             </div>
                             <div className="text-gray-500">Hosting</div>
                           </div>
@@ -2875,25 +2875,25 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                               <div className="font-medium text-blue-800 mb-2">Usage Summary</div>
                               <div className="flex justify-between">
                                 <span>Photos Stored:</span>
-                                <span className="font-medium">{firestoreUsage.storage?.photos}</span>
+                                <span className="font-medium">{firebaseUsage.storage?.photos}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span>Total Size:</span>
-                                <span className="font-medium">{(firestoreUsage.billing.cloudStorage.usedGB).toFixed(2)} GB</span>
+                                <span className="font-medium">{(firebaseUsage.billing.cloudStorage.usedGB).toFixed(2)} GB</span>
                               </div>
                               <div className="flex justify-between text-green-600">
                                 <span>Free Tier:</span>
-                                <span className="font-medium">{firestoreUsage.billing.cloudStorage.freeGB} GB</span>
+                                <span className="font-medium">{firebaseUsage.billing.cloudStorage.freeGB} GB</span>
                               </div>
                               <div className="flex justify-between text-red-600">
                                 <span>Billable:</span>
-                                <span className="font-medium">{firestoreUsage.billing.cloudStorage.billableGB.toFixed(2)} GB</span>
+                                <span className="font-medium">{firebaseUsage.billing.cloudStorage.billableGB.toFixed(2)} GB</span>
                               </div>
                             </div>
                             
                             <div className="space-y-2 text-xs">
                               <div className="font-medium text-gray-700">Photo Breakdown:</div>
-                              {Object.entries(firestoreUsage.storage?.photoBreakdown || {}).map(([category, data]: [string, any]) => (
+                              {Object.entries(firebaseUsage.storage?.photoBreakdown || {}).map(([category, data]: [string, any]) => (
                                 data.count > 0 && (
                                   <div key={category} className="flex justify-between bg-gray-50 p-2 rounded">
                                     <span className="capitalize">{category}:</span>
@@ -2905,10 +2905,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
                             <div className="border-t pt-3 space-y-1 text-xs">
                               <div className="font-medium text-blue-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.cloudStorage.breakdown.storage}</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.cloudStorage.breakdown.downloads}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.cloudStorage.breakdown.storage}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.cloudStorage.breakdown.downloads}</div>
                               <div className="font-bold text-blue-700 border-t pt-1">
-                                Total: ${firestoreUsage.billing.cloudStorage.totalCost.toFixed(3)}/month
+                                Total: ${firebaseUsage.billing.cloudStorage.totalCost.toFixed(3)}/month
                               </div>
                             </div>
                           </CardContent>
@@ -2927,25 +2927,25 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                               <div className="font-medium text-purple-800 mb-2">Database Summary</div>
                               <div className="flex justify-between">
                                 <span>Documents:</span>
-                                <span className="font-medium">{firestoreUsage.firestore?.totalDocuments?.toLocaleString()}</span>
+                                <span className="font-medium">{firebaseUsage.firestore?.totalDocuments?.toLocaleString()}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span>Database Size:</span>
-                                <span className="font-medium">{(firestoreUsage.billing.firestore.storageGB * 1024).toFixed(1)} MB</span>
+                                <span className="font-medium">{(firebaseUsage.billing.firestore.storageGB * 1024).toFixed(1)} MB</span>
                               </div>
                               <div className="flex justify-between text-green-600">
                                 <span>Free Tier:</span>
-                                <span className="font-medium">{firestoreUsage.billing.firestore.freeStorageGB} GB</span>
+                                <span className="font-medium">{firebaseUsage.billing.firestore.freeStorageGB} GB</span>
                               </div>
                               <div className="flex justify-between text-red-600">
                                 <span>Billable:</span>
-                                <span className="font-medium">{firestoreUsage.billing.firestore.billableStorageGB.toFixed(3)} GB</span>
+                                <span className="font-medium">{firebaseUsage.billing.firestore.billableStorageGB.toFixed(3)} GB</span>
                               </div>
                             </div>
 
                             <div className="space-y-2 text-xs">
                               <div className="font-medium text-gray-700">Collection Breakdown:</div>
-                              {Object.entries(firestoreUsage.firestore?.collections || {}).map(([collection, data]: [string, any]) => (
+                              {Object.entries(firebaseUsage.firestore?.collections || {}).map(([collection, data]: [string, any]) => (
                                 <div key={collection} className="flex justify-between bg-gray-50 p-2 rounded">
                                   <div>
                                     <span className="capitalize font-medium">{collection}:</span>
@@ -2961,12 +2961,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
                             <div className="border-t pt-3 space-y-1 text-xs">
                               <div className="font-medium text-purple-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.firestore.breakdown.storage}</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.firestore.breakdown.reads}</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.firestore.breakdown.writes}</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.firestore.breakdown.deletes}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.storage}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.reads}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.writes}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.deletes}</div>
                               <div className="font-bold text-purple-700 border-t pt-1">
-                                Total: ${firestoreUsage.billing.firestore.totalCost.toFixed(3)}/month
+                                Total: ${firebaseUsage.billing.firestore.totalCost.toFixed(3)}/month
                               </div>
                             </div>
                           </CardContent>
@@ -2985,11 +2985,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                               <div className="font-medium text-orange-800 mb-2">Hosting Summary</div>
                               <div className="flex justify-between">
                                 <span>App Assets:</span>
-                                <span className="font-medium">{(firestoreUsage.billing.hosting.storageGB * 1024).toFixed(0)} MB</span>
+                                <span className="font-medium">{(firebaseUsage.billing.hosting.storageGB * 1024).toFixed(0)} MB</span>
                               </div>
                               <div className="flex justify-between">
                                 <span>Monthly Transfer:</span>
-                                <span className="font-medium">{firestoreUsage.billing.hosting.transferGB.toFixed(1)} GB</span>
+                                <span className="font-medium">{firebaseUsage.billing.hosting.transferGB.toFixed(1)} GB</span>
                               </div>
                               <div className="flex justify-between text-green-600">
                                 <span>Free Storage:</span>
@@ -3024,10 +3024,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
                             <div className="border-t pt-3 space-y-1 text-xs">
                               <div className="font-medium text-orange-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.hosting.breakdown.storage}</div>
-                              <div className="text-gray-600">{firestoreUsage.billing.hosting.breakdown.transfer}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.hosting.breakdown.storage}</div>
+                              <div className="text-gray-600">{firebaseUsage.billing.hosting.breakdown.transfer}</div>
                               <div className="font-bold text-orange-700 border-t pt-1">
-                                Total: ${firestoreUsage.billing.hosting.totalCost.toFixed(3)}/month
+                                Total: ${firebaseUsage.billing.hosting.totalCost.toFixed(3)}/month
                               </div>
                             </div>
                           </CardContent>
@@ -3046,29 +3046,29 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                             <div className="text-center">
                               <div className="font-bold text-2xl text-blue-600">
-                                {(firestoreUsage.billing.firestore.operations.reads.estimated / 1000).toFixed(0)}k
+                                {(firebaseUsage.billing.firestore.operations.reads.estimated / 1000).toFixed(0)}k
                               </div>
                               <div className="text-gray-600">Database Reads</div>
                               <div className="text-xs text-gray-500 mt-1">
-                                ({(firestoreUsage.billing.firestore.operations.reads.billable / 1000).toFixed(0)}k billable)
+                                ({(firebaseUsage.billing.firestore.operations.reads.billable / 1000).toFixed(0)}k billable)
                               </div>
                             </div>
                             <div className="text-center">
                               <div className="font-bold text-2xl text-green-600">
-                                {(firestoreUsage.billing.firestore.operations.writes.estimated / 1000).toFixed(0)}k
+                                {(firebaseUsage.billing.firestore.operations.writes.estimated / 1000).toFixed(0)}k
                               </div>
                               <div className="text-gray-600">Database Writes</div>
                               <div className="text-xs text-gray-500 mt-1">
-                                ({(firestoreUsage.billing.firestore.operations.writes.billable / 1000).toFixed(0)}k billable)
+                                ({(firebaseUsage.billing.firestore.operations.writes.billable / 1000).toFixed(0)}k billable)
                               </div>
                             </div>
                             <div className="text-center">
                               <div className="font-bold text-2xl text-purple-600">
-                                {firestoreUsage.billing.firestore.operations.deletes.estimated.toFixed(0)}
+                                {firebaseUsage.billing.firestore.operations.deletes.estimated.toFixed(0)}
                               </div>
                               <div className="text-gray-600">Database Deletes</div>
                               <div className="text-xs text-gray-500 mt-1">
-                                ({firestoreUsage.billing.firestore.operations.deletes.billable.toFixed(0)} billable)
+                                ({firebaseUsage.billing.firestore.operations.deletes.billable.toFixed(0)} billable)
                               </div>
                             </div>
                           </div>
