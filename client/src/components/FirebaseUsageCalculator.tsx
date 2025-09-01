@@ -116,7 +116,7 @@ export function FirebaseUsageCalculator() {
       
       // Calculate real values in parallel (no initial estimates)
       const [storageUsage, firestoreUsage] = await Promise.all([
-        getStorageUsage().catch((err: any) => {
+        getStorageUsage().catch(err => {
           console.error('❌ Storage calculation failed:', err);
           return {
             totalSizeGb: 0, 
@@ -125,7 +125,7 @@ export function FirebaseUsageCalculator() {
             estimatedDownloads: 0
           };
         }),
-        getFirestoreUsage().catch((err: any) => {
+        getFirestoreUsage().catch(err => {
           console.error('❌ Firestore calculation failed:', err);
           return {
             sizeGb: 0,
@@ -185,85 +185,23 @@ export function FirebaseUsageCalculator() {
       const storageOperation = async () => {
         console.log('🔍 VERIFICATION: Connecting to your real Firebase Storage...');
         console.log('🔍 Storage Bucket:', storage.app.options.storageBucket);
-        console.log('🔍 Project ID:', storage.app.options.projectId);
-        console.log('🔍 Full Firebase Config:', {
-          projectId: storage.app.options.projectId,
-          storageBucket: storage.app.options.storageBucket,
-          appId: storage.app.options.appId
-        });
         
-        console.log('🔍 Attempting to list all files in Firebase Storage root...');
+        console.log('🔍 Attempting to list all files in Firebase Storage...');
         const result = await listAll(storageRef);
-        console.log(`📁 ROOT DIRECTORY - Found ${result.items.length} files and ${result.prefixes.length} folders`);
-        
-        // List all folder names for debugging
-        if (result.prefixes.length > 0) {
-          console.log('📁 Folders found:', result.prefixes.map(folder => folder.name));
-        }
-        
-        // Check specific photo folders where OneDelivery stores photos
-        const photoFolders = ['complaint-photos', 'loading-photos', 'supply-photos', 'photos', 'tasks', 'complaints'];
-        console.log('🔍 Checking specific photo folders...');
-        
-        for (const folderName of photoFolders) {
-          try {
-            const folderRef = ref(storage, folderName);
-            const folderResult = await listAll(folderRef);
-            console.log(`📸 ${folderName}/: ${folderResult.items.length} files, ${folderResult.prefixes.length} subfolders`);
-            
-            // Add files from this folder to totals
-            totalSize += await calculateFolderSize(folderResult);
-            filesCount += folderResult.items.length;
-            
-            // Process subfolders
-            for (const subfolder of folderResult.prefixes) {
-              try {
-                const subfolderFiles = await getAllFilesInFolder(subfolder);
-                totalSize += subfolderFiles.totalSize;
-                filesCount += subfolderFiles.filesCount;
-                console.log(`📸   └─ ${subfolder.name}: ${subfolderFiles.filesCount} files`);
-              } catch (subError) {
-                console.warn(`Could not process subfolder ${subfolder.name}:`, subError);
-              }
-            }
-          } catch (error) {
-            console.log(`📸 ${folderName}/: Not accessible or doesn't exist`);
-          }
-        }
+        console.log(`📁 REAL DATA - Found ${result.items.length} files and ${result.prefixes.length} folders in your Firebase Storage`);
         
         if (result.items.length === 0 && result.prefixes.length === 0) {
-          console.log('⚠️  No files or folders found in root! Checking if photos exist in specific folders...');
+          console.log('⚠️  No files or folders found! This could mean:');
+          console.log('   - Photos are stored in a different bucket');
+          console.log('   - Storage permissions issue'); 
+          console.log('   - Photos not uploaded to Firebase Storage yet');
         }
         
         let totalSize = 0;
         let filesCount = 0;
         const fileSamples: string[] = [];
 
-        // Helper function to calculate folder size
-        const calculateFolderSize = async (folderResult: any): Promise<number> => {
-          let folderSize = 0;
-          const batchSize = 10;
-          
-          for (let i = 0; i < folderResult.items.length; i += batchSize) {
-            const batch = folderResult.items.slice(i, i + batchSize);
-            await Promise.all(batch.map(async (item) => {
-              try {
-                const metadata = await getMetadata(item);
-                folderSize += metadata.size || 0;
-                
-                // Sample first few file names for verification
-                if (fileSamples.length < 10) {
-                  fileSamples.push(`${item.name} (${((metadata.size || 0) / 1024).toFixed(1)} KB)`);
-                }
-              } catch (error) {
-                console.warn('Could not get metadata for file:', item.name);
-              }
-            }));
-          }
-          return folderSize;
-        };
-
-        // Get metadata for files in root (if any)
+        // Get metadata for files in batches to avoid timeout
         const batchSize = 10;
         for (let i = 0; i < result.items.length; i += batchSize) {
           const batch = result.items.slice(i, i + batchSize);
@@ -318,12 +256,12 @@ export function FirebaseUsageCalculator() {
       const result = await Promise.race([storageOperation(), timeout]);
       console.log('✅ Firebase Storage calculation succeeded:', result);
       return result;
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ FIREBASE STORAGE ERROR:', error);
       console.log('❌ Error details:', {
-        message: error?.message,
-        code: error?.code,
-        stack: error?.stack
+        message: error.message,
+        code: error.code,
+        stack: error.stack
       });
       console.log('⚠️  This means your photos are NOT being counted in usage costs!');
       console.log('⚠️  Returning ZERO values to clearly show when real data fails');
