@@ -3591,292 +3591,92 @@ export const addComplaintDocument = async (complaintId: string, documentData: an
   }
 };
 
-// Firebase Usage Monitoring with Blaze Plan Billing Estimation - Auto-Discovery
+// Firebase Usage Monitoring - Real Data Only
 export const getFirestoreUsage = async () => {
   try {
-    // Auto-discover all collections in the database
-    // Add new collections here when you create them - the system will automatically calculate their costs
-    const knownCollections = [
-      'complaints', 'users', 'tasks', 'transactions', 'deliveries', 
-      'branches', 'oilTypes', 'loadSessions', 'tankUpdateLogs', 
-      'systemSettings', 'drumCapacities',
-      // Add any new collections here and they'll be automatically included in billing calculations
-      // Example: 'newFeatureData', 'customerFeedback', 'auditLogs', etc.
-    ];
-    
-    // Collection size estimates based on data type
-    const collectionSizeEstimates = {
-      complaints: { avgSizeKB: 3.5, description: 'Customer complaints and photos' },
-      users: { avgSizeKB: 1.2, description: 'User accounts and profiles' },
-      tasks: { avgSizeKB: 2.8, description: 'Admin tasks and workflow' },
-      transactions: { avgSizeKB: 4.2, description: 'Delivery and supply transactions' },
-      deliveries: { avgSizeKB: 5.8, description: 'Completed delivery records' },
-      branches: { avgSizeKB: 8.5, description: 'Branch data with tank information' },
-      oilTypes: { avgSizeKB: 0.8, description: 'Oil type configurations' },
-      loadSessions: { avgSizeKB: 3.2, description: 'Loading session records' },
-      tankUpdateLogs: { avgSizeKB: 2.1, description: 'Tank level update history' },
-      systemSettings: { avgSizeKB: 1.5, description: 'System configuration settings' },
-      drumCapacities: { avgSizeKB: 0.6, description: 'Drum capacity configurations' }
+    // Get all collections that contribute to Firebase billing
+    const [complaints, users, tasks, transactions, deliveries, branches, oilTypes, loadSessions] = await Promise.all([
+      getAllComplaints(),
+      getAllUsers(), 
+      getAllTasks(),
+      getAllTransactions(),
+      getAllDeliveries(),
+      getAllBranches(),
+      getAllOilTypes(),
+      getDocs(collection(db, 'loadSessions')).then(snapshot => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    ]);
+
+    // Calculate actual document counts by collection
+    const collectionCounts = {
+      complaints: complaints.length,
+      users: users.length,
+      tasks: tasks.length,
+      transactions: transactions.length,
+      deliveries: deliveries.length,
+      branches: branches.length,
+      oilTypes: oilTypes.length,
+      loadSessions: loadSessions.length
     };
 
-    // Automatically fetch all collections
-    const collectionPromises = knownCollections.map(async (collectionName) => {
-      try {
-        const snapshot = await getDocs(collection(db, collectionName));
-        const docs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        return { name: collectionName, docs: docs, count: docs.length };
-      } catch (error) {
-        console.log(`Collection ${collectionName} not found or empty`);
-        return { name: collectionName, docs: [], count: 0 };
-      }
-    });
-
-    const collectionResults = await Promise.all(collectionPromises);
+    const totalDocuments = Object.values(collectionCounts).reduce((sum, count) => sum + count, 0);
     
-    // Build dynamic collection data with auto-sizing
-    const collectionData: any = {};
-    let allDocuments: any = {};
+    // Calculate estimated storage size based on actual data structure
+    const avgDocSize = 2; // KB per document (realistic estimate)
+    const totalStorageKB = totalDocuments * avgDocSize;
     
-    collectionResults.forEach(result => {
-      const estimate = collectionSizeEstimates[result.name as keyof typeof collectionSizeEstimates];
-      collectionData[result.name] = {
-        count: result.count,
-        avgSizeKB: estimate?.avgSizeKB || 2.0, // Default 2KB for unknown collections
-        description: estimate?.description || `${result.name} data collection`
-      };
-      allDocuments[result.name] = result.docs;
-    });
-
-    const totalDocuments = Object.values(collectionData).reduce((sum: number, col: any) => sum + col.count, 0);
-    const totalFirestoreStorageKB = Object.values(collectionData).reduce((sum: number, col: any) => sum + (col.count * col.avgSizeKB), 0);
-    const totalFirestoreStorageMB = totalFirestoreStorageKB / 1024;
-    
-    // Auto-discover and count all photo/media files across all collections
+    // Count photo/media files in complaints and deliveries
     let totalPhotos = 0;
-    let photoBreakdown: any = {};
+    let estimatedPhotoStorageMB = 0;
     
-    const avgPhotoSizeMB = 0.8; // 800KB per photo average
-    
-    // Function to recursively find photos in any data structure
-    const findPhotosInData = (data: any, collectionName: string): number => {
-      let photoCount = 0;
-      
-      if (!photoBreakdown[collectionName]) {
-        photoBreakdown[collectionName] = { count: 0, sizeMB: 0 };
-      }
-      
-      if (Array.isArray(data)) {
-        data.forEach(item => photoCount += findPhotosInData(item, collectionName));
-      } else if (data && typeof data === 'object') {
-        Object.keys(data).forEach(key => {
-          const value = data[key];
-          
-          // Check for photo URLs, photo arrays, or image references
-          if (typeof value === 'string' && 
-              (value.includes('firebase') || value.includes('storage.googleapis.com') || 
-               key.toLowerCase().includes('photo') || key.toLowerCase().includes('image'))) {
-            photoCount++;
-          } else if (Array.isArray(value)) {
-            // Check if it's an array of photos
-            if (key.toLowerCase().includes('photo') || key.toLowerCase().includes('image')) {
-              photoCount += value.length;
-            } else {
-              // Recursively check array items
-              photoCount += findPhotosInData(value, collectionName);
-            }
-          } else if (value && typeof value === 'object') {
-            // Check documents array for images
-            if (key === 'documents' && Array.isArray(value)) {
-              const imageCount = value.filter((doc: any) => 
-                doc.type === 'image' || 
-                doc.url?.includes('firebase') || 
-                doc.url?.includes('storage.googleapis.com')
-              ).length;
-              photoCount += imageCount;
-            } else {
-              photoCount += findPhotosInData(value, collectionName);
-            }
-          }
-        });
-      }
-      
-      return photoCount;
-    };
-    
-    // Count photos in all collections automatically
-    Object.keys(allDocuments).forEach(collectionName => {
-      const docs = allDocuments[collectionName];
-      const collectionPhotoCount = findPhotosInData(docs, collectionName);
-      
-      if (collectionPhotoCount > 0) {
-        if (!photoBreakdown[collectionName]) {
-          photoBreakdown[collectionName] = { count: 0, sizeMB: 0 };
-        }
-        photoBreakdown[collectionName].count += collectionPhotoCount;
-        photoBreakdown[collectionName].sizeMB += collectionPhotoCount * avgPhotoSizeMB;
-        totalPhotos += collectionPhotoCount;
+    complaints.forEach((complaint: any) => {
+      if (complaint.photos?.length) {
+        totalPhotos += complaint.photos.length;
+        estimatedPhotoStorageMB += complaint.photos.length * 0.5; // 500KB per photo average
       }
     });
-
-    const totalPhotoStorageMB = Object.values(photoBreakdown).reduce((sum: number, cat: any) => sum + cat.sizeMB, 0);
-    const totalStorageMB = totalFirestoreStorageMB + totalPhotoStorageMB;
-
-    // BLAZE PLAN BILLING CALCULATIONS
     
-    // 1. CLOUD STORAGE COSTS
-    const storageFreeGB = 5;
-    const storageUsedGB = totalPhotoStorageMB / 1024;
-    const billableStorageGB = Math.max(0, storageUsedGB - storageFreeGB);
-    const storageCostPerGB = 0.026;
-    const storageMonthlyCharge = billableStorageGB * storageCostPerGB;
-
-    // Estimate monthly downloads (30% of photos viewed monthly)
-    const estimatedMonthlyDownloadsGB = (totalPhotoStorageMB * 0.3) / 1024;
-    const downloadFreeGBPerMonth = 100;
-    const billableDownloadsGB = Math.max(0, estimatedMonthlyDownloadsGB - downloadFreeGBPerMonth);
-    const downloadCostPerGB = 0.12;
-    const downloadMonthlyCharge = billableDownloadsGB * downloadCostPerGB;
-
-    const totalStorageCost = storageMonthlyCharge + downloadMonthlyCharge;
-
-    // 2. FIRESTORE COSTS
-    const firestoreFreeStorageGB = 1;
-    const firestoreUsedGB = totalFirestoreStorageMB / 1024;
-    const billableFirestoreGB = Math.max(0, firestoreUsedGB - firestoreFreeStorageGB);
-    const firestoreCostPerGB = 0.18;
-    const firestoreStorageCharge = billableFirestoreGB * firestoreCostPerGB;
-
-    // Estimate monthly operations (reads, writes, deletes)
-    const avgReadsPerDocument = 15; // Conservative estimate
-    const avgWritesPerDocument = 2;
-    const avgDeletesPerDocument = 0.1;
-
-    const estimatedMonthlyReads = totalDocuments * avgReadsPerDocument;
-    const estimatedMonthlyWrites = totalDocuments * avgWritesPerDocument;
-    const estimatedMonthlyDeletes = totalDocuments * avgDeletesPerDocument;
-
-    const freeReadsPerMonth = 50000 * 30; // 50k per day
-    const freeWritesPerMonth = 20000 * 30; // 20k per day
-    const freeDeletesPerMonth = 20000 * 30; // 20k per day
-
-    const billableReads = Math.max(0, estimatedMonthlyReads - freeReadsPerMonth);
-    const billableWrites = Math.max(0, estimatedMonthlyWrites - freeWritesPerMonth);
-    const billableDeletes = Math.max(0, estimatedMonthlyDeletes - freeDeletesPerMonth);
-
-    const readCostPer100k = 0.06;
-    const writeCostPer100k = 0.18;
-    const deleteCostPer100k = 0.02;
-
-    const readCharges = (billableReads / 100000) * readCostPer100k;
-    const writeCharges = (billableWrites / 100000) * writeCostPer100k;
-    const deleteCharges = (billableDeletes / 100000) * deleteCostPer100k;
-
-    const totalFirestoreCost = firestoreStorageCharge + readCharges + writeCharges + deleteCharges;
-
-    // 3. HOSTING COSTS
-    const hostingFreeStorageGB = 10;
-    const hostingUsedGB = 0.2; // Estimated hosting assets (HTML, JS, CSS)
-    const billableHostingGB = Math.max(0, hostingUsedGB - hostingFreeStorageGB);
-    const hostingStorageCost = billableHostingGB * 0.026;
-
-    const estimatedMonthlyTransferGB = 5; // Conservative estimate
-    const freeTransferGBPerMonth = (360 / 1024) * 30; // 360MB per day
-    const billableTransferGB = Math.max(0, estimatedMonthlyTransferGB - freeTransferGBPerMonth);
-    const transferCost = billableTransferGB * 0.15;
-
-    const totalHostingCost = hostingStorageCost + transferCost;
-
-    // TOTAL ESTIMATED MONTHLY COST
-    const totalEstimatedMonthlyCost = totalStorageCost + totalFirestoreCost + totalHostingCost;
+    deliveries.forEach((delivery: any) => {
+      const photoFields = ['tankLevelPhoto', 'hoseConnectionPhoto', 'finalTankLevelPhoto', 'meterReadingPhoto'];
+      photoFields.forEach(field => {
+        if (delivery[field]) {
+          totalPhotos++;
+          estimatedPhotoStorageMB += 0.5;
+        }
+      });
+    });
 
     return {
       firestore: {
-        collections: collectionData,
+        collections: collectionCounts,
         totalDocuments: totalDocuments,
-        storage: `${totalFirestoreStorageMB.toFixed(2)} MB`,
-        avgDocSize: `${(totalFirestoreStorageKB / totalDocuments).toFixed(1)} KB`,
-        autoDiscovery: {
-          knownCollections: knownCollections.length,
-          activeCollections: Object.keys(collectionData).filter(name => collectionData[name].count > 0).length,
-          lastUpdated: new Date().toISOString()
-        }
+        storage: `${totalStorageKB.toFixed(1)} KB`,
+        avgDocSize: `${avgDocSize} KB`
       },
       storage: {
         photos: totalPhotos,
-        photoBreakdown: photoBreakdown,
-        estimatedPhotoStorage: `${totalPhotoStorageMB.toFixed(1)} MB`,
-        totalEstimatedStorage: `${totalStorageMB.toFixed(1)} MB`
-      },
-      billing: {
-        cloudStorage: {
-          usedGB: storageUsedGB,
-          freeGB: storageFreeGB,
-          billableGB: billableStorageGB,
-          storageCost: storageMonthlyCharge,
-          downloadCost: downloadMonthlyCharge,
-          totalCost: totalStorageCost,
-          breakdown: {
-            storage: `$${storageMonthlyCharge.toFixed(3)}/month (${billableStorageGB.toFixed(2)} GB × $${storageCostPerGB})`,
-            downloads: `$${downloadMonthlyCharge.toFixed(3)}/month (${billableDownloadsGB.toFixed(2)} GB × $${downloadCostPerGB})`
-          }
-        },
-        firestore: {
-          storageGB: firestoreUsedGB,
-          freeStorageGB: firestoreFreeStorageGB,
-          billableStorageGB: billableFirestoreGB,
-          storageCost: firestoreStorageCharge,
-          operationsCost: readCharges + writeCharges + deleteCharges,
-          totalCost: totalFirestoreCost,
-          operations: {
-            reads: { estimated: estimatedMonthlyReads, billable: billableReads, cost: readCharges },
-            writes: { estimated: estimatedMonthlyWrites, billable: billableWrites, cost: writeCharges },
-            deletes: { estimated: estimatedMonthlyDeletes, billable: billableDeletes, cost: deleteCharges }
-          },
-          breakdown: {
-            storage: `$${firestoreStorageCharge.toFixed(3)}/month (${billableFirestoreGB.toFixed(2)} GB × $${firestoreCostPerGB})`,
-            reads: `$${readCharges.toFixed(3)}/month (${(billableReads/1000).toFixed(0)}k reads)`,
-            writes: `$${writeCharges.toFixed(3)}/month (${(billableWrites/1000).toFixed(0)}k writes)`,
-            deletes: `$${deleteCharges.toFixed(3)}/month (${(billableDeletes/1000).toFixed(0)}k deletes)`
-          }
-        },
-        hosting: {
-          storageGB: hostingUsedGB,
-          transferGB: estimatedMonthlyTransferGB,
-          totalCost: totalHostingCost,
-          breakdown: {
-            storage: `$${hostingStorageCost.toFixed(3)}/month (${billableHostingGB.toFixed(2)} GB × $0.026)`,
-            transfer: `$${transferCost.toFixed(3)}/month (${billableTransferGB.toFixed(2)} GB × $0.15)`
-          }
-        },
-        total: {
-          estimatedMonthlyCost: totalEstimatedMonthlyCost,
-          breakdown: {
-            storage: totalStorageCost,
-            firestore: totalFirestoreCost,
-            hosting: totalHostingCost
-          }
-        }
+        estimatedPhotoStorage: `${estimatedPhotoStorageMB.toFixed(1)} MB`,
+        totalEstimatedStorage: `${(totalStorageKB / 1024 + estimatedPhotoStorageMB).toFixed(1)} MB`
       },
       authentication: {
-        totalUsers: allDocuments.users?.length || 0,
-        activeUsers: allDocuments.users?.filter((u: any) => u.active !== false).length || 0,
-        adminUsers: allDocuments.users?.filter((u: any) => u.role === 'admin').length || 0,
-        driverUsers: allDocuments.users?.filter((u: any) => u.role === 'driver').length || 0
+        totalUsers: users.length,
+        activeUsers: users.filter((u: any) => u.active !== false).length,
+        adminUsers: users.filter((u: any) => u.role === 'admin').length,
+        driverUsers: users.filter((u: any) => u.role === 'driver').length
       },
       dataBreakdown: {
         operational: {
-          deliveries: allDocuments.deliveries?.length || 0,
-          complaints: allDocuments.complaints?.length || 0,
-          loadSessions: allDocuments.loadSessions?.length || 0
+          deliveries: deliveries.length,
+          complaints: complaints.length,
+          loadSessions: loadSessions.length
         },
         configuration: {
-          branches: allDocuments.branches?.length || 0,
-          oilTypes: allDocuments.oilTypes?.length || 0,
-          users: allDocuments.users?.length || 0
+          branches: branches.length,
+          oilTypes: oilTypes.length,
+          users: users.length
         },
         management: {
-          tasks: allDocuments.tasks?.length || 0,
-          transactions: allDocuments.transactions?.length || 0
+          tasks: tasks.length,
+          transactions: transactions.length
         }
       },
       lastUpdated: new Date().toISOString(),

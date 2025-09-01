@@ -92,8 +92,8 @@ import EnhancedTaskModal from "@/components/EnhancedTaskModal";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { Link } from "wouter";
 import { Switch } from "@/components/ui/switch";
+import { Link } from "wouter";
 import { OilDeliveryLogo } from "@/components/ui/logo";
 
 // Task interface
@@ -314,16 +314,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [showCleanupConfirmModal, setShowCleanupConfirmModal] = useState(false);
 
   // Firebase usage monitoring states
-  const [firebaseUsage, setFirebaseUsage] = useState<any>({
-    firestore: { collections: {}, totalDocuments: 0, storage: '0 MB' },
-    storage: { photos: 0, estimatedPhotoStorage: '0 MB' },
-    billing: { 
-      total: { estimatedMonthlyCost: 0 },
-      cloudStorage: { totalCost: 0 },
-      firestore: { totalCost: 0 },
-      hosting: { totalCost: 0 }
-    }
-  });
+  const [firestoreUsage, setFirestoreUsage] = useState<any>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   // System settings state
@@ -419,7 +410,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       // Call actual Firebase usage API
       const usageData = await getFirestoreUsage();
-      setFirebaseUsage(usageData);
+      setFirestoreUsage(usageData);
     } catch (error) {
       console.error('Error loading Firebase usage:', error);
       // Fallback to basic stats if API fails
@@ -447,7 +438,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         totalBilling: "Requires Firebase Billing API",
         error: "Firebase Admin API access required for live data"
       };
-      setFirebaseUsage(basicStats);
+      setFirestoreUsage(basicStats);
       toast({
         title: "Limited Data Available",
         description: "Firebase Admin API setup required for live usage statistics",
@@ -2790,12 +2781,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 </CardContent>
               </Card>
 
-              {/* Firebase Usage & Billing Estimate */}
+              {/* Firebase Usage Monitoring */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center">
                     <HardDriveIcon className="h-5 w-5 mr-2 text-orange-600" />
-                    Usage & Billing Estimate
+                    Firebase Usage & Billing Monitor
                     <Button
                       size="sm"
                       variant="outline"
@@ -2813,282 +2804,148 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                       )}
                     </Button>
                   </CardTitle>
-                  <CardDescription>
-                    Real-time Firebase Blaze plan cost estimation based on actual usage data
-                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isLoadingUsage ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2Icon className="h-8 w-8 animate-spin text-gray-400" />
                     </div>
-                  ) : firebaseUsage?.billing ? (
+                  ) : firestoreUsage ? (
                     <div className="space-y-6">
-                      {/* Total Monthly Cost Overview */}
-                      <div className="bg-gradient-to-r from-green-50 to-blue-50 p-6 rounded-lg border-2 border-green-200">
-                        <div className="text-center">
-                          <div className="text-3xl font-bold text-green-700 mb-2">
-                            ${firebaseUsage.billing.total.estimatedMonthlyCost.toFixed(2)}
-                          </div>
-                          <div className="text-sm text-gray-600">Estimated Monthly Total</div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            Based on Firebase Blaze plan pricing with current usage patterns
-                          </div>
+                      {/* Database Overview */}
+                      <div className="bg-blue-50 p-4 rounded-lg border-2 border-blue-200">
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg font-semibold text-blue-800">Total Documents:</span>
+                          <span className="text-2xl font-bold text-blue-600">{firestoreUsage.firestore?.totalDocuments?.toLocaleString()}</span>
                         </div>
-                        
-                        {/* Cost Breakdown Bar */}
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                          <div className="text-center">
-                            <div className="font-medium text-blue-700">
-                              ${firebaseUsage.billing.total.breakdown.storage.toFixed(2)}
-                            </div>
-                            <div className="text-gray-500">Cloud Storage</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-medium text-purple-700">
-                              ${firebaseUsage.billing.total.breakdown.firestore.toFixed(2)}
-                            </div>
-                            <div className="text-gray-500">Firestore</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="font-medium text-orange-700">
-                              ${firebaseUsage.billing.total.breakdown.hosting.toFixed(2)}
-                            </div>
-                            <div className="text-gray-500">Hosting</div>
-                          </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-sm text-blue-700">Total Storage Used:</span>
+                          <span className="text-lg font-medium text-blue-600">{firestoreUsage.storage?.totalEstimatedStorage}</span>
                         </div>
                       </div>
 
-                      {/* Detailed Cost Breakdown */}
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        
-                        {/* 1. Cloud Storage Costs */}
-                        <Card className="border-blue-200">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm flex items-center text-blue-700">
-                              <ImageIcon className="h-4 w-4 mr-2" />
-                              Cloud Storage (Photos/Files)
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="bg-blue-50 p-3 rounded text-xs">
-                              <div className="font-medium text-blue-800 mb-2">Usage Summary</div>
-                              <div className="flex justify-between">
-                                <span>Photos Stored:</span>
-                                <span className="font-medium">{firebaseUsage.storage?.photos}</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Total Size:</span>
-                                <span className="font-medium">{(firebaseUsage.billing.cloudStorage.usedGB).toFixed(2)} GB</span>
-                              </div>
-                              <div className="flex justify-between text-green-600">
-                                <span>Free Tier:</span>
-                                <span className="font-medium">{firebaseUsage.billing.cloudStorage.freeGB} GB</span>
-                              </div>
-                              <div className="flex justify-between text-red-600">
-                                <span>Billable:</span>
-                                <span className="font-medium">{firebaseUsage.billing.cloudStorage.billableGB.toFixed(2)} GB</span>
-                              </div>
-                            </div>
-                            
-                            <div className="space-y-2 text-xs">
-                              <div className="font-medium text-gray-700">Photo Breakdown:</div>
-                              {Object.entries(firebaseUsage.storage?.photoBreakdown || {}).map(([category, data]: [string, any]) => (
-                                data.count > 0 && (
-                                  <div key={category} className="flex justify-between bg-gray-50 p-2 rounded">
-                                    <span className="capitalize">{category}:</span>
-                                    <span>{data.count} photos ({data.sizeMB.toFixed(1)} MB)</span>
-                                  </div>
-                                )
-                              ))}
-                            </div>
-
-                            <div className="border-t pt-3 space-y-1 text-xs">
-                              <div className="font-medium text-blue-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.cloudStorage.breakdown.storage}</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.cloudStorage.breakdown.downloads}</div>
-                              <div className="font-bold text-blue-700 border-t pt-1">
-                                Total: ${firebaseUsage.billing.cloudStorage.totalCost.toFixed(3)}/month
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        {/* 2. Firestore Costs */}
-                        <Card className="border-purple-200">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm flex items-center text-purple-700">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Firestore Collections */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center">
                               <FileTextIcon className="h-4 w-4 mr-2" />
-                              Firestore (App Data)
+                              Firestore Collections
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div className="bg-purple-50 p-3 rounded text-xs">
-                              <div className="font-medium text-purple-800 mb-2">Database Summary</div>
-                              <div className="flex justify-between">
-                                <span>Documents:</span>
-                                <span className="font-medium">{firebaseUsage.firestore?.totalDocuments?.toLocaleString()}</span>
+                          <CardContent className="space-y-2">
+                            {Object.entries(firestoreUsage.firestore?.collections || {}).map(([collection, count]) => (
+                              <div key={collection} className="flex justify-between">
+                                <span className="text-sm capitalize">{collection}:</span>
+                                <span className="font-medium">{count}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span>Database Size:</span>
-                                <span className="font-medium">{(firebaseUsage.billing.firestore.storageGB * 1024).toFixed(1)} MB</span>
-                              </div>
-                              <div className="flex justify-between text-green-600">
-                                <span>Free Tier:</span>
-                                <span className="font-medium">{firebaseUsage.billing.firestore.freeStorageGB} GB</span>
-                              </div>
-                              <div className="flex justify-between text-red-600">
-                                <span>Billable:</span>
-                                <span className="font-medium">{firebaseUsage.billing.firestore.billableStorageGB.toFixed(3)} GB</span>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2 text-xs">
-                              <div className="font-medium text-gray-700">Collection Breakdown:</div>
-                              {Object.entries(firebaseUsage.firestore?.collections || {}).map(([collection, data]: [string, any]) => (
-                                <div key={collection} className="flex justify-between bg-gray-50 p-2 rounded">
-                                  <div>
-                                    <span className="capitalize font-medium">{collection}:</span>
-                                    <div className="text-gray-500 text-xs">{data.description}</div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div>{data.count} docs</div>
-                                    <div className="text-gray-500">{(data.count * data.avgSizeKB / 1024).toFixed(1)} MB</div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-
-                            <div className="border-t pt-3 space-y-1 text-xs">
-                              <div className="font-medium text-purple-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.storage}</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.reads}</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.writes}</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.firestore.breakdown.deletes}</div>
-                              <div className="font-bold text-purple-700 border-t pt-1">
-                                Total: ${firebaseUsage.billing.firestore.totalCost.toFixed(3)}/month
-                              </div>
+                            ))}
+                            <div className="flex justify-between border-t pt-2">
+                              <span className="text-sm font-medium">Database Size:</span>
+                              <span className="font-bold text-blue-600">{firestoreUsage.firestore?.storage}</span>
                             </div>
                           </CardContent>
                         </Card>
 
-                        {/* 3. Hosting Costs */}
-                        <Card className="border-orange-200">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="text-sm flex items-center text-orange-700">
-                              <BarChart3Icon className="h-4 w-4 mr-2" />
-                              Hosting (App Assets)
+                        {/* Storage & Media */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center">
+                              <ImageIcon className="h-4 w-4 mr-2" />
+                              Storage & Media
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm">Total Photos:</span>
+                              <span className="font-medium">{firestoreUsage.storage?.photos}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Photo Storage:</span>
+                              <span className="font-medium">{firestoreUsage.storage?.estimatedPhotoStorage}</span>
+                            </div>
+                            <div className="flex justify-between border-t pt-2">
+                              <span className="text-sm font-medium">Total Storage:</span>
+                              <span className="font-bold text-green-600">{firestoreUsage.storage?.totalEstimatedStorage}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* User Analytics */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center">
+                              <UsersIcon className="h-4 w-4 mr-2" />
+                              User Analytics
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm">Total Users:</span>
+                              <span className="font-medium">{firestoreUsage.authentication?.totalUsers}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Active Users:</span>
+                              <span className="font-medium">{firestoreUsage.authentication?.activeUsers}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Admins:</span>
+                              <span className="font-medium">{firestoreUsage.authentication?.adminUsers}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm">Drivers:</span>
+                              <span className="font-medium">{firestoreUsage.authentication?.driverUsers}</span>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Data Breakdown */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-sm flex items-center">
+                              <BarChart3 className="h-4 w-4 mr-2" />
+                              Data Categories
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="space-y-3">
-                            <div className="bg-orange-50 p-3 rounded text-xs">
-                              <div className="font-medium text-orange-800 mb-2">Hosting Summary</div>
-                              <div className="flex justify-between">
-                                <span>App Assets:</span>
-                                <span className="font-medium">{(firebaseUsage.billing.hosting.storageGB * 1024).toFixed(0)} MB</span>
-                              </div>
-                              <div className="flex justify-between">
-                                <span>Monthly Transfer:</span>
-                                <span className="font-medium">{firebaseUsage.billing.hosting.transferGB.toFixed(1)} GB</span>
-                              </div>
-                              <div className="flex justify-between text-green-600">
-                                <span>Free Storage:</span>
-                                <span className="font-medium">10 GB</span>
-                              </div>
-                              <div className="flex justify-between text-green-600">
-                                <span>Free Transfer:</span>
-                                <span className="font-medium">10.5 GB/month</span>
+                            <div>
+                              <span className="text-sm font-medium text-green-700">Operational Data:</span>
+                              <div className="text-xs text-gray-600 ml-2">
+                                Deliveries: {firestoreUsage.dataBreakdown?.operational?.deliveries} • 
+                                Complaints: {firestoreUsage.dataBreakdown?.operational?.complaints} • 
+                                Sessions: {firestoreUsage.dataBreakdown?.operational?.loadSessions}
                               </div>
                             </div>
-
-                            <div className="space-y-2 text-xs">
-                              <div className="font-medium text-gray-700">Asset Breakdown:</div>
-                              <div className="bg-gray-50 p-2 rounded">
-                                <div className="flex justify-between">
-                                  <span>React App Bundle:</span>
-                                  <span>~150 MB</span>
-                                </div>
-                              </div>
-                              <div className="bg-gray-50 p-2 rounded">
-                                <div className="flex justify-between">
-                                  <span>Static Assets:</span>
-                                  <span>~50 MB</span>
-                                </div>
-                              </div>
-                              <div className="bg-green-50 border border-green-200 p-2 rounded">
-                                <div className="text-green-700 font-medium text-center">
-                                  ✓ All hosting within free tier limits
-                                </div>
+                            <div>
+                              <span className="text-sm font-medium text-blue-700">Configuration:</span>
+                              <div className="text-xs text-gray-600 ml-2">
+                                Branches: {firestoreUsage.dataBreakdown?.configuration?.branches} • 
+                                Oil Types: {firestoreUsage.dataBreakdown?.configuration?.oilTypes}
                               </div>
                             </div>
-
-                            <div className="border-t pt-3 space-y-1 text-xs">
-                              <div className="font-medium text-orange-700">Monthly Costs:</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.hosting.breakdown.storage}</div>
-                              <div className="text-gray-600">{firebaseUsage.billing.hosting.breakdown.transfer}</div>
-                              <div className="font-bold text-orange-700 border-t pt-1">
-                                Total: ${firebaseUsage.billing.hosting.totalCost.toFixed(3)}/month
+                            <div>
+                              <span className="text-sm font-medium text-purple-700">Management:</span>
+                              <div className="text-xs text-gray-600 ml-2">
+                                Tasks: {firestoreUsage.dataBreakdown?.management?.tasks} • 
+                                Transactions: {firestoreUsage.dataBreakdown?.management?.transactions}
                               </div>
                             </div>
                           </CardContent>
                         </Card>
                       </div>
 
-                      {/* Operations Estimate */}
-                      <Card className="bg-gray-50">
-                        <CardHeader className="pb-3">
-                          <CardTitle className="text-sm flex items-center">
-                            <BarChart3Icon className="h-4 w-4 mr-2" />
-                            Estimated Monthly Operations
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                            <div className="text-center">
-                              <div className="font-bold text-2xl text-blue-600">
-                                {(firebaseUsage.billing.firestore.operations.reads.estimated / 1000).toFixed(0)}k
-                              </div>
-                              <div className="text-gray-600">Database Reads</div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                ({(firebaseUsage.billing.firestore.operations.reads.billable / 1000).toFixed(0)}k billable)
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-bold text-2xl text-green-600">
-                                {(firebaseUsage.billing.firestore.operations.writes.estimated / 1000).toFixed(0)}k
-                              </div>
-                              <div className="text-gray-600">Database Writes</div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                ({(firebaseUsage.billing.firestore.operations.writes.billable / 1000).toFixed(0)}k billable)
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="font-bold text-2xl text-purple-600">
-                                {firebaseUsage.billing.firestore.operations.deletes.estimated.toFixed(0)}
-                              </div>
-                              <div className="text-gray-600">Database Deletes</div>
-                              <div className="text-xs text-gray-500 mt-1">
-                                ({firebaseUsage.billing.firestore.operations.deletes.billable.toFixed(0)} billable)
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <div className="text-xs text-gray-500 text-center bg-gray-50 p-3 rounded">
-                        Last updated: {new Date().toLocaleString()} • 
-                        Estimates based on Firebase Blaze plan pricing and current usage patterns
+                      <div className="text-xs text-gray-500 text-center">
+                        Last updated: {new Date().toLocaleString()} • Real usage data from your Firebase project
                         <br />
-                        <span className="text-gray-400">
-                          📊 Real data from your Firebase project • 🔄 Refresh monthly for accuracy
+                        <span className="text-gray-500">
+                          Monitoring actual database usage - no billing API required
                         </span>
                       </div>
                     </div>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
                       <HardDriveIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                      <p>Click "Refresh" to load Firebase usage and billing estimates</p>
-                      <p className="text-xs mt-2">Real-time cost calculations based on your actual data</p>
+                      <p>Click "Refresh" to load Firebase usage statistics</p>
                     </div>
                   )}
                 </CardContent>
@@ -3234,16 +3091,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               </Card>
               
               {/* Settings Panel - Data Export & Filtering */}
-              <SettingsPanel 
-                storageUsage={firebaseUsage}
-                onDeleteRecords={async (recordType: string) => {
-                  toast({
-                    title: "Action Not Available",
-                    description: "Record deletion is handled through individual record management.",
-                    variant: "default"
-                  });
-                }}
-              />
+              <SettingsPanel />
             </div>
             )}
           </div>
