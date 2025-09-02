@@ -1,7 +1,18 @@
 /**
- * PERFORMANCE OPTIMIZED: Watermark utility for adding text overlays to images before upload
+ * ROBUST WATERMARK UTILITY: Handles all device types and image formats with comprehensive fallbacks
  */
 import { Timestamp } from 'firebase/firestore';
+
+// Global settings for watermark reliability
+const WATERMARK_CONFIG = {
+  MAX_FILE_SIZE_MB: 25, // Reduced from 50MB for better compatibility
+  MAX_DIMENSION: 4096, // Reduced from 8192 for memory safety
+  TIMEOUT_BASE: 3000, // Base timeout in ms
+  MAX_TIMEOUT: 10000, // Maximum timeout
+  QUALITY: 0.8, // JPEG quality for output
+  ENABLE_CONVERSION: true, // Enable format conversion
+  FALLBACK_TO_ORIGINAL: true // Always fallback to original on failure
+};
 
 interface WatermarkOptions {
   branchName: string;
@@ -28,9 +39,17 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
   });
   
   // 1. FILE SIZE CHECK: Large images can cause memory issues
-  const maxSizeMB = 50; // 50MB limit
-  if (file.size > maxSizeMB * 1024 * 1024) {
-    throw new Error(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size: ${maxSizeMB}MB`);
+  if (file.size > WATERMARK_CONFIG.MAX_FILE_SIZE_MB * 1024 * 1024) {
+    console.warn(`⚠️ Large image detected: ${(file.size / 1024 / 1024).toFixed(1)}MB`);
+    // Instead of throwing error, attempt compression
+    try {
+      const compressedFile = await compressImage(file);
+      console.log(`✅ Image compressed: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressedFile.size / 1024 / 1024).toFixed(1)}MB`);
+      return watermarkImage(compressedFile, options);
+    } catch (compressionError) {
+      console.warn('⚠️ Image compression failed, using original file');
+      // Continue with original file - don't block the process
+    }
   }
   
   // 2. FILE TYPE VALIDATION: Check if browser supports the format
@@ -122,10 +141,26 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
           return;
         }
         
-        if (img.width > 8192 || img.height > 8192) {
-          cleanup();
-          reject(new Error(`Image too large: ${img.width}x${img.height}. Maximum: 8192x8192 pixels`));
-          return;
+        if (img.width > WATERMARK_CONFIG.MAX_DIMENSION || img.height > WATERMARK_CONFIG.MAX_DIMENSION) {
+          console.warn(`⚠️ Large dimensions detected: ${img.width}x${img.height}, attempting resize`);
+          // Instead of rejecting, attempt to resize
+          try {
+            const resizedCanvas = resizeImage(img, WATERMARK_CONFIG.MAX_DIMENSION);
+            if (resizedCanvas) {
+              canvas = resizedCanvas;
+              ctx = canvas.getContext('2d');
+              if (!ctx) {
+                cleanup();
+                reject(new Error('Failed to get canvas context after resize'));
+                return;
+              }
+              console.log(`✅ Image resized to: ${canvas.width}x${canvas.height}`);
+            }
+          } catch (resizeError) {
+            cleanup();
+            reject(new Error(`Image too large: ${img.width}x${img.height}. Resize failed.`));
+            return;
+          }
         }
 
         // Set canvas size to image size with memory safety
@@ -139,6 +174,12 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         }
         
         // PERFORMANCE: Use faster image drawing with error handling
+        if (!ctx) {
+          cleanup();
+          reject(new Error('Canvas context not available for drawing'));
+          return;
+        }
+        
         try {
           ctx.imageSmoothingEnabled = false; // Disable smoothing for speed
           ctx.drawImage(img, 0, 0);
@@ -161,17 +202,19 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         if (extraLine1) lines.push(extraLine1);
         if (extraLine2) lines.push(extraLine2);
         
-        // Text styling
+        // Text styling with null checks
         const fontSize = Math.max(12, Math.min(img.width / 40, 16)); // Responsive font size
-        ctx.font = `${fontSize}px Arial, sans-serif`;
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
+        if (ctx) {
+          ctx.font = `${fontSize}px Arial, sans-serif`;
+          ctx.fillStyle = 'white';
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+        }
         
         // Calculate text dimensions
         const lineHeight = fontSize * 1.2;
         const padding = 8;
-        const maxLineWidth = Math.max(...lines.map(line => ctx!.measureText(line).width));
+        const maxLineWidth = Math.max(...lines.map(line => ctx?.measureText(line).width || 0));
         const boxWidth = maxLineWidth + (padding * 2);
         const boxHeight = (lines.length * lineHeight) + (padding * 2);
         
@@ -180,11 +223,13 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         const boxY = img.height - boxHeight - 10;
         
         // Draw semi-transparent black background with rounded corners
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
+        if (ctx) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+        }
         
         // Rounded rectangle function
         const drawRoundedRect = (x: number, y: number, width: number, height: number, radius: number) => {
@@ -206,13 +251,15 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         drawRoundedRect(boxX, boxY, boxWidth, boxHeight, 4);
         
         // Reset shadow for text
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        
-        // Draw text lines
-        ctx.fillStyle = 'white';
+        if (ctx) {
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetX = 0;
+          ctx.shadowOffsetY = 0;
+          
+          // Draw text lines
+          ctx.fillStyle = 'white';
+        }
         lines.forEach((line, index) => {
           if (ctx) {
             ctx.fillText(
@@ -241,7 +288,7 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
             cleanup();
             reject(error);
           }
-        }, 'image/jpeg', 0.85); // Slightly reduced quality for faster processing
+        }, 'image/jpeg', WATERMARK_CONFIG.QUALITY); // Optimized quality for compatibility
         
       } catch (error) {
         cleanup();
@@ -342,4 +389,94 @@ async function convertToSupportedFormat(file: File): Promise<File> {
     
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * PERFORMANCE: Compress large images for better processing
+ */
+async function compressImage(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    if (!ctx) {
+      reject(new Error('Canvas not supported for compression'));
+      return;
+    }
+    
+    img.onload = () => {
+      // Calculate new dimensions (reduce by 50% if too large)
+      const scale = Math.min(1, WATERMARK_CONFIG.MAX_DIMENSION / Math.max(img.width, img.height));
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const compressedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          resolve(compressedFile);
+        } else {
+          reject(new Error('Compression failed'));
+        }
+      }, 'image/jpeg', 0.7); // Lower quality for compression
+    };
+    
+    img.onerror = () => reject(new Error('Failed to load image for compression'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/**
+ * DIMENSION SAFETY: Resize images that are too large
+ */
+function resizeImage(img: HTMLImageElement, maxDimension: number): HTMLCanvasElement | null {
+  try {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) return null;
+    
+    // Calculate new dimensions maintaining aspect ratio
+    const scale = Math.min(maxDimension / img.width, maxDimension / img.height);
+    canvas.width = img.width * scale;
+    canvas.height = img.height * scale;
+    
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  } catch (error) {
+    console.error('Image resize failed:', error);
+    return null;
+  }
+}
+
+/**
+ * SAFE WATERMARKING: Always succeeds with fallback strategies
+ */
+export async function safeWatermarkImage(file: File, options: WatermarkOptions): Promise<File> {
+  try {
+    // First attempt: Normal watermarking
+    return await watermarkImage(file, options);
+  } catch (error) {
+    console.warn('⚠️ Watermarking failed, using fallback strategy:', error);
+    
+    if (WATERMARK_CONFIG.FALLBACK_TO_ORIGINAL) {
+      // Fallback: Return original file with proper naming
+      const extension = file.name.toLowerCase().endsWith('.heic') ? '.jpg' : 
+                      file.name.includes('.') ? file.name.substring(file.name.lastIndexOf('.')) : '.jpg';
+      
+      return new File([file], 
+        file.name.replace(/\.(heic|heif)$/i, '') + '_watermark_failed' + extension, {
+        type: file.type.includes('heic') ? 'image/jpeg' : file.type,
+        lastModified: Date.now()
+      });
+    }
+    
+    // If no fallback, re-throw the error
+    throw error;
+  }
 }

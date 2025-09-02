@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
 import { completeDelivery, getActiveBranchesOnly, getOilTypes, uploadPhotoToFirebaseStorage, getAllTransactions, updatePhotosWithCorrectWatermarks, getNextFormattedId } from '@/lib/firebase';
-import { watermarkImage } from '@/utils/watermark';
+import { safeWatermarkImage } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
 interface SupplyData {
@@ -214,7 +214,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
       const driverName = user?.displayName || 'Unknown Driver';
       
       // Apply watermark with supply-specific details
-      const watermarkedFile = await watermarkImage(originalFile, {
+      const watermarkedFile = await safeWatermarkImage(originalFile, {
         branchName,
         timestamp: new Date(),
         extraLine1: `Driver: ${driverName}`,

@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
 import { getActiveBranchesOnly, getAllOilTypes, uploadPhotoToFirebaseStorage, getAllTransactions, getDrumCapacities, saveDrumSupplyTransaction, completeDrumSupply } from '@/lib/firebase';
-import { watermarkImage } from '@/utils/watermark';
+import { safeWatermarkImage } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
 interface DrumSupplyData {
@@ -196,7 +196,7 @@ export function DrumSupplyWorkflow({ onClose, onPhotoClick }: DrumSupplyWorkflow
       const oilTypeName = oilTypes.find((ot: any) => ot.id === drumSupplyData.oilTypeId)?.name || 'Unknown Oil Type';
       
       // Apply watermark with drum supply specific details
-      const watermarkedFile = await watermarkImage(originalFile, {
+      const watermarkedFile = await safeWatermarkImage(originalFile, {
         branchName,
         timestamp: new Date(),
         extraLine1: `Drum Supply - ${oilTypeName}`,

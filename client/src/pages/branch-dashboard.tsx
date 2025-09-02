@@ -53,6 +53,7 @@ import {
 import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { PhotoCaptureButton } from "@/components/PhotoCaptureButton";
+import { ImageUploadGuidance, ImageUploadStatus } from "@/components/ImageUploadGuidance";
 
 // Helper function to add watermarks to File objects
 const addWatermarkToImage = async (file: File, watermarkText: string): Promise<File> => {
@@ -107,7 +108,7 @@ const addWatermarkToImage = async (file: File, watermarkText: string): Promise<F
   });
 };
 import { useToast } from "@/hooks/use-toast";
-import { watermarkImage } from "@/utils/watermark";
+import { safeWatermarkImage } from "@/utils/watermark";
 
 // Helper function to format complaint dates consistently
 const formatComplaintDate = (date: any, dateOnly: boolean = false) => {
@@ -1102,7 +1103,7 @@ export default function BranchDashboard() {
       const watermarkStartTime = performance.now();
       const [watermarkedGaugePhoto, watermarkedSystemPhoto] = await Promise.race([
         Promise.all([
-          watermarkImage(gaugePhoto, {
+          safeWatermarkImage(gaugePhoto, {
             branchName,
             timestamp: new Date(),
             extraLine1: `Tank: ${tankName}`,
@@ -1116,7 +1117,7 @@ export default function BranchDashboard() {
             });
             return gaugePhoto; // Use original photo as fallback
           }),
-          watermarkImage(systemPhoto, {
+          safeWatermarkImage(systemPhoto, {
             branchName,
             timestamp: new Date(),
             extraLine1: `Tank: ${tankName}`,
@@ -2167,7 +2168,11 @@ export default function BranchDashboard() {
                     </p>
                   </div>
                   
-                  {!gaugePhoto ? (
+                  {/* Image Upload Guidance */}
+                  <ImageUploadGuidance />
+                </div>
+                
+                {!gaugePhoto ? (
                     <div className="space-y-3">
                       <PhotoCaptureButton
                         onCapture={handleGaugePhotoCapture}
