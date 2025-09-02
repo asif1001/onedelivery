@@ -2072,9 +2072,9 @@ export default function BranchDashboard() {
 
       {/* Update Tank Dialog */}
       <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-[95vw] max-w-lg sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-lg sm:text-xl">
               {updateStep === 'success' ? 'Update Successful' : 
                 `Update Tank Level - Step ${
                   updateStep === 'branch' ? '1' :
@@ -2085,7 +2085,7 @@ export default function BranchDashboard() {
                 } of 6`
               }
             </DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-sm sm:text-base">
               {updateStep === 'branch' && 'Select the branch to update'}
               {updateStep === 'tank' && 'Select the oil tank to update'}
               {updateStep === 'gauge-photo' && 'Take a photo of the tank level gauge'}
@@ -2177,7 +2177,7 @@ export default function BranchDashboard() {
                     <div className="space-y-3">
                       <PhotoCaptureButton
                         onCapture={handleGaugePhotoCapture}
-                        className="w-full bg-blue-600 hover:bg-blue-700 h-16"
+                        className="w-full bg-blue-600 hover:bg-blue-700 h-12 sm:h-16 text-sm sm:text-base"
                         title="Tank Gauge Reading"
                         branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
                       >
@@ -2210,7 +2210,7 @@ export default function BranchDashboard() {
                               input.click();
                             }}
                             variant="outline"
-                            className="w-full h-12"
+                            className="w-full h-10 sm:h-12 text-sm sm:text-base"
                           >
                             <ImageIcon className="h-4 w-4 mr-2" />
                             Choose from Gallery
@@ -2228,7 +2228,7 @@ export default function BranchDashboard() {
                             <img 
                               src={gaugePhotoPreview} 
                               alt="Tank Gauge" 
-                              className="w-32 h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                              className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
                             />
                             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
                               <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -2238,7 +2238,7 @@ export default function BranchDashboard() {
                         </div>
                       )}
                       
-                      <div className="text-green-600 text-center">
+                      <div className="text-green-600 text-center text-sm">
                         ✓ Gauge photo captured: {gaugePhoto.name}
                       </div>
                       <Button 
@@ -2368,7 +2368,7 @@ export default function BranchDashboard() {
                     <div className="space-y-3">
                       <PhotoCaptureButton
                         onCapture={handleSystemPhotoCapture}
-                        className="w-full bg-green-600 hover:bg-green-700 h-16"
+                        className="w-full bg-green-600 hover:bg-green-700 h-12 sm:h-16 text-sm sm:text-base"
                         title="System Screen Display"
                         branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
                       >
@@ -2401,7 +2401,7 @@ export default function BranchDashboard() {
                               input.click();
                             }}
                             variant="outline"
-                            className="w-full h-12"
+                            className="w-full h-10 sm:h-12 text-sm sm:text-base"
                           >
                             <ImageIcon className="h-4 w-4 mr-2" />
                             Choose from Gallery
@@ -2419,7 +2419,7 @@ export default function BranchDashboard() {
                             <img 
                               src={systemPhotoPreview} 
                               alt="System Screen" 
-                              className="w-32 h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                              className="w-24 h-24 sm:w-32 sm:h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
                             />
                             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
                               <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -2429,7 +2429,7 @@ export default function BranchDashboard() {
                         </div>
                       )}
                       
-                      <div className="text-green-600 text-center">
+                      <div className="text-green-600 text-center text-sm">
                         ✓ System photo captured: {systemPhoto.name}
                       </div>
                       <Button 
@@ -2507,10 +2507,11 @@ export default function BranchDashboard() {
 
             {/* Navigation Buttons */}
             {updateStep !== 'success' && (
-              <div className="flex justify-between">
+              <div className="flex flex-col sm:flex-row gap-3 sm:justify-between">
                 <Button 
                   variant="outline" 
                   onClick={updateStep === 'branch' ? () => setShowUpdateDialog(false) : handleStepBack}
+                  className="w-full sm:w-auto text-sm sm:text-base"
                 >
                   {updateStep === 'branch' ? 'Cancel' : 'Back'}
                 </Button>
@@ -2525,6 +2526,7 @@ export default function BranchDashboard() {
                     (updateStep === 'system-photo' && !systemPhoto) ||
                     isUpdatingTank
                   }
+                  className="w-full sm:w-auto text-sm sm:text-base"
                 >
                   {updateStep === 'confirm' ? (isUpdatingTank ? updateProgress || 'Submitting...' : 'Submit Update') : 'Next'}
                 </Button>
