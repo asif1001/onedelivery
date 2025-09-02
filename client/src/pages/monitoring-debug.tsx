@@ -188,42 +188,68 @@ const MonitoringDebug: React.FC = () => {
   }, []); // Fetch once on mount
 
   return (
-    <div className={`min-h-screen p-6 ${
+    <div className={`min-h-screen ${
       theme === 'night' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
     }`}>
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">Monitoring Debug - Last 30 Days</h1>
-          <p className="text-gray-600 mb-4">
-            Two separate tables showing specific fields from transactions and tankUpdateLogs collections (last 30 days only).
-          </p>
+        {/* Header matching warehouse dashboard style exactly */}
+        <div className="bg-white shadow-sm border-b border-gray-200 -mx-6 px-6 py-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Branch Stock Update Tracking</h1>
+              <p className="text-gray-600 text-sm">
+                Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
+              </p>
+            </div>
+          </div>
           
-          <div className="flex gap-4 mb-4">
+          <div className="flex items-center gap-4">
             <Button
               onClick={fetchDebugData}
               disabled={loading}
-              className="flex items-center gap-2"
+              variant="outline"
+              className="flex items-center gap-2 text-sm"
             >
-              {loading ? 'Loading...' : 'Refresh Data'}
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              )}
+              {loading ? 'Refreshing...' : 'Refresh Data'}
             </Button>
+            
+            {!loading && (
+              <div className="text-sm text-gray-500">
+                Last updated: {new Date().toLocaleTimeString()}
+              </div>
+            )}
           </div>
           
           {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              <strong>Error:</strong> {error}
+            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">Error:</span> {error}
+              </div>
             </div>
           )}
         </div>
 
         {/* Professional Grid Layout for Branch Activity */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="w-1 h-6 bg-blue-600 rounded"></div>
-              Branch Activity Summary (Last 30 Days)
+        <Card className="mb-6 mx-6">
+          <CardHeader className="pb-3">
+            <CardTitle className={`text-base flex items-center gap-2 text-gray-900`}>
+              <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-6m3 7h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Branch Stock Update Tracking
             </CardTitle>
-            <p className="text-sm text-gray-600">
-              Professional overview of all branches with latest manual updates and supply/loading activities
+            <p className={`text-sm text-gray-600`}>
+              Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
             </p>
           </CardHeader>
           <CardContent>
