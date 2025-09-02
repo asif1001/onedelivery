@@ -270,6 +270,28 @@ const MonitoringDebug: React.FC = () => {
           </div>
         )}
 
+        {/* User Access Information */}
+        {(() => {
+          const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
+          const isWarehouseUser = currentUserData?.role === 'warehouse';
+          
+          if (isWarehouseUser && userAssignedBranches.size > 0) {
+            return (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertCircleIcon className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
+                </div>
+                <p className="text-sm text-blue-700">
+                  You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: {Array.from(userAssignedBranches).join(', ')}
+                </p>
+              </div>
+            );
+          }
+          
+          return null;
+        })()}
+
             <Card className={themeClasses.card}>
               <CardHeader className="pb-3">
                 <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
@@ -365,11 +387,21 @@ const MonitoringDebug: React.FC = () => {
                 // Filter branches based on user assignments (warehouse users only)
                 let filteredBranches = Array.from(branchData.values());
                 
+                // Get current user data for filtering
+                const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
+                const isWarehouseUser = currentUserData?.role === 'warehouse';
+                
                 // If warehouse user with branch assignments, filter branches
-                if (userAssignedBranches.size > 0) {
+                if (isWarehouseUser && userAssignedBranches.size > 0) {
+                  const originalCount = filteredBranches.length;
                   filteredBranches = filteredBranches.filter(branch => 
                     userAssignedBranches.has(branch.branchName)
                   );
+                  console.log(`🔒 Warehouse user filter: ${originalCount} → ${filteredBranches.length} branches (showing assigned only)`);
+                } else if (isWarehouseUser) {
+                  console.log(`⚠️ Warehouse user but no branch assignments found`);
+                } else {
+                  console.log(`👑 Admin user - showing all ${filteredBranches.length} branches`);
                 }
                 
                 // Sort by last activity
