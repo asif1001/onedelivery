@@ -1120,7 +1120,7 @@ export default function BranchDashboard() {
       setUpdateStep('success');
       
       // Auto-close dialog after 3 seconds like supply workflow
-      setTimeout(() => {
+      setTimeout(async () => {
         setShowUpdateDialog(false);
         setUpdateStep('branch');
         setSelectedBranchForUpdate('');
@@ -1131,6 +1131,13 @@ export default function BranchDashboard() {
         setSystemPhotoPreview('');
         setManualQuantity('');
         setUpdateNotes('');
+        
+        // Load updated logs AFTER dialog closes to prevent loading screen
+        try {
+          await loadMyUpdateLogs();
+        } catch (error) {
+          console.warn('❌ Failed to reload update logs after tank update:', error);
+        }
       }, 3000);
       
       // Log the successful update
@@ -1145,13 +1152,8 @@ export default function BranchDashboard() {
         photos: { gauge: gaugePhotoUrl, system: systemPhotoUrl }
       });
       
-      // Load updated logs for user's viewing (with error handling to prevent dashboard hang)
-      try {
-        await loadMyUpdateLogs();
-      } catch (error) {
-        console.warn('❌ Failed to reload update logs after tank update:', error);
-        // Don't let log loading failure break the update process
-      }
+      // Don't reload logs immediately to avoid page navigation - defer until dialog closes
+      // This prevents the loading screen redirect that the user complained about
 
     } catch (error: any) {
       console.error('Error updating tank:', error);
