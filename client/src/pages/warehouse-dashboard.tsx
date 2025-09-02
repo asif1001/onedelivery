@@ -52,7 +52,8 @@ import {
   doc,
   getDoc,
   updateDoc,
-  addDoc
+  addDoc,
+  where
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -122,10 +123,141 @@ export default function WarehouseDashboard() {
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
+
+  // Helper functions for real-time data fetching (same as debug view)
+  const formatTimeAgo = (timestamp: any): string => {
+    if (!timestamp) return '';
+    try {
+      const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = Date.now();
+      const diffMs = now - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      if (diffDays === 0) return 'today';
+      if (diffDays === 1) return '1 day ago';
+      return `${diffDays} days ago`;
+    } catch (e) {
+      return '';
+    }
+  };
+
+  const getLatestTransactionActivity = async (branchId: string, oilTypeId: string): Promise<{time: string, by: string}> => {
+    try {
+      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
+      
+      // Try timestamp first
+      let q = query(
+        collection(db, "transactions"),
+        where("branchId", "==", branchId),
+        where("oilTypeId", "==", oilTypeId),
+        where("type", "in", ["supply", "loading"]),
+        where("timestamp", ">=", since30d),
+        orderBy("timestamp", "desc"),
+        limit(1)
+      );
+      
+      let snap = await getDocs(q);
+      
+      // Fallback to createdAt if needed
+      if (snap.empty) {
+        q = query(
+          collection(db, "transactions"),
+          where("branchId", "==", branchId),
+          where("oilTypeId", "==", oilTypeId),
+          where("type", "in", ["supply", "loading"]),
+          where("createdAt", ">=", since30d),
+          orderBy("createdAt", "desc"),
+          limit(1)
+        );
+        snap = await getDocs(q);
+      }
+      
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        const data = doc.data();
+        const timestamp = data.timestamp || data.createdAt;
+        const timeAgo = formatTimeAgo(timestamp);
+        const driverName = data.driverName || '-';
+        return { time: timeAgo, by: driverName };
+      }
+    } catch (error) {
+      console.error('Transaction query error:', error);
+    }
+    return { time: '', by: '' };
+  };
+
+  const getLatestManualActivity = async (branchId: string, oilTypeId: string, tankId?: string): Promise<{time: string, by: string}> => {
+    try {
+      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
+      
+      const tryField = async (field: string, value: string) => {
+        const q = query(
+          collection(db, "tankUpdateLogs"),
+          where("branchId", "==", branchId),
+          where(field, "==", value),
+          where("updateType", "in", ["manual", "manual_with_photos"]),
+          where("updatedAt", ">=", since30d),
+          orderBy("updatedAt", "desc"),
+          limit(1)
+        );
+        const s = await getDocs(q);
+        
+        if (!s.empty) {
+          const doc = s.docs[0];
+          const d = doc.data();
+          const timeAgo = formatTimeAgo(d.updatedAt);
+          const updatedBy = d.updatedBy || '-';
+          return { time: timeAgo, by: updatedBy };
+        }
+        return null;
+      };
+      
+      // Try tankId first, then oilTypeId
+      const result = (tankId && await tryField("tankId", tankId))
+                  || (oilTypeId && await tryField("oilTypeId", oilTypeId));
+                  
+      if (result) return result;
+    } catch (error) {
+      console.error('Manual activity query error:', error);
+    }
+    return { time: '', by: '' };
+  };
+
+  // Update tank display data with real-time information
+  const updateTankDisplayData = async (tankDetails: any[]) => {
+    const updatedTanks = await Promise.all(tankDetails.map(async (tank) => {
+      const branchId = tank.tankId.split('_')[0]; // Extract branchId from tankId
+      const oilTypeId = tank.oilTypeId || tank.oilTypeName; // Use oilTypeId or fallback to name
+      
+      // Fetch real-time data
+      const [transactionActivity, manualActivity] = await Promise.all([
+        getLatestTransactionActivity(branchId, oilTypeId),
+        getLatestManualActivity(branchId, oilTypeId, tank.tankId)
+      ]);
+      
+      // Format display text
+      const manualDisplay = manualActivity.time && manualActivity.by !== '-'
+        ? `${manualActivity.time} by ${manualActivity.by}`
+        : 'No activity in last 30 days';
+        
+      const supplyDisplay = transactionActivity.time && transactionActivity.by !== '-'
+        ? `${transactionActivity.time} by ${transactionActivity.by}`
+        : 'No activity in last 30 days';
+      
+      return {
+        ...tank,
+        manualUpdateDisplay: manualDisplay,
+        supplyUpdateDisplay: supplyDisplay
+      };
+    }));
+    
+    return updatedTanks;
+  };
   
   // Enhanced tank tracking data with real-time database queries
   const [enhancedBranchData, setEnhancedBranchData] = useState<any[]>([]);
   const [dataFetchingMode, setDataFetchingMode] = useState<'cached' | 'realtime'>('cached');
+  const [tankActivityData, setTankActivityData] = useState<Map<string, {manualUpdateDisplay: string, supplyUpdateDisplay: string}>>(new Map());
   
   // Get user's assigned branches for filtering
   const userBranchIds = user?.branchIds || [];
@@ -205,6 +337,46 @@ export default function WarehouseDashboard() {
       console.log('❌ No user authenticated for warehouse dashboard');
     }
   }, [user]);
+
+  // Load real-time activity data for tank cards
+  const loadTankActivityData = async (branchStatuses: any[]) => {
+    const activityMap = new Map();
+    
+    for (const branch of branchStatuses) {
+      for (const tank of branch.tankDetails.slice(0, 3)) { // Only load for visible tanks
+        const branchId = tank.tankId.split('_')[0];
+        const oilTypeId = tank.oilTypeId || tank.oilTypeName;
+        
+        try {
+          const [transactionActivity, manualActivity] = await Promise.all([
+            getLatestTransactionActivity(branchId, oilTypeId),
+            getLatestManualActivity(branchId, oilTypeId, tank.tankId)
+          ]);
+          
+          const manualDisplay = manualActivity.time && manualActivity.by !== '-'
+            ? `${manualActivity.time} by ${manualActivity.by}`
+            : 'No activity in last 30 days';
+            
+          const supplyDisplay = transactionActivity.time && transactionActivity.by !== '-'
+            ? `${transactionActivity.time} by ${transactionActivity.by}`
+            : 'No activity in last 30 days';
+            
+          activityMap.set(tank.tankId, {
+            manualUpdateDisplay: manualDisplay,
+            supplyUpdateDisplay: supplyDisplay
+          });
+        } catch (error) {
+          console.error(`Error loading activity for tank ${tank.tankId}:`, error);
+          activityMap.set(tank.tankId, {
+            manualUpdateDisplay: 'Error loading data',
+            supplyUpdateDisplay: 'Error loading data'
+          });
+        }
+      }
+    }
+    
+    setTankActivityData(activityMap);
+  };
 
   const loadAllData = async () => {
     try {
@@ -290,6 +462,11 @@ export default function WarehouseDashboard() {
           const enhancedData = await getBranchUpdateStatusWithFullData();
           setEnhancedBranchData(enhancedData);
           console.log('✅ Enhanced tank data loaded:', enhancedData.length, 'branches');
+          
+          // Load real-time activity data for tank cards
+          console.log('🔄 Loading real-time tank activity data...');
+          await loadTankActivityData(enhancedData);
+          console.log('✅ Real-time tank activity data loaded');
         } catch (error) {
           console.warn('⚠️ Failed to load enhanced data, using cached fallback:', error);
           setDataFetchingMode('cached');
@@ -1274,7 +1451,10 @@ export default function WarehouseDashboard() {
           daysSinceManualUpdate,
           lastSupplyLoading,
           lastSupplyLoadingBy,
-          daysSinceSupplyLoading
+          daysSinceSupplyLoading,
+          // Real-time data placeholders - will be fetched dynamically
+          manualUpdateDisplay: 'Loading...',
+          supplyUpdateDisplay: 'Loading...'
         };
       });
 
@@ -2785,33 +2965,33 @@ export default function WarehouseDashboard() {
                                 <div className="space-y-1">
                                   {/* Manual Update */}
                                   <div className={`p-1.5 rounded border-l-2 ${
-                                    tank.manualUpdateDisplay && !tank.manualUpdateDisplay.includes('No manual update')
-                                      ? (theme === 'night' ? 'bg-blue-900/40 border-blue-400' : 'bg-blue-50 border-blue-300')
-                                      : (theme === 'night' ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-300')
+                                    (tankActivityData.get(tank.tankId)?.manualUpdateDisplay || tank.manualUpdateDisplay || '').includes('No activity')
+                                      ? (theme === 'night' ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-300')
+                                      : (theme === 'night' ? 'bg-blue-900/40 border-blue-400' : 'bg-blue-50 border-blue-300')
                                   }`}>
                                     <p className={`text-xs ${
-                                      tank.manualUpdateDisplay && !tank.manualUpdateDisplay.includes('No manual update')
-                                        ? (theme === 'night' ? 'text-blue-200' : 'text-blue-800')
-                                        : (theme === 'night' ? 'text-gray-300' : 'text-gray-600')
+                                      (tankActivityData.get(tank.tankId)?.manualUpdateDisplay || tank.manualUpdateDisplay || '').includes('No activity')
+                                        ? (theme === 'night' ? 'text-gray-300' : 'text-gray-600')
+                                        : (theme === 'night' ? 'text-blue-200' : 'text-blue-800')
                                     }`}>
                                       <span className="font-medium">Manual:</span>{' '}
-                                      {tank.manualUpdateDisplay}
+                                      {tankActivityData.get(tank.tankId)?.manualUpdateDisplay || tank.manualUpdateDisplay || 'Loading...'}
                                     </p>
                                   </div>
 
                                   {/* Supply/Loading */}
                                   <div className={`p-1.5 rounded border-l-2 ${
-                                    tank.supplyUpdateDisplay && !tank.supplyUpdateDisplay.includes('No supply/loading')
-                                      ? (theme === 'night' ? 'bg-orange-900/40 border-orange-400' : 'bg-orange-50 border-orange-300')
-                                      : (theme === 'night' ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-300')
+                                    (tankActivityData.get(tank.tankId)?.supplyUpdateDisplay || tank.supplyUpdateDisplay || '').includes('No activity')
+                                      ? (theme === 'night' ? 'bg-gray-700 border-gray-500' : 'bg-gray-100 border-gray-300')
+                                      : (theme === 'night' ? 'bg-orange-900/40 border-orange-400' : 'bg-orange-50 border-orange-300')
                                   }`}>
                                     <p className={`text-xs ${
-                                      tank.supplyUpdateDisplay && !tank.supplyUpdateDisplay.includes('No supply/loading')
-                                        ? (theme === 'night' ? 'text-orange-200' : 'text-orange-800')
-                                        : (theme === 'night' ? 'text-gray-300' : 'text-gray-600')
+                                      (tankActivityData.get(tank.tankId)?.supplyUpdateDisplay || tank.supplyUpdateDisplay || '').includes('No activity')
+                                        ? (theme === 'night' ? 'text-gray-300' : 'text-gray-600')
+                                        : (theme === 'night' ? 'text-orange-200' : 'text-orange-800')
                                     }`}>
                                       <span className="font-medium">Supply/Loading:</span>{' '}
-                                      {tank.supplyUpdateDisplay}
+                                      {tankActivityData.get(tank.tankId)?.supplyUpdateDisplay || tank.supplyUpdateDisplay || 'Loading...'}
                                     </p>
                                   </div>
                                 </div>
