@@ -2973,46 +2973,7 @@ export default function WarehouseDashboard() {
           {/* Monitoring Tab */}
           <TabsContent value="tracking" className="space-y-4">
 
-            {/* User Access Information */}
-            {user?.role === 'warehouse' && (
-              <>
-                {isRestrictedUser && userAssignedBranches.size > 0 ? (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircleIcon className="w-4 h-4 text-blue-600" />
-                      <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
-                    </div>
-                    <p className="text-sm text-blue-700">
-                      You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: 
-                      <span className="font-medium"> {Array.from(userAssignedBranches).join(', ')}</span>
-                    </p>
-                    <p className="text-xs text-blue-600 mt-1">
-                      Branches not assigned to you are automatically filtered out for security.
-                    </p>
-                  </div>
-                ) : !isRestrictedUser ? (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircleIcon className="w-4 h-4 text-amber-600" />
-                      <span className="font-medium text-amber-800">No Branch Assignment</span>
-                    </div>
-                    <p className="text-sm text-amber-700">
-                      You have not been assigned to any branches yet. Please contact your administrator to assign branches.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircleIcon className="w-4 h-4 text-gray-600" />
-                      <span className="font-medium text-gray-800">Loading Branch Data</span>
-                    </div>
-                    <p className="text-sm text-gray-700">
-                      Loading your assigned branch data...
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+
 
             {/* Error Display */}
             {monitoringError && (
