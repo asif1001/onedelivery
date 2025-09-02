@@ -14,6 +14,7 @@ import ComplaintManagement from "@/pages/complaint-management";
 import BranchDashboard from "@/pages/branch-dashboard";
 import AdminBranchUsers from "@/pages/admin-branch-users";
 import WarehouseDashboard from "@/pages/warehouse-dashboard";
+import MonitoringDebug from "@/pages/monitoring-debug";
 import FirestoreStats from "@/pages/firestore-stats";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
@@ -72,6 +73,7 @@ function Router() {
           <Route path="/complaint-management" component={() => <ComplaintManagement />} />
           <Route path="/admin-branch-users" component={() => <AdminBranchUsers />} />
           <Route path="/warehouse-dashboard" component={() => <WarehouseDashboard />} />
+          <Route path="/monitoring-debug" component={() => <MonitoringDebug />} />
           <Route path="/firestore-stats" component={() => <FirestoreStats />} />
           <Route path="/driver-dashboard" component={() => <AccessDenied requiredRole="driver" />} />
           <Route path="/branch-dashboard" component={() => <AccessDenied requiredRole="branch user" />} />
