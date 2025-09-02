@@ -273,15 +273,19 @@ export default function WarehouseDashboard() {
           }));
           setBranchStatuses(basicStatuses);
           console.log('📊 Basic branch statuses set:', basicStatuses.length);
+          console.log('📊 Basic statuses data:', basicStatuses);
 
           // Load detailed branch statuses in background
           setTimeout(async () => {
             try {
+              console.log('📊 Starting detailed branch status loading...');
               const detailedStatuses = await getBranchUpdateStatus();
-              setBranchStatuses(detailedStatuses);
               console.log('📊 Detailed branch statuses loaded:', detailedStatuses.length);
+              console.log('📊 Detailed statuses data:', detailedStatuses);
+              setBranchStatuses(detailedStatuses);
             } catch (error) {
-              console.error('Error loading detailed branch statuses:', error);
+              console.error('❌ Error loading detailed branch statuses:', error);
+              console.error('❌ Error stack:', error.stack);
             }
           }, 1000);
           
@@ -2432,6 +2436,15 @@ export default function WarehouseDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
+                {/* Debug: Show current state */}
+                <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
+                  <p>Debug Info:</p>
+                  <p>Branches loaded: {branches.length}</p>
+                  <p>Branch statuses loaded: {branchStatuses.length}</p>
+                  <p>Oil tanks loaded: {oilTanks.length}</p>
+                  <p>Loading: {loading ? 'true' : 'false'}</p>
+                </div>
+
                 {/* Gallery-style grid layout: 4 cards per row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                   {branchStatuses.map((branch) => {
