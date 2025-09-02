@@ -197,16 +197,19 @@ const MonitoringDebug: React.FC = () => {
           )}
         </div>
 
-        {/* Hierarchical Branch View */}
+        {/* Professional Grid Layout for Branch Activity */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Branch Activity Summary (Last 30 Days)</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-1 h-6 bg-blue-600 rounded"></div>
+              Branch Activity Summary (Last 30 Days)
+            </CardTitle>
             <p className="text-sm text-gray-600">
-              Grouped by branch, showing latest manual updates and supply/loading activities per oil type
+              Professional overview of all branches with latest manual updates and supply/loading activities
             </p>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {(() => {
                 // Create hierarchical data structure
                 const branchData = new Map<string, {
@@ -300,75 +303,110 @@ const MonitoringDebug: React.FC = () => {
                     : null;
                   
                   const isRecentlyUpdated = daysSinceUpdate !== null && daysSinceUpdate < 7;
+                  const oilTypesArray = Array.from(branch.oilTypes.values()).sort((a, b) => a.oilTypeName.localeCompare(b.oilTypeName));
                   
                   return (
-                    <div key={branchIndex} className="border rounded-lg p-4 bg-white">
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className={`w-3 h-3 rounded-full ${
-                          isRecentlyUpdated ? 'bg-green-500' : 'bg-gray-400'
-                        }`} />
-                        <h3 className="text-lg font-semibold">
-                          {branch.branchName} 
+                    <Card key={branchIndex} className={`h-fit transition-all hover:shadow-lg ${
+                      isRecentlyUpdated 
+                        ? 'border-green-200 bg-green-50/30' 
+                        : 'border-gray-200 bg-white hover:bg-gray-50/30'
+                    }`}>
+                      <CardHeader className="pb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${
+                              isRecentlyUpdated ? 'bg-green-500' : 'bg-gray-400'
+                            }`} />
+                            <CardTitle className="text-base font-semibold">
+                              {branch.branchName}
+                            </CardTitle>
+                          </div>
                           {isRecentlyUpdated && (
-                            <span className="text-green-600 text-sm font-normal ml-2">(updated)</span>
+                            <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                              Active
+                            </div>
                           )}
-                        </h3>
-                        {daysSinceUpdate !== null && (
-                          <span className="text-gray-500 text-sm">
-                            ({daysSinceUpdate === 0 ? 'today' : `${daysSinceUpdate} days ago`})
-                          </span>
-                        )}
-                      </div>
+                        </div>
+                        
+                        <div className="text-xs text-gray-500">
+                          {daysSinceUpdate !== null ? (
+                            daysSinceUpdate === 0 ? 'Updated today' : `Updated ${daysSinceUpdate} days ago`
+                          ) : (
+                            'No recent activity'
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-3 text-xs">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
+                            <span className="text-gray-600">{oilTypesArray.length} Oil Types</span>
+                          </div>
+                        </div>
+                      </CardHeader>
                       
-                      <div className="ml-6 space-y-3">
-                        {Array.from(branch.oilTypes.values())
-                          .sort((a, b) => a.oilTypeName.localeCompare(b.oilTypeName))
-                          .map((oilType, oilIndex) => (
-                            <div key={oilIndex} className="border-l-2 border-gray-200 pl-4">
-                              <h4 className="font-medium text-gray-800 mb-2">
-                                {oilType.oilTypeName} - {oilIndex + 1}
+                      <CardContent className="pt-0 space-y-3">
+                        {oilTypesArray.map((oilType, oilIndex) => (
+                          <div key={oilIndex} className="border rounded-lg p-3 bg-white/80">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-medium text-sm text-gray-800">
+                                {oilType.oilTypeName}
                               </h4>
+                              <span className="text-xs text-gray-500 font-mono">
+                                #{oilIndex + 1}
+                              </span>
+                            </div>
+                            
+                            <div className="space-y-2 text-xs">
+                              {/* Manual Update */}
+                              <div className={`p-2 rounded border-l-4 ${
+                                oilType.manualUpdate 
+                                  ? 'bg-blue-50 border-blue-400' 
+                                  : 'bg-gray-50 border-gray-300'
+                              }`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-blue-700">Manual Update</span>
+                                  <span className="text-gray-400 text-xs">(TankUpdateLogs)</span>
+                                </div>
+                                {oilType.manualUpdate ? (
+                                  <div className="text-gray-700">
+                                    <div className="font-medium">{oilType.manualUpdate.updatedBy}</div>
+                                    <div className="text-gray-500">
+                                      {new Date(oilType.manualUpdate.updatedAt).toLocaleDateString()} at{' '}
+                                      {new Date(oilType.manualUpdate.updatedAt).toLocaleTimeString()}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-400 italic">No manual updates</div>
+                                )}
+                              </div>
                               
-                              <div className="space-y-1 text-sm">
-                                <div className="flex items-start gap-2">
-                                  <span className="font-medium text-blue-700 w-20">Manual:</span>
-                                  <span className="text-gray-700">
-                                    {oilType.manualUpdate ? (
-                                      <>
-                                        {new Date(oilType.manualUpdate.updatedAt).toLocaleString()} by{' '}
-                                        <span className="font-medium">{oilType.manualUpdate.updatedBy}</span>
-                                        <span className="text-xs text-gray-500 ml-2">
-                                          (from TankUpdateLogs)
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <span className="text-gray-400">No manual updates</span>
-                                    )}
-                                  </span>
+                              {/* Supply/Loading */}
+                              <div className={`p-2 rounded border-l-4 ${
+                                oilType.supplyLoading 
+                                  ? 'bg-orange-50 border-orange-400' 
+                                  : 'bg-gray-50 border-gray-300'
+                              }`}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-orange-700">Supply/Loading</span>
+                                  <span className="text-gray-400 text-xs">(Transactions)</span>
                                 </div>
-                                
-                                <div className="flex items-start gap-2">
-                                  <span className="font-medium text-orange-700 w-20">Supply/Loading:</span>
-                                  <span className="text-gray-700">
-                                    {oilType.supplyLoading ? (
-                                      <>
-                                        {new Date(oilType.supplyLoading.createdAt).toLocaleString()} by{' '}
-                                        <span className="font-medium">{oilType.supplyLoading.driverName}</span>
-                                        <span className="text-xs text-gray-500 ml-2">
-                                          (from Transactions Collection)
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <span className="text-gray-400">No supply/loading activity</span>
-                                    )}
-                                  </span>
-                                </div>
+                                {oilType.supplyLoading ? (
+                                  <div className="text-gray-700">
+                                    <div className="font-medium">{oilType.supplyLoading.driverName}</div>
+                                    <div className="text-gray-500">
+                                      {new Date(oilType.supplyLoading.createdAt).toLocaleDateString()} at{' '}
+                                      {new Date(oilType.supplyLoading.createdAt).toLocaleTimeString()}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-gray-400 italic">No supply/loading activity</div>
+                                )}
                               </div>
                             </div>
-                          ))
-                        }
-                      </div>
-                    </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
                   );
                 });
               })()}
