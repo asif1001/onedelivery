@@ -3472,7 +3472,7 @@ export default function WarehouseDashboard() {
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Previous Level</label>
-                  <p className="text-sm font-medium">{selectedLog.oldLevel || 0}L</p>
+                  <p className="text-sm font-medium">{selectedLog.previousLevel || selectedLog.oldLevel || 0}L</p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">New Level</label>
@@ -3481,8 +3481,12 @@ export default function WarehouseDashboard() {
                 <div>
                   <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Change</label>
                   <p className="text-sm font-medium">
-                    {((selectedLog.newLevel || 0) - (selectedLog.oldLevel || 0)) > 0 ? '+' : ''}
-                    {(selectedLog.newLevel || 0) - (selectedLog.oldLevel || 0)}L
+                    {(() => {
+                      const oldLevel = selectedLog.previousLevel || selectedLog.oldLevel || 0;
+                      const newLevel = selectedLog.newLevel || 0;
+                      const change = newLevel - oldLevel;
+                      return `${change >= 0 ? '+' : ''}${change}L`;
+                    })()}
                   </p>
                 </div>
                 <div>
