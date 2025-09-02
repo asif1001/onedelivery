@@ -2376,38 +2376,36 @@ export default function BranchDashboard() {
                         Take System Photo
                       </PhotoCaptureButton>
                       
-                      {/* Gallery option - only show if enabled in admin settings */}
-                      {allowGalleryAccess && (
-                        <>
-                          <div className="text-center text-sm text-gray-500">or</div>
-                          
-                          <Button 
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = 'image/*';
-                              input.onchange = (e) => {
-                                const file = (e.target as HTMLInputElement).files?.[0];
-                                if (file) {
-                                  const previewUrl = URL.createObjectURL(file);
-                                  setSystemPhoto(file);
-                                  setSystemPhotoPreview(previewUrl);
-                                  toast({
-                                    title: "Photo Selected",
-                                    description: "System screen photo selected from gallery"
-                                  });
-                                }
-                              };
-                              input.click();
-                            }}
-                            variant="outline"
-                            className="w-full h-10 sm:h-12 text-sm sm:text-base"
-                          >
-                            <ImageIcon className="h-4 w-4 mr-2" />
-                            Choose from Gallery
-                          </Button>
-                        </>
-                      )}
+                      {/* Gallery option - always available for system photos */}
+                      <>
+                        <div className="text-center text-sm text-gray-500">or</div>
+                        
+                        <Button 
+                          onClick={() => {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.accept = 'image/*';
+                            input.onchange = (e) => {
+                              const file = (e.target as HTMLInputElement).files?.[0];
+                              if (file) {
+                                const previewUrl = URL.createObjectURL(file);
+                                setSystemPhoto(file);
+                                setSystemPhotoPreview(previewUrl);
+                                toast({
+                                  title: "Photo Selected",
+                                  description: "System screen photo selected from gallery"
+                                });
+                              }
+                            };
+                            input.click();
+                          }}
+                          variant="outline"
+                          className="w-full h-10 sm:h-12 text-sm sm:text-base"
+                        >
+                          <ImageIcon className="h-4 w-4 mr-2" />
+                          Choose from Gallery
+                        </Button>
+                      </>
                     </div>
                   ) : (
                     <div className="space-y-4">

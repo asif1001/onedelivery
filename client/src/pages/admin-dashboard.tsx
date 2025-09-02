@@ -2768,9 +2768,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     <div className="space-y-6">
                       <div className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="space-y-1">
-                          <Label className="text-sm font-medium">Gallery Access for Tank Updates</Label>
+                          <Label className="text-sm font-medium">Gallery Access for Gauge Photos (Step 3)</Label>
                           <p className="text-xs text-gray-500">
-                            Allow branch users to select photos from gallery when updating tank levels
+                            Allow branch users to select gauge photos from gallery. System photos (Step 5) always allow gallery access.
                           </p>
                         </div>
                         <Switch
