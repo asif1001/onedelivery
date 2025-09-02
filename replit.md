@@ -12,9 +12,16 @@ The system handles the complete oil delivery lifecycle from loading operations a
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (August 2025)
+## Recent Changes (September 2025)
 
-### ✅ Progressive Web App (PWA) Implementation - DEPLOYED (Latest - August 31, 2025)
+### ✅ Critical Branch Oil Update Fix - DEPLOYED (Latest - September 2, 2025)
+- **Fixed infinite loading bug**: Branch users' oil level updates no longer get stuck on "Loading branch dashboard..."
+- **Added timeout protection**: Photo processing (10s), uploads (15s), and database updates (20s) now have timeouts
+- **Enhanced error handling**: Better error recovery for photo watermarking, Firebase Storage uploads, and transaction logging
+- **Improved user feedback**: Clear console logging for debugging and step-by-step progress tracking
+- **Transaction reliability**: Oil level updates now consistently save to database without hanging
+
+### ✅ Progressive Web App (PWA) Implementation - DEPLOYED (August 31, 2025)
 - **Windows Desktop App Installation**: Complete PWA functionality enabling users to install OneDelivery as a desktop application on Windows
 - **Enhanced App Manifest**: Comprehensive manifest.json with shortcuts, proper icons, and Windows-specific configuration
 - **Service Worker**: Full offline functionality with caching strategies for Firebase data and static assets

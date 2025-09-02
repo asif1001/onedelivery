@@ -1007,16 +1007,30 @@ export default function BranchDashboard() {
       
       setOptimisticUpdates(prev => new Map(prev.set(selectedTankForUpdate, optimisticUpdate)));
 
-      // Add watermarks to photos
+      // Add watermarks to photos with timeout protection
       const timestamp = new Date().toLocaleString();
       const userInfo = `${currentUser.displayName || currentUser.email} - ${timestamp}`;
       
-      const watermarkedGaugePhoto = await addWatermarkToImage(gaugePhoto, `Tank Gauge - ${userInfo}`);
-      const watermarkedSystemPhoto = await addWatermarkToImage(systemPhoto, `System Screen - ${userInfo}`);
+      console.log('📸 Processing photos for tank update...');
+      const watermarkedGaugePhoto = await Promise.race([
+        addWatermarkToImage(gaugePhoto, `Tank Gauge - ${userInfo}`),
+        new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
+      ]);
+      const watermarkedSystemPhoto = await Promise.race([
+        addWatermarkToImage(systemPhoto, `System Screen - ${userInfo}`),
+        new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
+      ]);
 
-      // Upload photos
-      const gaugePhotoUrl = await uploadPhoto(watermarkedGaugePhoto, `tank-updates/${selectedTankForUpdate}/gauge-${Date.now()}`);
-      const systemPhotoUrl = await uploadPhoto(watermarkedSystemPhoto, `tank-updates/${selectedTankForUpdate}/system-${Date.now()}`);
+      // Upload photos with timeout protection
+      console.log('☁️ Uploading photos to Firebase Storage...');
+      const gaugePhotoUrl = await Promise.race([
+        uploadPhoto(watermarkedGaugePhoto, `tank-updates/${selectedTankForUpdate}/gauge-${Date.now()}`),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Photo upload timeout')), 15000))
+      ]);
+      const systemPhotoUrl = await Promise.race([
+        uploadPhoto(watermarkedSystemPhoto, `tank-updates/${selectedTankForUpdate}/system-${Date.now()}`),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Photo upload timeout')), 15000))
+      ]);
 
       // Enhanced update data with concurrent handling (avoid undefined values)
       const updateData = {
@@ -1033,8 +1047,12 @@ export default function BranchDashboard() {
         concurrent: true
       };
 
-      // Update tank level in database with concurrent support
-      const result = await updateOilTankLevel(selectedTankForUpdate, updateData);
+      // Update tank level in database with concurrent support and timeout protection
+      console.log('💾 Updating tank level in database...');
+      const result = await Promise.race([
+        updateOilTankLevel(selectedTankForUpdate, updateData),
+        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Database update timeout - please try again')), 20000))
+      ]) as any;
 
       // Clear optimistic update on success
       setOptimisticUpdates(prev => {
@@ -1070,8 +1088,13 @@ export default function BranchDashboard() {
         photos: { gauge: gaugePhotoUrl, system: systemPhotoUrl }
       });
       
-      // Load updated logs for user's viewing
-      loadMyUpdateLogs();
+      // Load updated logs for user's viewing (with error handling to prevent dashboard hang)
+      try {
+        await loadMyUpdateLogs();
+      } catch (error) {
+        console.warn('❌ Failed to reload update logs after tank update:', error);
+        // Don't let log loading failure break the update process
+      }
 
     } catch (error: any) {
       console.error('Error updating tank:', error);
