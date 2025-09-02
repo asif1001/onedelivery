@@ -1098,7 +1098,7 @@ export default function BranchDashboard() {
       const userName = currentUser.displayName || currentUser.email;
       const sessionId = `${currentUser.uid}_${Date.now()}`;
       
-      // PARALLEL WATERMARKING - Process both photos simultaneously
+      // PARALLEL WATERMARKING - Process both photos simultaneously with fallback
       const watermarkStartTime = performance.now();
       const [watermarkedGaugePhoto, watermarkedSystemPhoto] = await Promise.race([
         Promise.all([
@@ -1107,12 +1107,28 @@ export default function BranchDashboard() {
             timestamp: new Date(),
             extraLine1: `Tank: ${tankName}`,
             extraLine2: `Updated by: ${userName}`
+          }).catch(error => {
+            console.error('❌ Gauge photo watermarking failed:', error);
+            toast({
+              title: "Photo Processing Warning",
+              description: `Gauge photo watermarking failed (${error.message}). Using original photo.`,
+              variant: "destructive"
+            });
+            return gaugePhoto; // Use original photo as fallback
           }),
           watermarkImage(systemPhoto, {
             branchName,
             timestamp: new Date(),
             extraLine1: `Tank: ${tankName}`,
             extraLine2: `Level Update: ${manualQuantity}L`
+          }).catch(error => {
+            console.error('❌ System photo watermarking failed:', error);
+            toast({
+              title: "Photo Processing Warning", 
+              description: `System photo watermarking failed (${error.message}). Using original photo.`,
+              variant: "destructive"
+            });
+            return systemPhoto; // Use original photo as fallback
           })
         ]),
         new Promise<never>((_, reject) => 

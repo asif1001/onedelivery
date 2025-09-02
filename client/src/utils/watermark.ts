@@ -19,6 +19,26 @@ interface WatermarkOptions {
 export async function watermarkImage(file: File, options: WatermarkOptions): Promise<File> {
   const { branchName, timestamp, extraLine1, extraLine2 } = options;
   
+  // DEVICE COMPATIBILITY: Check for unsupported formats (HEIC, etc.)
+  const fileExtension = file.name.toLowerCase();
+  const unsupportedFormats = ['.heic', '.heif'];
+  const isUnsupportedFormat = unsupportedFormats.some(ext => fileExtension.endsWith(ext));
+  
+  if (isUnsupportedFormat) {
+    console.warn('⚠️ HEIC/HEIF format detected, attempting conversion...');
+    try {
+      const convertedFile = await convertToSupportedFormat(file);
+      return watermarkImage(convertedFile, options);
+    } catch (conversionError) {
+      console.error('❌ Format conversion failed, using fallback...', conversionError);
+      // Return original file with fallback naming convention
+      return new File([file], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+        type: 'image/jpeg',
+        lastModified: Date.now()
+      });
+    }
+  }
+  
   return new Promise((resolve, reject) => {
     const img = new Image();
     let canvas: HTMLCanvasElement | null = null;
@@ -168,12 +188,97 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
       }
     };
     
-    img.onerror = () => {
+    img.onerror = (error) => {
       clearTimeout(timeoutId);
       cleanup();
-      reject(new Error('Failed to load image for watermarking'));
+      console.error('❌ Image loading failed:', {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        error: error
+      });
+      
+      // Provide detailed error message for debugging
+      const errorMessage = fileExtension.includes('.heic') || fileExtension.includes('.heif')
+        ? 'HEIC format not supported on this device. Please use JPEG format.'
+        : `Failed to load image for watermarking. Format: ${file.type || 'unknown'}`;
+      
+      reject(new Error(errorMessage));
     };
     
-    img.src = URL.createObjectURL(file);
+    // Create object URL for the image with enhanced error handling
+    try {
+      img.src = URL.createObjectURL(file);
+      console.log('📸 Loading image for watermarking:', {
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: `${(file.size / 1024).toFixed(1)}KB`
+      });
+    } catch (error) {
+      clearTimeout(timeoutId);
+      cleanup();
+      console.error('❌ Failed to create image URL:', error);
+      reject(new Error('Failed to create image URL for watermarking'));
+    }
+  });
+}
+
+/**
+ * DEVICE COMPATIBILITY: Convert unsupported formats to JPEG
+ */
+async function convertToSupportedFormat(file: File): Promise<File> {
+  return new Promise((resolve, reject) => {
+    // For unsupported formats, try to load via FileReader and canvas conversion
+    const reader = new FileReader();
+    
+    reader.onload = () => {
+      const img = new Image();
+      
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            reject(new Error('Canvas context not available for conversion'));
+            return;
+          }
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const convertedFile = new File([blob], file.name.replace(/\.(heic|heif)$/i, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now()
+              });
+              console.log('✅ Successfully converted HEIC to JPEG');
+              resolve(convertedFile);
+            } else {
+              reject(new Error('Failed to convert image format'));
+            }
+          }, 'image/jpeg', 0.9);
+          
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load image for conversion'));
+      };
+      
+      if (reader.result) {
+        img.src = reader.result as string;
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Failed to read file for conversion'));
+    };
+    
+    reader.readAsDataURL(file);
   });
 }
