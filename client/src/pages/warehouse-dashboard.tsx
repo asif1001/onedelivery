@@ -52,7 +52,8 @@ import {
   doc,
   getDoc,
   updateDoc,
-  addDoc
+  addDoc,
+  where
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -257,16 +258,32 @@ export default function WarehouseDashboard() {
           console.log('👥 Got drivers:', driversData.length);
           setDrivers(driversData);
 
-          // Load branch statuses after we have all the data
+          // Initialize branch statuses with basic data immediately
+          const basicStatuses = filteredBranches.map(branch => ({
+            id: branch.id,
+            name: branch.name,
+            status: 'loading',
+            totalTanks: 0,
+            tankDetails: [],
+            lastUpdate: null,
+            recentlyUpdatedTanks: 0,
+            staleTanks: 0,
+            oldTanks: 0,
+            neverUpdatedTanks: 0
+          }));
+          setBranchStatuses(basicStatuses);
+          console.log('📊 Basic branch statuses set:', basicStatuses.length);
+
+          // Load detailed branch statuses in background
           setTimeout(async () => {
             try {
-              const statuses = await getBranchUpdateStatus();
-              setBranchStatuses(statuses);
-              console.log('📊 Branch statuses loaded:', statuses.length);
+              const detailedStatuses = await getBranchUpdateStatus();
+              setBranchStatuses(detailedStatuses);
+              console.log('📊 Detailed branch statuses loaded:', detailedStatuses.length);
             } catch (error) {
-              console.error('Error loading branch statuses:', error);
+              console.error('Error loading detailed branch statuses:', error);
             }
-          }, 500);
+          }, 1000);
           
           // Load update logs (filtered for warehouse users)
           const allLogs = await getDocs(query(
