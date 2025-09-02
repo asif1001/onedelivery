@@ -3,6 +3,17 @@ import { collection, query, where, orderBy, limit, getDocs, Timestamp } from 'fi
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  WarehouseIcon,
+  LogOutIcon, 
+  RefreshCwIcon,
+  ClipboardListIcon,
+  UserIcon,
+  AlertCircleIcon
+} from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const useTheme = () => ({ theme: 'light' });
 
@@ -29,6 +40,7 @@ const MonitoringDebug: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [userAssignedBranches, setUserAssignedBranches] = useState<Set<string>>(new Set());
   const { theme } = useTheme();
+  const { userData: user, logout } = useAuth();
 
   // Helper to format timestamps
   const formatTimestamp = (ts: any): string => {
@@ -187,71 +199,132 @@ const MonitoringDebug: React.FC = () => {
     fetchDebugData();
   }, []); // Fetch once on mount
 
+  const themeClasses = {
+    card: theme === 'night' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
+    text: theme === 'night' ? 'text-white' : 'text-gray-900',
+    secondaryText: theme === 'night' ? 'text-gray-300' : 'text-gray-600',
+    bg: theme === 'night' ? 'bg-gray-900' : 'bg-gray-50'
+  };
+
   return (
-    <div className={`min-h-screen ${
-      theme === 'night' ? 'bg-gray-900 text-white' : 'bg-gray-50 text-gray-900'
-    }`}>
-      <div className="max-w-7xl mx-auto">
-        {/* Header matching warehouse dashboard style exactly */}
-        <div className="bg-white shadow-sm border-b border-gray-200 -mx-6 px-6 py-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-1">Branch Stock Update Tracking</h1>
-              <p className="text-gray-600 text-sm">
-                Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
-              </p>
+    <div className={`min-h-screen ${themeClasses.bg}`}>
+      {/* Header identical to warehouse dashboard */}
+      <div className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <WarehouseIcon className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">
+                  OneDelivery Warehouse
+                </h1>
+                <p className="text-xs text-gray-600">
+                  {user?.displayName || user?.email || 'Warehouse User'}
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={fetchDebugData}
+                disabled={loading}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5"
+              >
+                {loading ? (
+                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <RefreshCwIcon className="h-3 w-3" />
+                )}
+                {loading ? 'Loading...' : 'Refresh'}
+              </Button>
+              
+              <Button
+                onClick={() => window.location.href = '/warehouse-dashboard'}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5"
+              >
+                ← Back to Dashboard
+              </Button>
+              
+              <Button
+                onClick={logout}
+                variant="ghost" 
+                size="sm"
+                className="text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
+              >
+                <LogOutIcon className="h-3 w-3" />
+                Sign Out
+              </Button>
             </div>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <Button
-              onClick={fetchDebugData}
-              disabled={loading}
-              variant="outline"
-              className="flex items-center gap-2 text-sm"
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              )}
-              {loading ? 'Refreshing...' : 'Refresh Data'}
-            </Button>
-            
-            {!loading && (
-              <div className="text-sm text-gray-500">
-                Last updated: {new Date().toLocaleTimeString()}
+        </div>
+      </div>
+
+      {/* Main Content with Tabs Structure like Warehouse Dashboard */}
+      <div className="max-w-7xl mx-auto p-6">
+        <Tabs defaultValue="tracking" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <UserIcon className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="tracking" className="flex items-center gap-2">
+              <AlertCircleIcon className="h-4 w-4" />
+              Stock Tracking
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className="flex items-center gap-2">
+              <ClipboardListIcon className="h-4 w-4" />
+              Transactions
+            </TabsTrigger>
+            <TabsTrigger value="reports" className="flex items-center gap-2">
+              <WarehouseIcon className="h-4 w-4" />
+              Reports
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="space-y-4">
+            <Card className={themeClasses.card}>
+              <CardContent className="p-6">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+                    <AlertCircleIcon className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Overview Coming Soon</h3>
+                    <p className="text-gray-600 mb-4">
+                      Dashboard overview features will be available in the next update
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Stock Tracking Tab - Main Content */}
+          <TabsContent value="tracking" className="space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <span className="font-medium">Error:</span> {error}
+                </div>
               </div>
             )}
-          </div>
-          
-          {error && (
-            <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-medium">Error:</span> {error}
-              </div>
-            </div>
-          )}
-        </div>
 
-        {/* Professional Grid Layout for Branch Activity */}
-        <Card className="mb-6 mx-6">
-          <CardHeader className="pb-3">
-            <CardTitle className={`text-base flex items-center gap-2 text-gray-900`}>
-              <svg className="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v13m0-13V6a2 2 0 112 2h-6m3 7h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Branch Stock Update Tracking
-            </CardTitle>
-            <p className={`text-sm text-gray-600`}>
-              Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
-            </p>
-          </CardHeader>
+            <Card className={themeClasses.card}>
+              <CardHeader className="pb-3">
+                <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
+                  <AlertCircleIcon className="h-4 w-4 text-blue-600" />
+                  Branch Stock Update Tracking
+                </CardTitle>
+                <p className={`text-sm ${themeClasses.secondaryText}`}>
+                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
+                </p>
+              </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {(() => {
@@ -484,21 +557,49 @@ const MonitoringDebug: React.FC = () => {
                   No data found in the last 30 days.
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
+          </TabsContent>
 
-        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
-          <h3 className="font-semibold text-blue-800 mb-2">Query Details:</h3>
-          <div className="text-sm text-blue-700 space-y-2">
-            <p><strong>Transactions:</strong> Shows oilTypeName, driverName, createdAt, branchName from last 30 days</p>
-            <p><strong>TankUpdateLogs:</strong> Shows oilTypeName, branchName (converted from branchId), updatedAt, updatedBy from last 30 days</p>
-            <p><strong>Branch Mapping:</strong> branchId is automatically converted to branchName using branches collection</p>
-            <p><strong>Time Filter:</strong> Both queries limited to documents from the last 30 days only</p>
-            <p><strong>Latest Only Filter:</strong> Shows only the most recent record per branch+oilType combination (e.g., only latest "Janabiya S18 - Mineral Oil")</p>
-            <p><strong>Fallback:</strong> Transactions query tries createdAt first, falls back to timestamp if needed</p>
-          </div>
-        </div>
+          {/* Transactions Tab */}
+          <TabsContent value="transactions" className="space-y-4">
+            <Card className={themeClasses.card}>
+              <CardContent className="p-6">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+                    <ClipboardListIcon className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Transactions Coming Soon</h3>
+                    <p className="text-gray-600 mb-4">
+                      Transaction management features will be available in the next update
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports" className="space-y-4">
+            <Card className={themeClasses.card}>
+              <CardContent className="p-6">
+                <div className="text-center space-y-4">
+                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+                    <WarehouseIcon className="w-8 h-8 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Reports Coming Soon</h3>
+                    <p className="text-gray-600 mb-4">
+                      Advanced reporting features will be available in the next update
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
