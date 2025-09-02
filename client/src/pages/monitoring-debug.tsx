@@ -6,14 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
-  WarehouseIcon,
   LogOutIcon, 
   RefreshCwIcon,
-  ClipboardListIcon,
-  UserIcon,
   AlertCircleIcon
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { OilDeliveryLogo } from '@/components/ui/logo';
 
 const useTheme = () => ({ theme: 'light' });
 
@@ -208,18 +206,16 @@ const MonitoringDebug: React.FC = () => {
 
   return (
     <div className={`min-h-screen ${themeClasses.bg}`}>
-      {/* Header identical to warehouse dashboard */}
+      {/* Simple Header with Logo - No Navigation Tabs */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
-              <WarehouseIcon className="h-8 w-8 text-blue-600" />
+              <OilDeliveryLogo className="w-10 h-10 sm:w-12 sm:h-12" />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  OneDelivery Warehouse
-                </h1>
-                <p className="text-xs text-gray-600">
-                  {user?.displayName || user?.email || 'Warehouse User'}
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900">OneDelivery</h1>
+                <p className="text-xs sm:text-sm text-gray-600">
+                  Branch Stock Update Tracking
                 </p>
               </div>
             </div>
@@ -263,57 +259,16 @@ const MonitoringDebug: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Content with Tabs Structure like Warehouse Dashboard */}
+      {/* Main Content - No Tabs, Direct Content */}
       <div className="max-w-7xl mx-auto p-6">
-        <Tabs defaultValue="tracking" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <UserIcon className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="tracking" className="flex items-center gap-2">
-              <AlertCircleIcon className="h-4 w-4" />
-              Stock Tracking
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className="flex items-center gap-2">
-              <ClipboardListIcon className="h-4 w-4" />
-              Transactions
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-2">
-              <WarehouseIcon className="h-4 w-4" />
-              Reports
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Overview Tab */}
-          <TabsContent value="overview" className="space-y-4">
-            <Card className={themeClasses.card}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-                    <AlertCircleIcon className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Overview Coming Soon</h3>
-                    <p className="text-gray-600 mb-4">
-                      Dashboard overview features will be available in the next update
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Stock Tracking Tab - Main Content */}
-          <TabsContent value="tracking" className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                <div className="flex items-center gap-2">
-                  <AlertCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
-                  <span className="font-medium">Error:</span> {error}
-                </div>
-              </div>
-            )}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            <div className="flex items-center gap-2">
+              <AlertCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+              <span className="font-medium">Error:</span> {error}
+            </div>
+          </div>
+        )}
 
             <Card className={themeClasses.card}>
               <CardHeader className="pb-3">
@@ -560,46 +515,6 @@ const MonitoringDebug: React.FC = () => {
               </div>
             </CardContent>
           </Card>
-          </TabsContent>
-
-          {/* Transactions Tab */}
-          <TabsContent value="transactions" className="space-y-4">
-            <Card className={themeClasses.card}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-                    <ClipboardListIcon className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Transactions Coming Soon</h3>
-                    <p className="text-gray-600 mb-4">
-                      Transaction management features will be available in the next update
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Reports Tab */}
-          <TabsContent value="reports" className="space-y-4">
-            <Card className={themeClasses.card}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-                    <WarehouseIcon className="w-8 h-8 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Reports Coming Soon</h3>
-                    <p className="text-gray-600 mb-4">
-                      Advanced reporting features will be available in the next update
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
       </div>
     </div>
   );
