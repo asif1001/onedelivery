@@ -251,6 +251,21 @@ export default function WarehouseDashboard() {
     }
   }, [user]);
 
+  // Separate useEffect for monitoring data
+  useEffect(() => {
+    // Only fetch monitoring data if user is authenticated
+    if (user && user.role === 'warehouse') {
+      fetchMonitoringDebugData();
+      
+      // Auto-refresh every 5 minutes
+      const interval = setInterval(() => {
+        fetchMonitoringDebugData();
+      }, 5 * 60 * 1000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [user]);
+
   // Hierarchical data loading using debug page logic
   const loadTankActivityData = async (branchStatuses: any[]) => {
     console.log('🚀 Loading tank activity data using hierarchical approach...');
@@ -2954,18 +2969,8 @@ export default function WarehouseDashboard() {
 
           </TabsContent>
 
-          {/* Redirect to Debug Page for Monitoring */}
+          {/* Monitoring Tab */}
           <TabsContent value="tracking" className="space-y-4">
-            {/* Auto-fetch monitoring data when tab is accessed */}
-            {(() => {
-              React.useEffect(() => {
-                fetchMonitoringDebugData();
-                // Auto-refresh every 5 minutes
-                const interval = setInterval(fetchMonitoringDebugData, 5 * 60 * 1000);
-                return () => clearInterval(interval);
-              }, []);
-              return null;
-            })()}
 
             {/* User Access Information */}
             {(() => {
