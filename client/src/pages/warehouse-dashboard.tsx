@@ -52,8 +52,7 @@ import {
   doc,
   getDoc,
   updateDoc,
-  addDoc,
-  where
+  addDoc
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
@@ -121,10 +120,8 @@ export default function WarehouseDashboard() {
   const [oilTypes, setOilTypes] = useState<OilType[]>([]);
   const [oilTanks, setOilTanks] = useState<OilTank[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
-  const [branchStatuses, setBranchStatuses] = useState<any[]>([]);
   
   // Get user's assigned branches for filtering
   const userBranchIds = user?.branchIds || [];
@@ -234,60 +231,27 @@ export default function WarehouseDashboard() {
       // Load everything else much later to avoid any blocking
       setTimeout(async () => {
         try {
-          // Load ALL transactions for accurate tank status calculations
+          // Load recent transactions (filtered for warehouse users)
           const allTxs = await getAllTransactions().catch(() => []);
           const filteredTxs = isRestrictedUser 
             ? allTxs.filter(tx => userBranchIds.includes(tx.branchId))
             : allTxs;
           
-          // Sort all transactions by date
-          const sortedTxs = filteredTxs.sort((a, b) => {
-            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
-            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
-            return dateB.getTime() - dateA.getTime();
-          });
+          // Take only recent 10 transactions
+          const recentTxs = filteredTxs
+            .sort((a, b) => {
+              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+              return dateB.getTime() - dateA.getTime();
+            })
+            .slice(0, 10);
           
-          // Store ALL transactions for tank status calculations
-          setAllTransactions(sortedTxs);
-          
-          // Store only recent 10 for display in Recent Transactions tab
-          setRecentTransactions(sortedTxs.slice(0, 10));
+          setRecentTransactions(recentTxs);
           
           // Load drivers for proper transaction details
           const driversData = await getAllUsers().catch(() => []);
           console.log('👥 Got drivers:', driversData.length);
           setDrivers(driversData);
-
-          // Initialize branch statuses with basic data immediately
-          const basicStatuses = filteredBranches.map(branch => ({
-            id: branch.id,
-            name: branch.name,
-            status: 'loading',
-            totalTanks: 0,
-            tankDetails: [],
-            lastUpdate: null,
-            recentlyUpdatedTanks: 0,
-            staleTanks: 0,
-            oldTanks: 0,
-            neverUpdatedTanks: 0
-          }));
-          setBranchStatuses(basicStatuses);
-          console.log('📊 Basic branch statuses set:', basicStatuses.length);
-          console.log('📊 Basic statuses data:', basicStatuses);
-
-          // Load detailed branch statuses in background
-          setTimeout(async () => {
-            try {
-              console.log('📊 Starting detailed branch status loading...');
-              const detailedStatuses = await getBranchUpdateStatus();
-              console.log('📊 Detailed branch statuses loaded:', detailedStatuses.length);
-              console.log('📊 Detailed statuses data:', detailedStatuses);
-              setBranchStatuses(detailedStatuses);
-            } catch (error) {
-              console.error('❌ Error loading detailed branch statuses:', error);
-              console.error('❌ Error stack:', error.stack);
-            }
-          }, 1000);
           
           // Load update logs (filtered for warehouse users)
           const allLogs = await getDocs(query(
@@ -929,121 +893,77 @@ export default function WarehouseDashboard() {
   }
 
   // Enhanced function to get detailed branch update status with tank-level tracking
-  const getBranchUpdateStatus = async () => {
+  const getBranchUpdateStatus = () => {
     const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const oneDayAgo = new Date();
     oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    // Fetch complete datasets for accurate per-tank latest record lookup
-    const [allTransactions, allTankLogs] = await Promise.all([
-      getAllTransactions().catch(() => []),
-      getDocs(query(
-        collection(db, 'tankUpdateLogs'),
-        orderBy('updatedAt', 'desc')
-      )).then(snapshot => 
-        snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-      ).catch(() => [])
-    ]);
-
-    return Promise.all(branches.map(async branch => {
+    return branches.map(branch => {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
       const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
 
-      // Get detailed tank update status with comprehensive database lookup per tank
-      const tankUpdateDetails = await Promise.all(branchTanks.map(async tank => {
-        // MANUAL UPDATES: Search entire tankUpdateLogs collection for this specific tank
-        const manualLogQuery = query(
-          collection(db, 'tankUpdateLogs'),
-          where('branchName', '==', branch.name),
-          where('oilTypeName', '==', tank.oilTypeName),
-          orderBy('updatedAt', 'desc'),
-          limit(1)
-        );
-        
+      // Get detailed tank update status with dual tracking (manual + supply/loading)
+      const tankUpdateDetails = branchTanks.map(tank => {
+        // Manual Updates from tankUpdateLogs collection
+        const tankLogs = branchLogs.filter(log => 
+          log.oilTypeName === tank.oilTypeName && log.branchName === branch.name &&
+          (log.tankId === tank.id || log.tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`)
+        ).sort((a, b) => {
+          const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+          const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
         let lastManualUpdate = null;
         let lastManualUpdateBy = null;
         let daysSinceManualUpdate = null;
-        let manualUpdateDisplay = 'Never updated';
         
-        try {
-          const manualSnapshot = await getDocs(manualLogQuery);
-          if (!manualSnapshot.empty) {
-            const mostRecentLog = manualSnapshot.docs[0].data();
-            lastManualUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
-            lastManualUpdateBy = mostRecentLog.updatedBy;
-            
-            const nowDate = new Date();
-            const updateDate = new Date(lastManualUpdate);
-            daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            // Format display name
-            const displayName = lastManualUpdateBy?.includes('@') 
-              ? lastManualUpdateBy.split('@')[0] 
-              : lastManualUpdateBy;
-            
-            // Format time display
-            const timeAgo = daysSinceManualUpdate === 0 ? 'today' : 
-                           daysSinceManualUpdate === 1 ? '1 day ago' : 
-                           `${daysSinceManualUpdate} days ago`;
-            
-            manualUpdateDisplay = `${timeAgo} by ${displayName}`;
-          }
-        } catch (error) {
-          console.error('Error fetching manual logs for tank:', error);
+        if (tankLogs.length > 0) {
+          const mostRecentLog = tankLogs[0];
+          lastManualUpdate = mostRecentLog.updatedAt?.toDate ? mostRecentLog.updatedAt.toDate() : new Date(mostRecentLog.updatedAt);
+          lastManualUpdateBy = mostRecentLog.updatedBy;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
+          daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // SUPPLY/LOADING UPDATES: Search entire transactions collection for this specific tank
-        const transactionQuery = query(
-          collection(db, 'transactions'),
-          where('branchId', '==', branch.id),
-          where('oilTypeName', '==', tank.oilTypeName),
-          where('type', 'in', ['supply', 'loading']),
-          orderBy('timestamp', 'desc'),
-          limit(1)
-        );
-        
+        // Supply/Loading from transactions collection
+        const tankTransactions = recentTransactions.filter(transaction => 
+          transaction.branchId === branch.id && 
+          transaction.oilTypeName === tank.oilTypeName && 
+          (transaction.type === 'supply' || transaction.type === 'loading')
+        ).sort((a, b) => {
+          const dateA = a.createdAt instanceof Date ? a.createdAt : 
+                       (a as any).timestamp?.toDate ? (a as any).timestamp.toDate() : 
+                       new Date((a as any).timestamp || a.createdAt || 0);
+          const dateB = b.createdAt instanceof Date ? b.createdAt : 
+                       (b as any).timestamp?.toDate ? (b as any).timestamp.toDate() : 
+                       new Date((b as any).timestamp || b.createdAt || 0);
+          return dateB.getTime() - dateA.getTime();
+        });
+
         let lastSupplyLoading = null;
         let lastSupplyLoadingBy = null;
         let daysSinceSupplyLoading = null;
-        let supplyLoadingDisplay = 'No activity';
         
-        try {
-          const transactionSnapshot = await getDocs(transactionQuery);
-          if (!transactionSnapshot.empty) {
-            const lastTransaction = transactionSnapshot.docs[0].data();
-            lastSupplyLoading = lastTransaction.timestamp?.toDate ? lastTransaction.timestamp.toDate() : 
-                               lastTransaction.createdAt?.toDate ? lastTransaction.createdAt.toDate() : 
-                               new Date(lastTransaction.timestamp || lastTransaction.createdAt);
-            
-            // Get driver name with fallback chain
-            const driver = drivers.find(d => d.uid === lastTransaction.driverUid || d.id === lastTransaction.driverUid);
-            lastSupplyLoadingBy = driver ? (driver.displayName || driver.email) : 
-                                 lastTransaction.driverName || 
-                                 lastTransaction.driverDisplayName ||
-                                 lastTransaction.reportedByName ||
-                                 lastTransaction.reporterName || 
-                                 'System';
-            
-            const nowDate = new Date();
-            const movementDate = new Date(lastSupplyLoading);
-            daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            // Format display name (remove email domain if present)
-            const displayName = lastSupplyLoadingBy?.includes('@') 
-              ? lastSupplyLoadingBy.split('@')[0] 
-              : lastSupplyLoadingBy;
-            
-            // Format time display
-            const timeAgo = daysSinceSupplyLoading === 0 ? 'today' : 
-                           daysSinceSupplyLoading === 1 ? '1 day ago' : 
-                           `${daysSinceSupplyLoading} days ago`;
-            
-            supplyLoadingDisplay = `${timeAgo} by ${displayName}`;
-          }
-        } catch (error) {
-          console.error('Error fetching transaction logs for tank:', error);
+        if (tankTransactions.length > 0) {
+          const lastTransaction = tankTransactions[0];
+          lastSupplyLoading = lastTransaction.createdAt instanceof Date ? lastTransaction.createdAt : 
+                             (lastTransaction as any).timestamp?.toDate ? (lastTransaction as any).timestamp.toDate() : 
+                             new Date((lastTransaction as any).timestamp || lastTransaction.createdAt);
+          // Get driver name using the same logic as the transaction display
+          const driver = drivers.find(d => d.uid === lastTransaction.driverUid || d.id === lastTransaction.driverUid);
+          lastSupplyLoadingBy = driver ? (driver.displayName || driver.email) : 
+                               lastTransaction.driverName || 
+                               lastTransaction.driverDisplayName ||
+                               (lastTransaction as any).reportedByName ||
+                               (lastTransaction as any).reporterName || 
+                               'System';
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
+          daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
         // Use manual update for overall status calculation (legacy compatibility)
@@ -1082,12 +1002,9 @@ export default function WarehouseDashboard() {
           daysSinceManualUpdate,
           lastSupplyLoading,
           lastSupplyLoadingBy,
-          daysSinceSupplyLoading,
-          // New formatted display strings
-          manualUpdateDisplay,
-          supplyLoadingDisplay
+          daysSinceSupplyLoading
         };
-      }));
+      });
 
       // Calculate overall branch status
       const recentlyUpdatedTanks = tankUpdateDetails.filter(t => t.updateStatus === 'recent').length;
@@ -1138,7 +1055,7 @@ export default function WarehouseDashboard() {
         lastUpdateDate: lastBranchUpdate,
         tankCount: branchTanks.length
       };
-    }));
+    });
   };
 
   const getFilteredLogs = () => {
@@ -1860,6 +1777,7 @@ export default function WarehouseDashboard() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {/* Branch Update Summary Card */}
               {(() => {
+                const branchStatuses = getBranchUpdateStatus();
                 const needsAttention = branchStatuses.filter(b => b.status === 'needs-attention').length;
                 const partiallyUpdated = branchStatuses.filter(b => b.status === 'partially-updated').length;
                 const fullyUpdated = branchStatuses.filter(b => b.status === 'fully-updated' || b.status === 'up-to-date').length;
@@ -2436,18 +2354,9 @@ export default function WarehouseDashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
-                {/* Debug: Show current state */}
-                <div className="mb-4 p-2 bg-gray-100 rounded text-xs">
-                  <p>Debug Info:</p>
-                  <p>Branches loaded: {branches.length}</p>
-                  <p>Branch statuses loaded: {branchStatuses.length}</p>
-                  <p>Oil tanks loaded: {oilTanks.length}</p>
-                  <p>Loading: {loading ? 'true' : 'false'}</p>
-                </div>
-
                 {/* Gallery-style grid layout: 4 cards per row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {branchStatuses.map((branch) => {
+                  {getBranchUpdateStatus().map((branch) => {
                     // Determine branch status based on update timeline:
                     // Red = not updated for more than 7 days (includes never updated and old tanks)
                     // Yellow = updated 1-7 days ago (stale tanks)
@@ -2574,42 +2483,64 @@ export default function WarehouseDashboard() {
                                 {/* Dual Tracking Information - Compact Single Lines */}
                                 <div className="space-y-1">
                                   {/* Last Manual Update */}
-                                  <div className={`p-1.5 rounded border-l-2 ${
-                                    tank.lastManualUpdate 
-                                      ? theme === 'night' 
+                                  {tank.lastManualUpdate ? (
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
                                         ? 'bg-blue-900/40 border-blue-400' 
                                         : 'bg-blue-50 border-blue-300'
-                                      : theme === 'night' 
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-blue-200' : 'text-blue-800'
+                                      }`}>
+                                        <span className="font-medium">Manual:</span>{' '}
+                                        {tank.daysSinceManualUpdate === 0 ? 'Today' :
+                                         tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
+                                         `${tank.daysSinceManualUpdate}d ago`} by {tank.lastManualUpdateBy}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
                                         ? 'bg-gray-700 border-gray-500' 
                                         : 'bg-gray-100 border-gray-300'
-                                  }`}>
-                                    <p className={`text-xs ${
-                                      tank.lastManualUpdate 
-                                        ? theme === 'night' ? 'text-blue-200' : 'text-blue-800'
-                                        : theme === 'night' ? 'text-gray-300' : 'text-gray-600'
                                     }`}>
-                                      <span className="font-medium">Manual:</span> {tank.manualUpdateDisplay || 'Never updated'}
-                                    </p>
-                                  </div>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        <span className="font-medium">Manual:</span> Never updated
+                                      </p>
+                                    </div>
+                                  )}
 
                                   {/* Last Supply/Loading */}
-                                  <div className={`p-1.5 rounded border-l-2 ${
-                                    tank.lastSupplyLoading 
-                                      ? theme === 'night' 
+                                  {tank.lastSupplyLoading ? (
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
                                         ? 'bg-orange-900/40 border-orange-400' 
                                         : 'bg-orange-50 border-orange-300'
-                                      : theme === 'night' 
+                                    }`}>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-orange-200' : 'text-orange-800'
+                                      }`}>
+                                        <span className="font-medium">Supply/Loading:</span>{' '}
+                                        {tank.daysSinceSupplyLoading === 0 ? 'Today' :
+                                         tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
+                                         `${tank.daysSinceSupplyLoading}d ago`} by {tank.lastSupplyLoadingBy}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <div className={`p-1.5 rounded border-l-2 ${
+                                      theme === 'night' 
                                         ? 'bg-gray-700 border-gray-500' 
                                         : 'bg-gray-100 border-gray-300'
-                                  }`}>
-                                    <p className={`text-xs ${
-                                      tank.lastSupplyLoading 
-                                        ? theme === 'night' ? 'text-orange-200' : 'text-orange-800'
-                                        : theme === 'night' ? 'text-gray-300' : 'text-gray-600'
                                     }`}>
-                                      <span className="font-medium">Supply/Loading:</span> {tank.supplyLoadingDisplay || 'No activity'}
-                                    </p>
-                                  </div>
+                                      <p className={`text-xs ${
+                                        theme === 'night' ? 'text-gray-300' : 'text-gray-600'
+                                      }`}>
+                                        <span className="font-medium">Supply/Loading:</span> No recent activity
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -2654,7 +2585,7 @@ export default function WarehouseDashboard() {
                     );
                   })}
                 </div>
-                {branchStatuses.length === 0 && (
+                {getBranchUpdateStatus().length === 0 && (
                   <p className="text-sm text-gray-500">No branches found</p>
                 )}
               </CardContent>
