@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlusIcon, UserIcon, SearchIcon } from "lucide-react";
+import { UserPlusIcon, UserIcon, SearchIcon, BuildingIcon } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { getActiveBranchesOnly } from "@/lib/firebase";
 
 // Mock users data for demonstration
 const mockUsers = [
@@ -19,13 +20,28 @@ const mockUsers = [
 export default function UserManagement() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [branches, setBranches] = useState<any[]>([]);
   const [newUser, setNewUser] = useState({
     email: "",
     firstName: "",
     lastName: "",
-    role: "user" as const
+    role: "user" as "user" | "driver" | "business" | "warehouse" | "admin",
+    branchIds: [] as string[]
   });
   const { toast } = useToast();
+
+  // Load branches for assignment
+  useEffect(() => {
+    const loadBranches = async () => {
+      try {
+        const branchData = await getActiveBranchesOnly();
+        setBranches(branchData);
+      } catch (error) {
+        console.error('Error loading branches:', error);
+      }
+    };
+    loadBranches();
+  }, []);
 
   const createUserMutation = useMutation({
     mutationFn: async (userData: typeof newUser) => {
@@ -39,7 +55,7 @@ export default function UserManagement() {
         title: "User Created",
         description: "New user has been successfully created.",
       });
-      setNewUser({ email: "", firstName: "", lastName: "", role: "user" });
+      setNewUser({ email: "", firstName: "", lastName: "", role: "user" as "user" | "driver" | "business" | "warehouse" | "admin", branchIds: [] });
       setShowCreateForm(false);
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
     },
@@ -98,8 +114,31 @@ export default function UserManagement() {
       });
       return;
     }
+
+    // Validate branch assignment for warehouse and branch users
+    if ((newUser.role === 'warehouse' || newUser.role === 'business') && newUser.branchIds.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please select at least one branch for warehouse and branch users.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createUserMutation.mutate(newUser);
   };
+
+  const handleBranchToggle = (branchId: string) => {
+    setNewUser(prev => ({
+      ...prev,
+      branchIds: prev.branchIds.includes(branchId)
+        ? prev.branchIds.filter(id => id !== branchId)
+        : [...prev.branchIds, branchId]
+    }));
+  };
+
+  // Check if branch selection should be shown
+  const shouldShowBranchSelection = ['warehouse', 'business', 'branch'].includes(newUser.role);
 
   const handleRoleChange = (userId: string, newRole: string) => {
     updateRoleMutation.mutate({ userId, role: newRole });
@@ -154,11 +193,39 @@ export default function UserManagement() {
                   <SelectContent>
                     <SelectItem value="user">User</SelectItem>
                     <SelectItem value="driver">Driver</SelectItem>
-                    <SelectItem value="business">Business</SelectItem>
+                    <SelectItem value="business">Branch User</SelectItem>
+                    <SelectItem value="warehouse">Warehouse</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Branch Assignment Section */}
+              {shouldShowBranchSelection && (
+                <div className="col-span-full">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <BuildingIcon className="w-4 h-4 inline mr-2" />
+                    Assign Branches ({newUser.branchIds.length} selected)
+                  </label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                    {branches.map((branch) => (
+                      <label key={branch.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={newUser.branchIds.includes(branch.id)}
+                          onChange={() => handleBranchToggle(branch.id)}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          data-testid={`checkbox-branch-${branch.id}`}
+                        />
+                        <span className="text-sm text-gray-700">{branch.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {branches.length === 0 && (
+                    <p className="text-sm text-gray-500 mt-2">No branches available. Please create branches first.</p>
+                  )}
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button
                   onClick={handleCreateUser}

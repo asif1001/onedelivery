@@ -123,6 +123,10 @@ export default function WarehouseDashboard() {
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   
+  // Get user's assigned branches for filtering
+  const userBranchIds = user?.branchIds || [];
+  const isRestrictedUser = user?.role === 'warehouse' && userBranchIds.length > 0;
+  
   // Theme state
   const [theme, setTheme] = useState<'light' | 'night' | 'midday'>('light');
   
@@ -203,18 +207,23 @@ export default function WarehouseDashboard() {
       console.log('🏭 Loading warehouse dashboard data (ultra-fast mode)...');
       setLoading(true);
       
-      // ULTRA-FAST MODE: Load only active branches for warehouse operations
+      // Load branches with filtering for warehouse users
       const branchesData = await getActiveBranchesOnly().catch(() => []);
-      console.log('🏢 Using only active branches in warehouse operations');
       const oilTypesData = await getAllOilTypes().catch(() => []);
       
-      console.log('⚡ Fast load:', { branches: branchesData.length, oilTypes: oilTypesData.length });
+      // Filter branches for warehouse users with assigned branches
+      const filteredBranches = isRestrictedUser 
+        ? branchesData.filter(branch => userBranchIds.includes(branch.id))
+        : branchesData;
+      
+      console.log(`🏢 Loaded ${filteredBranches.length} branches for ${user?.role} user:`, 
+        filteredBranches.map(b => b.name));
       
       // Set data and extract tanks immediately
-      setBranches(branchesData || []);
+      setBranches(filteredBranches || []);
       setOilTypes(oilTypesData || []);
       
-      const oilTanksData = extractOilTanksFromBranches(branchesData, oilTypesData);
+      const oilTanksData = extractOilTanksFromBranches(filteredBranches, oilTypesData);
       setOilTanks(oilTanksData);
       
       console.log('⚡ Tanks ready:', oilTanksData.length);
@@ -222,17 +231,20 @@ export default function WarehouseDashboard() {
       // Load everything else much later to avoid any blocking
       setTimeout(async () => {
         try {
-          // Minimal recent transactions only
-          const recentTxs = await getDocs(query(
-            collection(db, 'transactions'),
-            orderBy('timestamp', 'desc'),
-            limit(10)
-          )).then(snapshot => 
-            snapshot.docs.map(doc => ({ 
-              id: doc.id, 
-              ...doc.data()
-            }))
-          ).catch(() => []);
+          // Load recent transactions (filtered for warehouse users)
+          const allTxs = await getAllTransactions().catch(() => []);
+          const filteredTxs = isRestrictedUser 
+            ? allTxs.filter(tx => userBranchIds.includes(tx.branchId))
+            : allTxs;
+          
+          // Take only recent 10 transactions
+          const recentTxs = filteredTxs
+            .sort((a, b) => {
+              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+              return dateB.getTime() - dateA.getTime();
+            })
+            .slice(0, 10);
           
           setRecentTransactions(recentTxs);
           
@@ -241,16 +253,25 @@ export default function WarehouseDashboard() {
           console.log('👥 Got drivers:', driversData.length);
           setDrivers(driversData);
           
-          // Minimal update logs
-          const recentLogs = await getDocs(query(
+          // Load update logs (filtered for warehouse users)
+          const allLogs = await getDocs(query(
             collection(db, 'tankUpdateLogs'),
             orderBy('updatedAt', 'desc'),
-            limit(10)
+            limit(50)
           )).then(snapshot => 
             snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpdateLog))
           ).catch(() => []);
           
-          setUpdateLogs(recentLogs);
+          const filteredLogs = isRestrictedUser 
+            ? allLogs.filter(log => {
+                // Filter by branch name since logs might not have branchId
+                const logBranchName = log.branchName;
+                const userBranchNames = filteredBranches.map(b => b.name);
+                return userBranchNames.includes(logBranchName);
+              })
+            : allLogs;
+          
+          setUpdateLogs(filteredLogs.slice(0, 10));
           
         } catch (error) {
           console.error('Background load error:', error);

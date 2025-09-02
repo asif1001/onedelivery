@@ -14,7 +14,14 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (September 2025)
 
-### ✅ Critical Branch Oil Update Fix - DEPLOYED (Latest - September 2, 2025)
+### ✅ Warehouse Branch Assignment System - DEPLOYED (Latest - September 2, 2025)
+- **Branch assignment for warehouse users**: Admins can now assign specific branches to warehouse staff during user creation
+- **Enhanced user management**: Branch selection interface for warehouse and branch users with multi-select checkboxes
+- **Filtered warehouse dashboard**: Warehouse users now only see data (branches, transactions, logs) for their assigned branches
+- **Role-based access control**: Warehouse users with assigned branches get filtered views similar to branch users
+- **Improved data security**: Branch-restricted warehouse users cannot access data from other branches
+
+### ✅ Critical Branch Oil Update Fix - DEPLOYED (September 2, 2025)
 - **Fixed infinite loading bug**: Branch users' oil level updates no longer get stuck on "Loading branch dashboard..."
 - **Added timeout protection**: Photo processing (10s), uploads (15s), and database updates (20s) now have timeouts
 - **Enhanced error handling**: Better error recovery for photo watermarking, Firebase Storage uploads, and transaction logging
