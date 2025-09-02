@@ -3102,6 +3102,36 @@ export default function WarehouseDashboard() {
                         } catch (e) {}
                       });
                       
+                      // Ensure all branches have all their configured oil types (even if no recent activity)
+                      // This is important because oil types with no activity in last 30 days still need "Needs update" badge
+                      branches.forEach(branchConfig => {
+                        // For each configured branch, ensure all its oil types are represented
+                        const branchOilTypes = oilTanks.filter(tank => tank.branchName === branchConfig.name);
+                        
+                        // Create branch entry if it doesn't exist
+                        if (!branchData.has(branchConfig.name)) {
+                          branchData.set(branchConfig.name, {
+                            branchName: branchConfig.name,
+                            lastActivity: null,
+                            oilTypes: new Map()
+                          });
+                        }
+                        
+                        const branchDataEntry = branchData.get(branchConfig.name)!;
+                        
+                        branchOilTypes.forEach(tank => {
+                          if (!branchDataEntry.oilTypes.has(tank.oilTypeName)) {
+                            // Add oil type with no activity data (will show "Needs update")
+                            branchDataEntry.oilTypes.set(tank.oilTypeName, {
+                              oilTypeName: tank.oilTypeName,
+                              manualUpdate: null,
+                              supplyLoading: null
+                            });
+                            console.log(`➕ Added missing oil type ${tank.oilTypeName} for branch ${branchConfig.name} (no recent activity)`);
+                          }
+                        });
+                      });
+                      
                       // Filter branches based on user assignments (same logic as Stock Update tab)
                       let filteredBranches = Array.from(branchData.values());
                       
@@ -3216,7 +3246,7 @@ export default function WarehouseDashboard() {
                             
                             <div className="space-y-2">
                               {oilTypesArray.map((oilType, index) => {
-                                // Check if this oil type needs attention (>7 days since last update)
+                                // Check if this oil type needs attention (>7 days since last update OR no data found)
                                 const getOilTypeStatus = (oilType: any) => {
                                   const now = new Date();
                                   let lastUpdateDate = null;
@@ -3233,7 +3263,8 @@ export default function WarehouseDashboard() {
                                     lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
                                   }
                                   
-                                  if (!lastUpdateDate) return 'red'; // No updates at all
+                                  // If no recent data found (within 30 days), assume it needs update
+                                  if (!lastUpdateDate) return 'red'; 
                                   
                                   const daysSinceUpdate = Math.floor((now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
                                   return daysSinceUpdate > 7 ? 'red' : 'normal';
