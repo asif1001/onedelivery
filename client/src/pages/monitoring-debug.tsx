@@ -4,378 +4,170 @@ import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Simple theme detection
 const useTheme = () => ({ theme: 'light' });
 
-interface ManualUpdateData {
+interface MonitoringRow {
   branchName: string;
-  branchId: string;
   oilTypeName: string;
-  oilTypeId: string;
-  lastUpdatedAt: string;
-  updatedBy: string;
-  docId: string;
-}
-
-interface SupplyLoadingData {
-  branchName: string;
-  branchId: string;
-  oilTypeName: string;
-  oilTypeId: string;
-  lastTxnTime: string;
-  updatedByDriverName: string;
-  type: string;
-  docId: string;
+  txnLastTime: string;
+  txnBy: string;
+  manualLastTime: string;
+  manualBy: string;
+  debugInfo: {
+    branchId: string;
+    oilTypeId: string;
+    tankId?: string;
+    rawTxnData?: any;
+    rawManualData?: any;
+    txnDocPath?: string;
+    manualDocPath?: string;
+  };
 }
 
 const MonitoringDebug: React.FC = () => {
-  const [manualUpdates, setManualUpdates] = useState<ManualUpdateData[]>([]);
-  const [supplyLoading, setSupplyLoading] = useState<SupplyLoadingData[]>([]);
-  const [rawTankUpdateLogs, setRawTankUpdateLogs] = useState<any[]>([]);
-  const [rawTransactions, setRawTransactions] = useState<any[]>([]);
+  const [monitoringRows, setMonitoringRows] = useState<MonitoringRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [use30DayFilter, setUse30DayFilter] = useState(false);
   const { theme } = useTheme();
 
-  // Helper function to convert timestamps and calculate days ago
-  const formatTimestamp = (ts: any): string => {
-    if (!ts) return '–';
-    try {
-      const dt = ts?.toDate ? ts.toDate() : new Date(ts);
-      const daysAgo = Math.floor((Date.now() - dt.getTime()) / (1000 * 60 * 60 * 24));
-      const isoString = dt.toISOString();
-      return `${isoString} (${daysAgo} days ago)`;
-    } catch (e) {
-      return '–';
-    }
-  };
-
-  // Get sample documents for console diagnostics
-  const getSampleDocs = async (branchId: string) => {
-    console.log(`\n📋 Getting sample docs for branch: ${branchId}`);
+  // Get latest supply/loading transaction (no date limit)
+  const getLatestTransaction = async (branchId: string, oilTypeId: string) => {
+    console.log(`\n🚛 Getting latest transaction for branchId: ${branchId}, oilTypeId: ${oilTypeId}`);
     
-    try {
-      // Sample tankUpdateLogs doc
-      const tankLogsQuery = query(
-        collection(db, 'tankUpdateLogs'),
-        where('branchId', '==', branchId),
-        limit(1)
-      );
-      const tankLogsSnapshot = await getDocs(tankLogsQuery);
-      if (!tankLogsSnapshot.empty) {
-        const sampleLog = tankLogsSnapshot.docs[0];
-        console.log(`📄 Sample tankUpdateLogs doc ID: ${sampleLog.id}`);
-        console.log('📄 Sample tankUpdateLogs available keys:', Object.keys(sampleLog.data()));
-        console.log('📄 Sample tankUpdateLogs data:', sampleLog.data());
-      } else {
-        console.log('⚠️ No tankUpdateLogs found for this branch');
-      }
-
-      // Sample transactions doc
-      const transactionsQuery = query(
-        collection(db, 'transactions'),
-        where('branchId', '==', branchId),
-        limit(1)
-      );
-      const transactionsSnapshot = await getDocs(transactionsQuery);
-      if (!transactionsSnapshot.empty) {
-        const sampleTxn = transactionsSnapshot.docs[0];
-        console.log(`📄 Sample transactions doc ID: ${sampleTxn.id}`);
-        console.log('📄 Sample transactions available keys:', Object.keys(sampleTxn.data()));
-        console.log('📄 Sample transactions data:', sampleTxn.data());
-      } else {
-        console.log('⚠️ No transactions found for this branch');
-      }
-    } catch (error) {
-      console.error('Error getting sample docs:', error);
-    }
-  };
-
-  // Query manual updates for specific branch+oilType
-  const queryManualUpdate = async (branchId: string, oilTypeId: string, oilTypeName: string, branchName: string) => {
-    console.log(`\n🔍 Querying manual updates for branchId: ${branchId}, oilTypeId: ${oilTypeId}`);
-    
-    // Build date filter if enabled
-    const dateFilter = use30DayFilter 
-      ? Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000))
-      : null;
+    const base = [
+      where("branchId", "==", branchId),
+      where("oilTypeId", "==", oilTypeId),
+      where("type", "in", ["supply", "loading"]),
+    ];
 
     try {
-      // Primary query: by oilTypeId
-      const primaryFilters = [
-        where("branchId", "==", branchId),
-        where("oilTypeId", "==", oilTypeId),
-        where("updateType", "==", "manual")
-      ];
-      
-      if (dateFilter) {
-        primaryFilters.push(where("updatedAt", ">=", dateFilter));
-      }
-      
-      const primaryQuery = query(
-        collection(db, "tankUpdateLogs"),
-        ...primaryFilters,
-        orderBy("updatedAt", "desc"),
-        limit(1)
-      );
-      
-      console.log('🔍 Manual update query constraints:', primaryFilters.map(f => f.toString()));
-      const primarySnapshot = await getDocs(primaryQuery);
-      
-      if (!primarySnapshot.empty) {
-        const doc = primarySnapshot.docs[0];
-        const data = doc.data();
-        console.log(`✅ Found manual update by oilTypeId:`, data);
-        
-        return {
-          branchName,
-          branchId,
-          oilTypeName,
-          oilTypeId,
-          lastUpdatedAt: formatTimestamp(data.updatedAt),
-          updatedBy: data.updatedBy || '–',
-          docId: doc.id
-        };
-      } else {
-        console.log(`❌ No manual update found by oilTypeId, trying tankId fallback...`);
-        
-        // Fallback: try by tankId
-        const tankId = `${branchId}_tank_0`; // Simple fallback tankId
-        const fallbackFilters = [
-          where("branchId", "==", branchId),
-          where("tankId", "==", tankId),
-          where("updateType", "==", "manual")
-        ];
-        
-        if (dateFilter) {
-          fallbackFilters.push(where("updatedAt", ">=", dateFilter));
-        }
-        
-        const fallbackQuery = query(
-          collection(db, "tankUpdateLogs"),
-          ...fallbackFilters,
-          orderBy("updatedAt", "desc"),
-          limit(1)
-        );
-        
-        console.log('🔍 Manual update fallback query constraints:', fallbackFilters.map(f => f.toString()));
-        const fallbackSnapshot = await getDocs(fallbackQuery);
-        
-        if (!fallbackSnapshot.empty) {
-          const doc = fallbackSnapshot.docs[0];
-          const data = doc.data();
-          console.log(`✅ Found manual update by tankId fallback:`, data);
-          
-          return {
-            branchName,
-            branchId,
-            oilTypeName,
-            oilTypeId,
-            lastUpdatedAt: formatTimestamp(data.updatedAt),
-            updatedBy: data.updatedBy || '–',
-            docId: doc.id
-          };
-        } else {
-          console.log(`❌ No manual update found by tankId fallback either`);
-        }
-      }
-    } catch (error: any) {
-      console.error('Manual query error:', error);
-      if (error.message.includes('index')) {
-        console.log('🔗 Index creation needed - check Firebase console for the link');
-      }
-    }
-    
-    // Return empty result if no data found
-    return {
-      branchName,
-      branchId,
-      oilTypeName,
-      oilTypeId,
-      lastUpdatedAt: '–',
-      updatedBy: '–',
-      docId: '–'
-    };
-  };
-
-  // Query supply/loading transactions for specific branch+oilType
-  const querySupplyLoading = async (branchId: string, oilTypeId: string, oilTypeName: string, branchName: string) => {
-    console.log(`\n🚛 Querying supply/loading for branchId: ${branchId}, oilTypeId: ${oilTypeId}`);
-    
-    // Build date filter if enabled
-    const dateFilter = use30DayFilter 
-      ? Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000))
-      : null;
-
-    try {
-      // Primary query: by oilTypeId with timestamp
-      const primaryFilters = [
-        where("branchId", "==", branchId),
-        where("oilTypeId", "==", oilTypeId),
-        where("type", "in", ["supply", "loading"])
-      ];
-      
-      if (dateFilter) {
-        primaryFilters.push(where("timestamp", ">=", dateFilter));
-      }
-      
-      const primaryQuery = query(
+      // Try timestamp first
+      let q = query(
         collection(db, "transactions"),
-        ...primaryFilters,
+        ...base,
         orderBy("timestamp", "desc"),
         limit(1)
       );
       
-      console.log('🔍 Supply/loading query constraints:', primaryFilters.map(f => f.toString()));
-      const primarySnapshot = await getDocs(primaryQuery);
-      
-      if (!primarySnapshot.empty) {
-        const doc = primarySnapshot.docs[0];
-        const data = doc.data();
-        console.log(`✅ Found supply/loading transaction:`, data);
-        
-        return {
-          branchName,
-          branchId,
-          oilTypeName,
-          oilTypeId,
-          lastTxnTime: formatTimestamp(data.timestamp),
-          updatedByDriverName: data.driverName || '–',
-          type: data.type || '–',
-          docId: doc.id
-        };
-      } else {
-        console.log(`❌ No supply/loading found by timestamp, trying createdAt fallback...`);
-        
-        // Fallback: try createdAt instead of timestamp
-        const fallbackFilters = [
-          where("branchId", "==", branchId),
-          where("oilTypeId", "==", oilTypeId),
-          where("type", "in", ["supply", "loading"])
-        ];
-        
-        if (dateFilter) {
-          fallbackFilters.push(where("createdAt", ">=", dateFilter));
-        }
-        
-        const fallbackQuery = query(
+      console.log('🔍 Trying transactions query with timestamp orderBy');
+      let snap = await getDocs(q);
+
+      // Fallback to createdAt if needed
+      if (snap.empty) {
+        console.log('❌ No results with timestamp, trying createdAt fallback');
+        q = query(
           collection(db, "transactions"),
-          ...fallbackFilters,
+          ...base,
           orderBy("createdAt", "desc"),
           limit(1)
         );
-        
-        console.log('🔍 Supply/loading createdAt fallback query constraints:', fallbackFilters.map(f => f.toString()));
-        const fallbackSnapshot = await getDocs(fallbackQuery);
-        
-        if (!fallbackSnapshot.empty) {
-          const doc = fallbackSnapshot.docs[0];
-          const data = doc.data();
-          console.log(`✅ Found supply/loading by createdAt fallback:`, data);
-          
-          return {
-            branchName,
-            branchId,
-            oilTypeName,
-            oilTypeId,
-            lastTxnTime: formatTimestamp(data.createdAt),
-            updatedByDriverName: data.driverName || '–',
-            type: data.type || '–',
-            docId: doc.id
-          };
-        } else {
-          console.log(`❌ No supply/loading found by createdAt fallback either`);
-        }
+        snap = await getDocs(q);
       }
+
+      let txnTime = "-";
+      let txnBy = "-";
+      let rawData = null;
+      let docPath = null;
+
+      if (!snap.empty) {
+        const doc = snap.docs[0];
+        const d = doc.data();
+        const dtRaw = d.timestamp ?? d.createdAt;
+        const dt = dtRaw?.toDate ? dtRaw.toDate() : new Date(dtRaw);
+        txnTime = dt.toISOString();
+        txnBy = d.driverName ?? "-";
+        rawData = d;
+        docPath = `transactions/${doc.id}`;
+        
+        console.log(`✅ Found transaction: ${txnTime} by ${txnBy}`);
+        console.log('📄 Raw transaction data:', rawData);
+        console.log('📍 Document path:', docPath);
+      } else {
+        console.log('❌ No transactions found for this pair');
+      }
+
+      return { txnTime, txnBy, rawData, docPath };
     } catch (error: any) {
-      console.error('Supply/loading query error:', error);
+      console.error('❌ Transaction query error:', error);
       if (error.message.includes('index')) {
-        console.log('🔗 Index creation needed - check Firebase console for the link');
+        console.log('🔗 Index creation needed for transactions query');
       }
+      return { txnTime: "-", txnBy: "-", rawData: null, docPath: null };
     }
-    
-    // Return empty result if no data found
-    return {
-      branchName,
-      branchId,
-      oilTypeName,
-      oilTypeId,
-      lastTxnTime: '–',
-      updatedByDriverName: '–',
-      type: '–',
-      docId: '–'
-    };
   };
 
-  // Fetch raw data from both collections
-  const fetchRawCollectionData = async () => {
-    console.log('📊 Fetching raw collection data...');
+  // Get latest manual update (last 30 days only)
+  const getLatestManual = async (branchId: string, oilTypeId: string, tankId?: string) => {
+    console.log(`\n🔍 Getting latest manual update for branchId: ${branchId}, oilTypeId: ${oilTypeId}, tankId: ${tankId}`);
     
-    try {
-      // Fetch raw tankUpdateLogs
-      const tankLogsQuery = query(
-        collection(db, 'tankUpdateLogs'),
-        orderBy('updatedAt', 'desc'),
-        limit(50) // Get recent 50 documents
-      );
-      const tankLogsSnapshot = await getDocs(tankLogsQuery);
-      const rawTankLogs = tankLogsSnapshot.docs.map(doc => ({
-        docId: doc.id,
-        ...doc.data()
-      }));
-      
-      console.log(`📋 Found ${rawTankLogs.length} tankUpdateLogs documents`);
-      setRawTankUpdateLogs(rawTankLogs);
-      
-      // Fetch raw transactions
-      const transactionsQuery = query(
-        collection(db, 'transactions'),
-        orderBy('timestamp', 'desc'),
-        limit(50) // Get recent 50 documents
-      );
-      const transactionsSnapshot = await getDocs(transactionsQuery);
-      const rawTxns = transactionsSnapshot.docs.map(doc => ({
-        docId: doc.id,
-        ...doc.data()
-      }));
-      
-      console.log(`📋 Found ${rawTxns.length} transactions documents`);
-      setRawTransactions(rawTxns);
-      
-    } catch (error: any) {
-      console.error('❌ Error fetching raw collection data:', error);
-      
-      // Try fallback query for transactions if timestamp orderBy fails
+    const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
+
+    const tryWith = async (field: string, value: string) => {
+      console.log(`🔍 Trying manual update query with ${field}: ${value}`);
       try {
-        const fallbackTransactionsQuery = query(
-          collection(db, 'transactions'),
-          limit(50)
+        const q = query(
+          collection(db, "tankUpdateLogs"),
+          where("branchId", "==", branchId),
+          where(field, "==", value),
+          where("updateType", "in", ["manual", "manual_with_photos"]),
+          where("updatedAt", ">=", since30d),
+          orderBy("updatedAt", "desc"),
+          limit(1)
         );
-        const fallbackSnapshot = await getDocs(fallbackTransactionsQuery);
-        const fallbackTxns = fallbackSnapshot.docs.map(doc => ({
-          docId: doc.id,
-          ...doc.data()
-        }));
+        const snap = await getDocs(q);
         
-        console.log(`📋 Fallback: Found ${fallbackTxns.length} transactions documents`);
-        setRawTransactions(fallbackTxns);
-      } catch (fallbackError) {
-        console.error('❌ Fallback transactions query also failed:', fallbackError);
+        if (snap.empty) {
+          console.log(`❌ No manual updates found with ${field}: ${value}`);
+          return null;
+        }
+        
+        const doc = snap.docs[0];
+        const d = doc.data();
+        const dt = d.updatedAt?.toDate ? d.updatedAt.toDate() : new Date(d.updatedAt);
+        const result = { 
+          time: dt.toISOString(), 
+          by: d.updatedBy ?? "-",
+          rawData: d,
+          docPath: `tankUpdateLogs/${doc.id}`
+        };
+        
+        console.log(`✅ Found manual update with ${field}: ${result.time} by ${result.by}`);
+        console.log('📄 Raw manual data:', result.rawData);
+        console.log('📍 Document path:', result.docPath);
+        
+        return result;
+      } catch (error: any) {
+        console.error(`❌ Manual query error with ${field}:`, error);
+        if (error.message.includes('index')) {
+          console.log(`🔗 Index creation needed for tankUpdateLogs query with ${field}`);
+        }
+        return null;
       }
+    };
+
+    // Try tankId first (if available), then oilTypeId
+    const manual = (tankId && await tryWith("tankId", tankId))
+                || (oilTypeId && await tryWith("oilTypeId", oilTypeId))
+                || null;
+
+    const manualTime = manual?.time ?? "-";
+    const manualBy = manual?.by ?? "-";
+    const rawData = manual?.rawData ?? null;
+    const docPath = manual?.docPath ?? null;
+
+    if (!manual) {
+      console.log('❌ No manual updates found with any field');
     }
+
+    return { manualTime, manualBy, rawData, docPath };
   };
 
-  const fetchDebugData = async () => {
+  const fetchMonitoringData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('🔍 Starting debug data fetch...');
-      console.log('📅 Using 30-day filter:', use30DayFilter);
-      
-      // Fetch raw collection data first
-      await fetchRawCollectionData();
+      console.log('🔍 Starting monitoring debug fetch...');
       
       // Get all branches and their tanks
       const branchesSnapshot = await getDocs(collection(db, 'branches'));
@@ -384,22 +176,19 @@ const MonitoringDebug: React.FC = () => {
         ...doc.data()
       }));
       
-      console.log('📊 Found branches:', branches.length);
+      console.log(`📊 Found ${branches.length} branches`);
       
-      const manualResults: ManualUpdateData[] = [];
-      const supplyResults: SupplyLoadingData[] = [];
+      const rows: MonitoringRow[] = [];
       
       for (const branch of branches) {
         console.log(`\n🏢 Processing branch: ${branch.name} (${branch.id})`);
-        
-        // Get sample docs for this branch
-        await getSampleDocs(branch.id);
         
         const oilTanks = branch.oilTanks || [];
         console.log(`🛢️ Found ${oilTanks.length} tanks in branch`);
         
         for (let tankIndex = 0; tankIndex < oilTanks.length; tankIndex++) {
           const tank = oilTanks[tankIndex];
+          const tankId = `${branch.id}_tank_${tankIndex}`;
           
           console.log(`\n🔍 Processing tank ${tankIndex}:`);
           console.log(`🛢️ Tank details:`, {
@@ -409,35 +198,54 @@ const MonitoringDebug: React.FC = () => {
             capacity: tank.capacity
           });
           
-          // Query manual updates for this branch+oilType pair
-          const manualResult = await queryManualUpdate(
+          // Get latest transaction (no date limit)
+          const { txnTime, txnBy, rawData: txnRawData, docPath: txnDocPath } = await getLatestTransaction(
             branch.id,
-            tank.oilTypeId,
-            tank.oilTypeName,
-            branch.name
+            tank.oilTypeId
           );
-          manualResults.push(manualResult);
           
-          // Query supply/loading for this branch+oilType pair
-          const supplyResult = await querySupplyLoading(
+          // Get latest manual update (30 days only)
+          const { manualTime, manualBy, rawData: manualRawData, docPath: manualDocPath } = await getLatestManual(
             branch.id,
             tank.oilTypeId,
-            tank.oilTypeName,
-            branch.name
+            tankId
           );
-          supplyResults.push(supplyResult);
+          
+          const row: MonitoringRow = {
+            branchName: branch.name || branch.id,
+            oilTypeName: tank.oilTypeName || 'Unknown',
+            txnLastTime: txnTime,
+            txnBy: txnBy,
+            manualLastTime: manualTime,
+            manualBy: manualBy,
+            debugInfo: {
+              branchId: branch.id,
+              oilTypeId: tank.oilTypeId,
+              tankId: tankId,
+              rawTxnData: txnRawData,
+              rawManualData: manualRawData,
+              txnDocPath: txnDocPath,
+              manualDocPath: manualDocPath
+            }
+          };
+          
+          rows.push(row);
+          
+          // Console log the row as requested
+          console.log(`\n📊 Row for ${branch.name} - ${tank.oilTypeName}:`);
+          console.log(`${row.branchName} | ${row.oilTypeName} | ${row.txnLastTime} | ${row.txnBy} | ${row.manualLastTime} | ${row.manualBy}`);
+          console.log('🔍 Debug info:', row.debugInfo);
         }
       }
       
-      console.log(`\n✅ Debug fetch complete.`);
-      console.log(`📋 Manual updates found: ${manualResults.filter(r => r.lastUpdatedAt !== '–').length}/${manualResults.length}`);
-      console.log(`📋 Supply/loading found: ${supplyResults.filter(r => r.lastTxnTime !== '–').length}/${supplyResults.length}`);
+      console.log(`\n✅ Monitoring debug complete. Generated ${rows.length} rows.`);
+      console.log(`📋 Rows with transaction data: ${rows.filter(r => r.txnLastTime !== '-').length}`);
+      console.log(`📋 Rows with manual data (30d): ${rows.filter(r => r.manualLastTime !== '-').length}`);
       
-      setManualUpdates(manualResults);
-      setSupplyLoading(supplyResults);
+      setMonitoringRows(rows);
       
     } catch (error: any) {
-      console.error('❌ Debug fetch error:', error);
+      console.error('❌ Monitoring debug error:', error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -445,8 +253,8 @@ const MonitoringDebug: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchDebugData();
-  }, [use30DayFilter]); // Refetch when date filter changes
+    fetchMonitoringData();
+  }, []); // Fetch once on mount
 
   return (
     <div className={`min-h-screen p-6 ${
@@ -454,26 +262,18 @@ const MonitoringDebug: React.FC = () => {
     }`}>
       <div className="max-w-7xl mx-auto">
         <div className="mb-6">
-          <h1 className="text-3xl font-bold mb-2">Monitoring Debug - Separate Collections</h1>
+          <h1 className="text-3xl font-bold mb-2">Monitoring Debug - Per Branch+OilType Pair</h1>
           <p className="text-gray-600 mb-4">
-            Query each collection separately to verify data availability and field names.
+            One row per (branchId, oilTypeId) pair showing latest transaction and manual update (30d).
           </p>
           
           <div className="flex gap-4 mb-4">
             <Button
-              onClick={fetchDebugData}
+              onClick={fetchMonitoringData}
               disabled={loading}
               className="flex items-center gap-2"
             >
               {loading ? 'Loading...' : 'Refresh Data'}
-            </Button>
-            
-            <Button
-              onClick={() => setUse30DayFilter(!use30DayFilter)}
-              variant={use30DayFilter ? "default" : "outline"}
-              className="flex items-center gap-2"
-            >
-              {use30DayFilter ? 'Using 30-day filter' : 'No date filter'}
             </Button>
           </div>
           
@@ -484,10 +284,9 @@ const MonitoringDebug: React.FC = () => {
           )}
         </div>
 
-        {/* Table A - Manual Updates */}
-        <Card className="mb-6">
+        <Card>
           <CardHeader>
-            <CardTitle>Table A - Manual Updates (tankUpdateLogs)</CardTitle>
+            <CardTitle>Monitoring Results ({monitoringRows.length} pairs)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -495,177 +294,100 @@ const MonitoringDebug: React.FC = () => {
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 px-4 py-2 text-left">branchName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">branchId</th>
                     <th className="border border-gray-300 px-4 py-2 text-left">oilTypeName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">oilTypeId</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">lastUpdatedAt</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">updatedBy</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">docId</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Txn.lastTime</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Txn.by</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Manual(30d).lastTime</th>
+                    <th className="border border-gray-300 px-4 py-2 text-left">Manual(30d).by</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {manualUpdates.map((row, index) => (
+                  {monitoringRows.map((row, index) => (
                     <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                       <td className="border border-gray-300 px-4 py-2">{row.branchName}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-sm">{row.branchId}</td>
                       <td className="border border-gray-300 px-4 py-2">{row.oilTypeName}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-sm">{row.oilTypeId}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs">{row.lastUpdatedAt}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.updatedBy}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-xs">{row.docId}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm font-mono">{row.txnLastTime}</td>
+                      <td className="border border-gray-300 px-4 py-2">{row.txnBy}</td>
+                      <td className="border border-gray-300 px-4 py-2 text-sm font-mono">{row.manualLastTime}</td>
+                      <td className="border border-gray-300 px-4 py-2">{row.manualBy}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
             
-            {manualUpdates.length === 0 && !loading && (
+            {monitoringRows.length === 0 && !loading && (
               <div className="text-center py-8 text-gray-500">
-                No manual updates data. Click "Refresh Data" to fetch.
+                No monitoring data available. Click "Refresh Data" to fetch.
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Table B - Supply/Loading */}
-        <Card className="mb-6">
+        {/* Debug Details */}
+        <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Table B - Supply/Loading (transactions)</CardTitle>
+            <CardTitle>Debug Details & Raw Data</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-4 py-2 text-left">branchName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">branchId</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">oilTypeName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">oilTypeId</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">lastTxnTime</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">updatedBy(driverName)</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">type</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">docId</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {supplyLoading.map((row, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="border border-gray-300 px-4 py-2">{row.branchName}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-sm">{row.branchId}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.oilTypeName}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-sm">{row.oilTypeId}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs">{row.lastTxnTime}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.updatedByDriverName}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.type}</td>
-                      <td className="border border-gray-300 px-4 py-2 font-mono text-xs">{row.docId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {supplyLoading.length === 0 && !loading && (
-              <div className="text-center py-8 text-gray-500">
-                No supply/loading data. Click "Refresh Data" to fetch.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Raw Collection Data Tables */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Raw Collection Data - tankUpdateLogs (Recent 50)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              {rawTankUpdateLogs.length > 0 ? (
-                <table className="w-full border-collapse border border-gray-300 text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      {Object.keys(rawTankUpdateLogs[0] || {}).map((key) => (
-                        <th key={key} className="border border-gray-300 px-2 py-1 text-left font-mono text-xs">
-                          {key}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rawTankUpdateLogs.map((row, index) => (
-                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        {Object.keys(rawTankUpdateLogs[0] || {}).map((key) => (
-                          <td key={key} className="border border-gray-300 px-2 py-1 text-xs">
-                            {typeof row[key] === 'object' && row[key] !== null ? 
-                              (row[key]?.toDate ? row[key].toDate().toISOString() : JSON.stringify(row[key])) :
-                              String(row[key] || '–')
-                            }
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No tankUpdateLogs data available. Click "Refresh Data" to fetch.
+            <div className="space-y-4">
+              {monitoringRows.map((row, index) => (
+                <div key={index} className="border border-gray-200 rounded p-4">
+                  <h3 className="font-semibold mb-2">
+                    {row.branchName} - {row.oilTypeName}
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <strong>Branch ID:</strong> {row.debugInfo.branchId}<br/>
+                      <strong>Oil Type ID:</strong> {row.debugInfo.oilTypeId}<br/>
+                      <strong>Tank ID:</strong> {row.debugInfo.tankId || 'N/A'}
+                    </div>
+                    <div>
+                      <strong>Transaction Doc:</strong> {row.debugInfo.txnDocPath || 'None'}<br/>
+                      <strong>Manual Doc:</strong> {row.debugInfo.manualDocPath || 'None'}
+                    </div>
+                  </div>
+                  
+                  {(row.debugInfo.rawTxnData || row.debugInfo.rawManualData) && (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer font-medium text-blue-600">
+                        Show Raw Data Objects
+                      </summary>
+                      <div className="mt-2 space-y-2">
+                        {row.debugInfo.rawTxnData && (
+                          <div>
+                            <strong>Transaction Raw Data:</strong>
+                            <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
+                              {JSON.stringify(row.debugInfo.rawTxnData, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                        {row.debugInfo.rawManualData && (
+                          <div>
+                            <strong>Manual Update Raw Data:</strong>
+                            <pre className="bg-gray-100 p-2 rounded text-xs overflow-x-auto">
+                              {JSON.stringify(row.debugInfo.rawManualData, null, 2)}
+                            </pre>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  )}
                 </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>Raw Collection Data - transactions (Recent 50)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              {rawTransactions.length > 0 ? (
-                <table className="w-full border-collapse border border-gray-300 text-sm">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      {Object.keys(rawTransactions[0] || {}).map((key) => (
-                        <th key={key} className="border border-gray-300 px-2 py-1 text-left font-mono text-xs">
-                          {key}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rawTransactions.map((row, index) => (
-                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                        {Object.keys(rawTransactions[0] || {}).map((key) => (
-                          <td key={key} className="border border-gray-300 px-2 py-1 text-xs">
-                            {typeof row[key] === 'object' && row[key] !== null ? 
-                              (row[key]?.toDate ? row[key].toDate().toISOString() : JSON.stringify(row[key])) :
-                              String(row[key] || '–')
-                            }
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  No transactions data available. Click "Refresh Data" to fetch.
-                </div>
-              )}
+              ))}
             </div>
           </CardContent>
         </Card>
 
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
-          <h3 className="font-semibold text-blue-800 mb-2">Debug Instructions:</h3>
-          <ol className="list-decimal pl-5 text-sm text-blue-700 space-y-1">
-            <li>Start with "No date filter" to see all available data</li>
-            <li>Check browser console for detailed query constraints and sample documents</li>
-            <li>Look for rows with actual data (not "–") to verify queries work</li>
-            <li>Toggle "30-day filter" to test date-based filtering</li>
-            <li>Non-empty rows indicate successful queries for those branch+oilType pairs</li>
-            <li>Console shows sample document structure and available field names</li>
-            <li><strong>Raw collection tables above show all actual field names without modification</strong></li>
-          </ol>
+          <h3 className="font-semibold text-blue-800 mb-2">Query Summary:</h3>
+          <div className="text-sm text-blue-700 space-y-2">
+            <p><strong>Transactions:</strong> Latest supply/loading per (branchId + oilTypeId), no date limit, prefer timestamp over createdAt</p>
+            <p><strong>Manual Updates:</strong> Latest manual update per pair, last 30 days only, try tankId then oilTypeId</p>
+            <p><strong>Console Logs:</strong> Check browser console for detailed query info, raw objects, and document paths</p>
+            <p><strong>Index Requirements:</strong> May need composite indexes for (branchId, oilTypeId, type) and (branchId, tankId/oilTypeId, updateType)</p>
+          </div>
         </div>
       </div>
     </div>
