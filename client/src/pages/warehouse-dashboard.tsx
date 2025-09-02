@@ -73,6 +73,22 @@ interface OilType {
   active?: boolean;
 }
 
+interface TransactionDebugRow {
+  oilTypeName: string;
+  driverName: string;
+  createdAt: string;
+  branchName: string;
+  docId: string;
+}
+
+interface TankUpdateLogRow {
+  oilTypeName: string;
+  branchName: string;
+  updatedAt: string;
+  updatedBy: string;
+  docId: string;
+}
+
 interface Transaction {
   id: string;
   type: 'loading' | 'supply' | 'delivery';
@@ -213,6 +229,13 @@ export default function WarehouseDashboard() {
   const [showLogDateFilter, setShowLogDateFilter] = useState(false);
   const [logStartDate, setLogStartDate] = useState('');
   const [logEndDate, setLogEndDate] = useState('');
+
+  // Monitoring debug states
+  const [transactionRows, setTransactionRows] = useState<TransactionDebugRow[]>([]);
+  const [tankUpdateRows, setTankUpdateRows] = useState<TankUpdateLogRow[]>([]);
+  const [monitoringLoading, setMonitoringLoading] = useState(false);
+  const [monitoringError, setMonitoringError] = useState<string | null>(null);
+  const [userAssignedBranches, setUserAssignedBranches] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (user && user.role === 'warehouse') {
@@ -1009,6 +1032,159 @@ export default function WarehouseDashboard() {
       });
     } finally {
       setIsBulkSubmitting(false);
+    }
+  };
+
+  // Helper to format timestamps for monitoring debug
+  const formatTimestamp = (ts: any): string => {
+    if (!ts) return '-';
+    try {
+      const dt = ts?.toDate ? ts.toDate() : new Date(ts);
+      return dt.toISOString();
+    } catch (e) {
+      return '-';
+    }
+  };
+
+  const fetchMonitoringDebugData = async () => {
+    setMonitoringLoading(true);
+    setMonitoringError(null);
+    
+    try {
+      console.log('🔍 Starting monitoring debug data fetch for last 30 days...');
+      
+      // Calculate 30 days ago
+      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
+      console.log(`📅 Fetching data since: ${since30d.toDate().toISOString()}`);
+      
+      // Get branches for branchId -> branchName conversion and user filtering
+      const branchesSnapshot = await getDocs(collection(db, 'branches'));
+      const branchMap = new Map<string, string>();
+      const assignedBranchNames = new Set<string>();
+      
+      // Get user data for filtering
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const userRole = userData?.role;
+      const userBranchIds = userData?.branchIds || [];
+      
+      branchesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const branchName = data.name || doc.id;
+        branchMap.set(doc.id, branchName);
+        
+        // If warehouse user with branch assignments, collect assigned branch names
+        if (userRole === 'warehouse' && userBranchIds.length > 0 && userBranchIds.includes(doc.id)) {
+          assignedBranchNames.add(branchName);
+        }
+      });
+      
+      console.log(`📊 Found ${branchMap.size} branches for name mapping`);
+      if (userRole === 'warehouse' && userBranchIds.length > 0) {
+        console.log(`👤 Warehouse user - showing ${assignedBranchNames.size} assigned branches only`);
+      }
+
+      // Fetch transactions from last 30 days
+      console.log('\n🚛 Fetching transactions from last 30 days...');
+      const transactionsQuery = query(
+        collection(db, 'transactions'),
+        where('createdAt', '>=', since30d),
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      );
+      
+      let transactionsSnapshot;
+      try {
+        transactionsSnapshot = await getDocs(transactionsQuery);
+      } catch (error: any) {
+        console.log('❌ createdAt query failed, trying timestamp...');
+        // Fallback to timestamp if createdAt fails
+        const fallbackQuery = query(
+          collection(db, 'transactions'),
+          where('timestamp', '>=', since30d),
+          orderBy('timestamp', 'desc'),
+          limit(100)
+        );
+        transactionsSnapshot = await getDocs(fallbackQuery);
+      }
+      
+      // Process transactions and keep only latest per branch+oilType
+      const txnMap = new Map<string, TransactionDebugRow>();
+      transactionsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
+        const oilTypeName = data.oilTypeName || 'Unknown';
+        const key = `${branchName}-${oilTypeName}`;
+        
+        const row: TransactionDebugRow = {
+          oilTypeName: oilTypeName,
+          driverName: data.driverName || '-',
+          createdAt: formatTimestamp(data.createdAt || data.timestamp),
+          branchName: branchName,
+          docId: doc.id
+        };
+        
+        // Keep only the latest (first in ordered results)
+        if (!txnMap.has(key)) {
+          txnMap.set(key, row);
+          console.log(`✅ Latest Transaction for ${key}: ${row.createdAt} by ${row.driverName}`);
+        } else {
+          console.log(`⏭️ Skipping older transaction for ${key}`);
+        }
+      });
+      
+      const txnResults = Array.from(txnMap.values());
+
+      // Fetch tankUpdateLogs from last 30 days
+      console.log('\n🛢️ Fetching tankUpdateLogs from last 30 days...');
+      const tankLogsQuery = query(
+        collection(db, 'tankUpdateLogs'),
+        where('updatedAt', '>=', since30d),
+        orderBy('updatedAt', 'desc'),
+        limit(100)
+      );
+      
+      const tankLogsSnapshot = await getDocs(tankLogsQuery);
+      
+      // Process tank updates and keep only latest per branch+oilType
+      const tankMap = new Map<string, TankUpdateLogRow>();
+      tankLogsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
+        const oilTypeName = data.oilTypeName || 'Unknown';
+        const key = `${branchName}-${oilTypeName}`;
+        
+        const row: TankUpdateLogRow = {
+          oilTypeName: oilTypeName,
+          branchName: branchName,
+          updatedAt: formatTimestamp(data.updatedAt),
+          updatedBy: data.updatedBy || '-',
+          docId: doc.id
+        };
+        
+        // Keep only the latest (first in ordered results)
+        if (!tankMap.has(key)) {
+          tankMap.set(key, row);
+          console.log(`✅ Latest Tank Update for ${key}: ${row.updatedAt} by ${row.updatedBy}`);
+        } else {
+          console.log(`⏭️ Skipping older tank update for ${key}`);
+        }
+      });
+      
+      const tankResults = Array.from(tankMap.values());
+      
+      console.log(`\n✅ Monitoring debug fetch complete.`);
+      console.log(`📋 Transactions (30d): ${txnResults.length}`);
+      console.log(`📋 Tank Updates (30d): ${tankResults.length}`);
+      
+      setTransactionRows(txnResults);
+      setTankUpdateRows(tankResults);
+      setUserAssignedBranches(assignedBranchNames);
+      
+    } catch (error: any) {
+      console.error('❌ Monitoring debug fetch error:', error);
+      setMonitoringError(error.message);
+    } finally {
+      setMonitoringLoading(false);
     }
   };
 
@@ -2779,27 +2955,242 @@ export default function WarehouseDashboard() {
 
           {/* Redirect to Debug Page for Monitoring */}
           <TabsContent value="tracking" className="space-y-4">
-            <Card className={themeClasses.card}>
-              <CardContent className="p-6">
-                <div className="text-center space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Branch Activity Summary</h3>
-                    <p className="text-gray-600 mb-4">
-                      View detailed branch activity monitoring with professional analytics
+            {/* Auto-fetch monitoring data when tab is accessed */}
+            {(() => {
+              React.useEffect(() => {
+                fetchMonitoringDebugData();
+                // Auto-refresh every 5 minutes
+                const interval = setInterval(fetchMonitoringDebugData, 5 * 60 * 1000);
+                return () => clearInterval(interval);
+              }, []);
+              return null;
+            })()}
+
+            {/* User Access Information */}
+            {(() => {
+              const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
+              const isWarehouseUser = currentUserData?.role === 'warehouse';
+              
+              if (isWarehouseUser && userAssignedBranches.size > 0) {
+                return (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircleIcon className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
+                    </div>
+                    <p className="text-sm text-blue-700">
+                      You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: {Array.from(userAssignedBranches).join(', ')}
                     </p>
-                    <button
-                      onClick={() => window.location.href = '/monitoring-debug'}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-                    >
-                      View Monitoring Dashboard →
-                    </button>
                   </div>
+                );
+              }
+              
+              return null;
+            })()}
+
+            {/* Error Display */}
+            {monitoringError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <span className="font-medium">Error:</span> {monitoringError}
                 </div>
+              </div>
+            )}
+
+            <Card className={themeClasses.card}>
+              <CardHeader className="pb-3">
+                <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
+                  <AlertCircleIcon className="h-4 w-4 text-blue-600" />
+                  Branch Stock Update Tracking
+                </CardTitle>
+                <p className={`text-sm ${themeClasses.secondaryText}`}>
+                  Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
+                </p>
+              </CardHeader>
+              <CardContent>
+                {monitoringLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="flex items-center gap-3">
+                      <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-gray-600">Loading monitoring data...</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {(() => {
+                      // Create hierarchical data structure
+                      const branchData = new Map<string, {
+                        branchName: string;
+                        lastActivity: Date | null;
+                        oilTypes: Map<string, {
+                          oilTypeName: string;
+                          manualUpdate: { updatedAt: string; updatedBy: string } | null;
+                          supplyLoading: { createdAt: string; driverName: string } | null;
+                        }>
+                      }>();
+                      
+                      // Process tank updates
+                      tankUpdateRows.forEach(tank => {
+                        if (!branchData.has(tank.branchName)) {
+                          branchData.set(tank.branchName, {
+                            branchName: tank.branchName,
+                            lastActivity: null,
+                            oilTypes: new Map()
+                          });
+                        }
+                        
+                        const branch = branchData.get(tank.branchName)!;
+                        if (!branch.oilTypes.has(tank.oilTypeName)) {
+                          branch.oilTypes.set(tank.oilTypeName, {
+                            oilTypeName: tank.oilTypeName,
+                            manualUpdate: null,
+                            supplyLoading: null
+                          });
+                        }
+                        
+                        const oilType = branch.oilTypes.get(tank.oilTypeName)!;
+                        oilType.manualUpdate = {
+                          updatedAt: tank.updatedAt,
+                          updatedBy: tank.updatedBy
+                        };
+                        
+                        // Update last activity for branch
+                        try {
+                          const updateDate = new Date(tank.updatedAt);
+                          if (!branch.lastActivity || updateDate > branch.lastActivity) {
+                            branch.lastActivity = updateDate;
+                          }
+                        } catch (e) {}
+                      });
+                      
+                      // Process transactions
+                      transactionRows.forEach(txn => {
+                        if (!branchData.has(txn.branchName)) {
+                          branchData.set(txn.branchName, {
+                            branchName: txn.branchName,
+                            lastActivity: null,
+                            oilTypes: new Map()
+                          });
+                        }
+                        
+                        const branch = branchData.get(txn.branchName)!;
+                        if (!branch.oilTypes.has(txn.oilTypeName)) {
+                          branch.oilTypes.set(txn.oilTypeName, {
+                            oilTypeName: txn.oilTypeName,
+                            manualUpdate: null,
+                            supplyLoading: null
+                          });
+                        }
+                        
+                        const oilType = branch.oilTypes.get(txn.oilTypeName)!;
+                        oilType.supplyLoading = {
+                          createdAt: txn.createdAt,
+                          driverName: txn.driverName
+                        };
+                        
+                        // Update last activity for branch
+                        try {
+                          const txnDate = new Date(txn.createdAt);
+                          if (!branch.lastActivity || txnDate > branch.lastActivity) {
+                            branch.lastActivity = txnDate;
+                          }
+                        } catch (e) {}
+                      });
+                      
+                      // Filter branches based on user assignments (warehouse users only)
+                      let filteredBranches = Array.from(branchData.values());
+                      
+                      // Get current user data for filtering
+                      const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
+                      const isWarehouseUser = currentUserData?.role === 'warehouse';
+                      
+                      // If warehouse user with branch assignments, filter branches
+                      if (isWarehouseUser && userAssignedBranches.size > 0) {
+                        const originalCount = filteredBranches.length;
+                        filteredBranches = filteredBranches.filter(branch => 
+                          userAssignedBranches.has(branch.branchName)
+                        );
+                        console.log(`🔒 Warehouse user filter: ${originalCount} → ${filteredBranches.length} branches (showing assigned only)`);
+                      } else if (isWarehouseUser) {
+                        console.log(`⚠️ Warehouse user but no branch assignments found`);
+                      } else {
+                        console.log(`👑 Admin user - showing all ${filteredBranches.length} branches`);
+                      }
+                      
+                      // Sort by last activity
+                      filteredBranches.sort((a, b) => {
+                        if (!a.lastActivity && !b.lastActivity) return a.branchName.localeCompare(b.branchName);
+                        if (!a.lastActivity) return 1;
+                        if (!b.lastActivity) return -1;
+                        return b.lastActivity.getTime() - a.lastActivity.getTime();
+                      });
+
+                      if (filteredBranches.length === 0) {
+                        return (
+                          <div className="col-span-full text-center py-8 text-gray-500">
+                            No branch data available for monitoring
+                          </div>
+                        );
+                      }
+
+                      return filteredBranches.map(branch => {
+                        const oilTypesArray = Array.from(branch.oilTypes.values());
+                        
+                        return (
+                          <div key={branch.branchName} className="bg-white border border-gray-200 rounded-lg p-4">
+                            <div className="mb-3">
+                              <h3 className="font-medium text-gray-900 text-sm mb-1">{branch.branchName}</h3>
+                              <p className="text-xs text-gray-500">
+                                {branch.lastActivity ? `Last activity: ${branch.lastActivity.toLocaleDateString()}` : 'No recent activity'}
+                              </p>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              {oilTypesArray.map((oilType, index) => (
+                                <div key={oilType.oilTypeName} className="text-xs">
+                                  <div className="font-medium text-gray-700 mb-1">
+                                    #{index + 1} {oilType.oilTypeName}
+                                  </div>
+                                  
+                                  <div className="space-y-1 pl-2">
+                                    {oilType.manualUpdate ? (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                                        <span className="text-gray-600">
+                                          Manual: {new Date(oilType.manualUpdate.updatedAt).toLocaleDateString()} by {oilType.manualUpdate.updatedBy}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                        <span className="text-gray-400">No manual updates</span>
+                                      </div>
+                                    )}
+                                    
+                                    {oilType.supplyLoading ? (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                                        <span className="text-gray-600">
+                                          Supply: {new Date(oilType.supplyLoading.createdAt).toLocaleDateString()} by {oilType.supplyLoading.driverName}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1">
+                                        <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                        <span className="text-gray-400">No supply activity</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
