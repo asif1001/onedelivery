@@ -2985,6 +2985,31 @@ export default function WarehouseDashboard() {
               </div>
             )}
 
+            {/* Status Legend */}
+            <Card className="mb-4">
+              <CardContent className="pt-4">
+                <div className="flex flex-wrap items-center gap-4 text-xs">
+                  <span className="font-medium text-gray-700">Status Legend:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-green-100 border border-green-200 rounded"></div>
+                    <span className="text-green-700">0-1 days (Current)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-yellow-100 border border-yellow-200 rounded"></div>
+                    <span className="text-yellow-700">2-7 days (Needs attention)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-red-100 border border-red-200 rounded"></div>
+                    <span className="text-red-700">&gt;7 days (Urgent)</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-violet-100 border border-violet-200 rounded"></div>
+                    <span className="text-violet-700">Partially updated</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className={themeClasses.card}>
               <CardHeader className="pb-3">
                 <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
@@ -3120,10 +3145,66 @@ export default function WarehouseDashboard() {
                       return filteredBranches.map(branch => {
                         const oilTypesArray = Array.from(branch.oilTypes.values());
                         
+                        // Calculate branch status based on last updates
+                        const getBranchStatus = (branch: any) => {
+                          const now = new Date();
+                          const oilTypesArray = Array.from(branch.oilTypes.values());
+                          
+                          // Track update status for each oil type
+                          let updatedOilTypes = 0;
+                          let oldestUpdate = null;
+                          let newestUpdate = null;
+                          
+                          oilTypesArray.forEach((oilType: any) => {
+                            let lastUpdateDate = null;
+                            
+                            // Check manual update
+                            if (oilType.manualUpdate?.updatedAt) {
+                              const manualDate = new Date(oilType.manualUpdate.updatedAt);
+                              lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                            }
+                            
+                            // Check supply activity
+                            if (oilType.supplyLoading?.createdAt) {
+                              const supplyDate = new Date(oilType.supplyLoading.createdAt);
+                              lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
+                            }
+                            
+                            if (lastUpdateDate) {
+                              updatedOilTypes++;
+                              if (!oldestUpdate || lastUpdateDate < oldestUpdate) oldestUpdate = lastUpdateDate;
+                              if (!newestUpdate || lastUpdateDate > newestUpdate) newestUpdate = lastUpdateDate;
+                            }
+                          });
+                          
+                          // If no updates at all
+                          if (updatedOilTypes === 0) {
+                            return { status: 'red', color: 'bg-red-50 border-red-200', textColor: 'text-red-800' };
+                          }
+                          
+                          // If partially updated (some oil types have no updates)
+                          if (updatedOilTypes < oilTypesArray.length) {
+                            return { status: 'violet', color: 'bg-violet-50 border-violet-200', textColor: 'text-violet-800' };
+                          }
+                          
+                          // Use oldest update to determine overall status
+                          const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - oldestUpdate.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+                          
+                          if (daysSinceOldest > 7) {
+                            return { status: 'red', color: 'bg-red-50 border-red-200', textColor: 'text-red-800' };
+                          } else if (daysSinceOldest >= 2) {
+                            return { status: 'yellow', color: 'bg-yellow-50 border-yellow-200', textColor: 'text-yellow-800' };
+                          } else {
+                            return { status: 'green', color: 'bg-green-50 border-green-200', textColor: 'text-green-800' };
+                          }
+                        };
+                        
+                        const branchStatus = getBranchStatus(branch);
+                        
                         return (
-                          <div key={branch.branchName} className="bg-white border border-gray-200 rounded-lg p-4">
+                          <div key={branch.branchName} className={`${branchStatus.color} rounded-lg p-4 transition-colors`}>
                             <div className="mb-3">
-                              <h3 className="font-medium text-gray-900 text-sm mb-1">{branch.branchName}</h3>
+                              <h3 className={`font-medium ${branchStatus.textColor} text-sm mb-1`}>{branch.branchName}</h3>
                               <p className="text-xs text-gray-500">
                                 {branch.lastActivity ? `Last activity: ${branch.lastActivity.toLocaleDateString()}` : 'No recent activity'}
                               </p>
