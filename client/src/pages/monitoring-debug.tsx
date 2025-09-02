@@ -31,6 +31,8 @@ interface SupplyLoadingData {
 const MonitoringDebug: React.FC = () => {
   const [manualUpdates, setManualUpdates] = useState<ManualUpdateData[]>([]);
   const [supplyLoading, setSupplyLoading] = useState<SupplyLoadingData[]>([]);
+  const [rawTankUpdateLogs, setRawTankUpdateLogs] = useState<any[]>([]);
+  const [rawTransactions, setRawTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [use30DayFilter, setUse30DayFilter] = useState(false);
@@ -306,6 +308,64 @@ const MonitoringDebug: React.FC = () => {
     };
   };
 
+  // Fetch raw data from both collections
+  const fetchRawCollectionData = async () => {
+    console.log('📊 Fetching raw collection data...');
+    
+    try {
+      // Fetch raw tankUpdateLogs
+      const tankLogsQuery = query(
+        collection(db, 'tankUpdateLogs'),
+        orderBy('updatedAt', 'desc'),
+        limit(50) // Get recent 50 documents
+      );
+      const tankLogsSnapshot = await getDocs(tankLogsQuery);
+      const rawTankLogs = tankLogsSnapshot.docs.map(doc => ({
+        docId: doc.id,
+        ...doc.data()
+      }));
+      
+      console.log(`📋 Found ${rawTankLogs.length} tankUpdateLogs documents`);
+      setRawTankUpdateLogs(rawTankLogs);
+      
+      // Fetch raw transactions
+      const transactionsQuery = query(
+        collection(db, 'transactions'),
+        orderBy('timestamp', 'desc'),
+        limit(50) // Get recent 50 documents
+      );
+      const transactionsSnapshot = await getDocs(transactionsQuery);
+      const rawTxns = transactionsSnapshot.docs.map(doc => ({
+        docId: doc.id,
+        ...doc.data()
+      }));
+      
+      console.log(`📋 Found ${rawTxns.length} transactions documents`);
+      setRawTransactions(rawTxns);
+      
+    } catch (error: any) {
+      console.error('❌ Error fetching raw collection data:', error);
+      
+      // Try fallback query for transactions if timestamp orderBy fails
+      try {
+        const fallbackTransactionsQuery = query(
+          collection(db, 'transactions'),
+          limit(50)
+        );
+        const fallbackSnapshot = await getDocs(fallbackTransactionsQuery);
+        const fallbackTxns = fallbackSnapshot.docs.map(doc => ({
+          docId: doc.id,
+          ...doc.data()
+        }));
+        
+        console.log(`📋 Fallback: Found ${fallbackTxns.length} transactions documents`);
+        setRawTransactions(fallbackTxns);
+      } catch (fallbackError) {
+        console.error('❌ Fallback transactions query also failed:', fallbackError);
+      }
+    }
+  };
+
   const fetchDebugData = async () => {
     setLoading(true);
     setError(null);
@@ -313,6 +373,9 @@ const MonitoringDebug: React.FC = () => {
     try {
       console.log('🔍 Starting debug data fetch...');
       console.log('📅 Using 30-day filter:', use30DayFilter);
+      
+      // Fetch raw collection data first
+      await fetchRawCollectionData();
       
       // Get all branches and their tanks
       const branchesSnapshot = await getDocs(collection(db, 'branches'));
@@ -509,6 +572,89 @@ const MonitoringDebug: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Raw Collection Data Tables */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Raw Collection Data - tankUpdateLogs (Recent 50)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              {rawTankUpdateLogs.length > 0 ? (
+                <table className="w-full border-collapse border border-gray-300 text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      {Object.keys(rawTankUpdateLogs[0] || {}).map((key) => (
+                        <th key={key} className="border border-gray-300 px-2 py-1 text-left font-mono text-xs">
+                          {key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawTankUpdateLogs.map((row, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        {Object.keys(rawTankUpdateLogs[0] || {}).map((key) => (
+                          <td key={key} className="border border-gray-300 px-2 py-1 text-xs">
+                            {typeof row[key] === 'object' && row[key] !== null ? 
+                              (row[key]?.toDate ? row[key].toDate().toISOString() : JSON.stringify(row[key])) :
+                              String(row[key] || '–')
+                            }
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No tankUpdateLogs data available. Click "Refresh Data" to fetch.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Raw Collection Data - transactions (Recent 50)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              {rawTransactions.length > 0 ? (
+                <table className="w-full border-collapse border border-gray-300 text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      {Object.keys(rawTransactions[0] || {}).map((key) => (
+                        <th key={key} className="border border-gray-300 px-2 py-1 text-left font-mono text-xs">
+                          {key}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rawTransactions.map((row, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        {Object.keys(rawTransactions[0] || {}).map((key) => (
+                          <td key={key} className="border border-gray-300 px-2 py-1 text-xs">
+                            {typeof row[key] === 'object' && row[key] !== null ? 
+                              (row[key]?.toDate ? row[key].toDate().toISOString() : JSON.stringify(row[key])) :
+                              String(row[key] || '–')
+                            }
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No transactions data available. Click "Refresh Data" to fetch.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded">
           <h3 className="font-semibold text-blue-800 mb-2">Debug Instructions:</h3>
           <ol className="list-decimal pl-5 text-sm text-blue-700 space-y-1">
@@ -518,6 +664,7 @@ const MonitoringDebug: React.FC = () => {
             <li>Toggle "30-day filter" to test date-based filtering</li>
             <li>Non-empty rows indicate successful queries for those branch+oilType pairs</li>
             <li>Console shows sample document structure and available field names</li>
+            <li><strong>Raw collection tables above show all actual field names without modification</strong></li>
           </ol>
         </div>
       </div>
