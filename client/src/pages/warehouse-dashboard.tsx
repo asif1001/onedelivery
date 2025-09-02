@@ -909,60 +909,57 @@ export default function WarehouseDashboard() {
     return filtered.slice(0, 20); // Limit to most recent 20 transactions
   }
 
-  // Helper function to fetch latest tank update from entire database collection (last 30 days)
-  const fetchLatestTankUpdate = async (tankId: string, branchId: string, oilTypeName: string) => {
+  // Simple and direct approach - Get all manual updates for branch and filter by oil type
+  const fetchLatestTankUpdate = async (branchId: string, oilTypeName: string) => {
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      console.log(`🔍 Fetching manual updates for tankId: ${tankId}, branchId: ${branchId}, oilTypeName: ${oilTypeName}`);
+      console.log(`🔍 Fetching ALL manual updates for branch: ${branchId}`);
       
       const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
       
-      // Try first with tankId, then fallback to branchId + oilTypeName
-      let q = query(
+      // Get ALL updates for this branch in last 30 days
+      const q = query(
         tankUpdateLogsRef, 
-        where('tankId', '==', tankId),
+        where('branchId', '==', branchId),
         where('updatedAt', '>=', thirtyDaysAgo),
         orderBy('updatedAt', 'desc'),
-        limit(1)
+        limit(50) // Get more records to filter locally
       );
       
-      let snapshot = await getDocs(q);
-      console.log(`📊 Found ${snapshot.docs.length} updates with tankId ${tankId}`);
-      
-      // If no results with tankId, try with branchId + oilTypeName
-      if (snapshot.empty) {
-        console.log(`🔄 Trying fallback query with branchId and oilTypeName`);
-        q = query(
-          tankUpdateLogsRef, 
-          where('branchId', '==', branchId),
-          where('oilTypeName', '==', oilTypeName),
-          where('updatedAt', '>=', thirtyDaysAgo),
-          orderBy('updatedAt', 'desc'),
-          limit(1)
-        );
-        snapshot = await getDocs(q);
-        console.log(`📊 Found ${snapshot.docs.length} updates with branchId + oilTypeName`);
-      }
+      const snapshot = await getDocs(q);
+      console.log(`📊 Found ${snapshot.docs.length} total manual updates for branch ${branchId}`);
       
       if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        const data = doc.data();
-        const updateDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
-        const now = new Date();
-        const daysDiff = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Filter for matching oil type locally
+        const matchingUpdates = snapshot.docs.filter(doc => {
+          const data = doc.data();
+          const matches = data.oilTypeName === oilTypeName;
+          if (matches) {
+            console.log(`✅ Matching update found: ${data.oilTypeName} = ${oilTypeName}, by ${data.updatedBy}`);
+          }
+          return matches;
+        });
         
-        console.log(`✅ Found manual update: ${data.updatedBy}, ${daysDiff}d ago`);
-        
-        return {
-          date: updateDate,
-          by: data.updatedBy || 'Unknown User',
-          daysAgo: daysDiff
-        };
+        if (matchingUpdates.length > 0) {
+          const doc = matchingUpdates[0]; // First one is most recent
+          const data = doc.data();
+          const updateDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
+          const now = new Date();
+          const daysDiff = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          console.log(`✅ Found matching manual update: ${data.updatedBy}, ${daysDiff}d ago, oil: ${data.oilTypeName}`);
+          
+          return {
+            date: updateDate,
+            by: data.updatedBy || 'Unknown User',
+            daysAgo: daysDiff
+          };
+        }
       }
       
-      console.log(`❌ No manual updates found for tank ${tankId}`);
+      console.log(`❌ No manual updates found for branch ${branchId}, oil ${oilTypeName}`);
       
       // If no data found in last 30 days, return "more than 30 days" indicator
       return {
@@ -972,45 +969,49 @@ export default function WarehouseDashboard() {
         isOlderThan30Days: true
       };
     } catch (error) {
-      console.warn(`Failed to fetch latest manual update for ${tankId}:`, error);
+      console.warn(`Failed to fetch manual updates for ${branchId}:`, error);
     }
     return null;
   };
 
-  // Helper function to fetch latest supply/loading transaction from entire database collection (last 30 days)
-  const fetchLatestSupplyTransaction = async (branchId: string, tank: any) => {
+  // Simple and direct approach - Get all transactions for branch and filter by oil type
+  const fetchLatestSupplyTransaction = async (branchId: string, oilTypeName: string, oilTypeId: string) => {
     try {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
       
-      console.log(`🔍 Fetching transactions for branch: ${branchId}, oilTypeId: ${tank.oilTypeId}, oilTypeName: ${tank.oilTypeName}`);
+      console.log(`🔍 Fetching ALL transactions for branch: ${branchId}, looking for oil: ${oilTypeName} or ${oilTypeId}`);
       
       const transactionsRef = collection(db, 'transactions');
       
-      // Try multiple query approaches to find transactions
-      let q = query(
+      // Get ALL transactions for this branch in last 30 days
+      const q = query(
         transactionsRef,
         where('branchId', '==', branchId),
         where('timestamp', '>=', thirtyDaysAgo),
         orderBy('timestamp', 'desc'),
-        limit(10) // Get more to filter locally
+        limit(100) // Get more records to filter locally
       );
       
       const snapshot = await getDocs(q);
-      console.log(`📊 Found ${snapshot.docs.length} transactions for branch ${branchId} in last 30 days`);
+      console.log(`📊 Found ${snapshot.docs.length} total transactions for branch ${branchId}`);
       
       if (!snapshot.empty) {
         // Filter locally for matching oil type and transaction type
         const matchingTransactions = snapshot.docs.filter(doc => {
           const data = doc.data();
-          const matchesOilType = data.oilTypeId === tank.oilTypeId || data.oilTypeName === tank.oilTypeName;
+          const matchesOilType = data.oilTypeId === oilTypeId || data.oilTypeName === oilTypeName;
           const matchesType = ['supply', 'loading'].includes(data.type);
-          console.log(`🔍 Transaction ${doc.id}: oilTypeId=${data.oilTypeId}, oilTypeName=${data.oilTypeName}, type=${data.type}, matches=${matchesOilType && matchesType}`);
+          
+          if (matchesOilType && matchesType) {
+            console.log(`✅ Matching transaction found: oil=${data.oilTypeName||data.oilTypeId}, type=${data.type}, driver=${data.driverName||data.driverDisplayName}`);
+          }
+          
           return matchesOilType && matchesType;
         });
         
         if (matchingTransactions.length > 0) {
-          const doc = matchingTransactions[0]; // Already sorted by timestamp desc
+          const doc = matchingTransactions[0]; // First one is most recent
           const data = doc.data();
           const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : 
                            data.createdAt?.toDate ? data.createdAt.toDate() :
@@ -1019,13 +1020,12 @@ export default function WarehouseDashboard() {
           const now = new Date();
           const daysDiff = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60 * 60 * 24));
           
-          // Get driver name with same logic as display
-          const driver = drivers.find(d => d.uid === data.driverUid || d.id === data.driverUid);
-          const driverName = driver ? (driver.displayName || driver.email) : 
-                            data.driverName || data.driverDisplayName ||
-                            data.reportedByName || data.reporterName || 'System';
+          // Get driver name with multiple fallbacks
+          const driverName = data.driverName || data.driverDisplayName ||
+                            data.reportedByName || data.reporterName || 
+                            data.driverEmail || 'Driver';
           
-          console.log(`✅ Found matching transaction: ${driverName}, ${daysDiff}d ago`);
+          console.log(`✅ Found matching supply/loading: ${driverName}, ${daysDiff}d ago, type: ${data.type}`);
           
           return {
             date: timestamp,
@@ -1036,7 +1036,7 @@ export default function WarehouseDashboard() {
         }
       }
       
-      console.log(`❌ No matching transactions found for branch ${branchId} and oil type ${tank.oilTypeName}`);
+      console.log(`❌ No matching supply/loading found for branch ${branchId}, oil ${oilTypeName}`);
       
       // If no data found in last 30 days, return "more than 30 days" indicator
       return {
@@ -1047,7 +1047,7 @@ export default function WarehouseDashboard() {
         isOlderThan30Days: true
       };
     } catch (error) {
-      console.warn(`Failed to fetch latest supply transaction for ${branchId}:`, error);
+      console.warn(`Failed to fetch supply transactions for ${branchId}:`, error);
     }
     return null;
   };
@@ -1066,10 +1066,10 @@ export default function WarehouseDashboard() {
       // Get detailed tank update status with dual tracking from entire database (last 30 days)
       const tankPromises = branchTanks.map(async (tank) => {
         // Fetch latest manual update from entire tankUpdateLogs collection (last 30 days)
-        const latestManualUpdate = await fetchLatestTankUpdate(tank.id, branch.id, tank.oilTypeName);
+        const latestManualUpdate = await fetchLatestTankUpdate(branch.id, tank.oilTypeName);
         
         // Fetch latest supply/loading from entire transactions collection (last 30 days)
-        const latestSupplyUpdate = await fetchLatestSupplyTransaction(branch.id, tank);
+        const latestSupplyUpdate = await fetchLatestSupplyTransaction(branch.id, tank.oilTypeName, tank.oilTypeId);
 
         let lastManualUpdate = null;
         let lastManualUpdateBy = null;
