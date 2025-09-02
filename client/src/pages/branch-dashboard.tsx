@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -50,7 +50,7 @@ import {
   fixExistingTankCapacities,
   subscribeToTankUpdates
 } from "@/lib/firebase";
-import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { PhotoCaptureButton } from "@/components/PhotoCaptureButton";
 
@@ -262,6 +262,7 @@ export default function BranchDashboard() {
   const [showMyLogsDialog, setShowMyLogsDialog] = useState(false);
   const [allowGalleryAccess, setAllowGalleryAccess] = useState(true);
   const [isUpdatingTank, setIsUpdatingTank] = useState(false);
+  const [updateProgress, setUpdateProgress] = useState<string>('');
 
   const [complaintData, setComplaintData] = useState({
     branchId: '',
@@ -568,8 +569,31 @@ export default function BranchDashboard() {
       
       const createdTanks = await createSampleTanks(branchId, oilTypes);
       
-      // Refresh the tank data
-      await loadData();
+      // Efficiently refresh only tank data instead of full page reload
+      const updatedBranches = await getActiveBranchesOnly();
+      const userBranches = updatedBranches.filter((branch: any) => 
+        currentUser.branchIds.includes(branch.id)
+      );
+      setBranches(userBranches);
+      
+      // Update oil tanks efficiently
+      const oilTypeMap = new Map(oilTypes.map((ot: any) => [ot.id, ot]));
+      const tanksWithDetails: OilTank[] = [];
+      userBranches.forEach((branch: any) => {
+        if (branch.oilTanks && Array.isArray(branch.oilTanks)) {
+          branch.oilTanks.forEach((tank: any, index: number) => {
+            const oilType = oilTypeMap.get(tank.oilTypeId);
+            tanksWithDetails.push({
+              id: `${branch.id}_tank_${index}`,
+              branchId: branch.id,
+              ...tank,
+              oilTypeName: oilType?.name || 'Unknown Oil Type',
+              branchName: branch.name || 'Unknown Branch'
+            });
+          });
+        }
+      });
+      setOilTanks(tanksWithDetails);
       
       toast({
         title: "Success", 
@@ -609,8 +633,8 @@ export default function BranchDashboard() {
     return { status: 'normal', color: 'green', bgColor: 'bg-green-50', textColor: 'text-green-700', borderColor: 'border-green-200' };
   };
 
-  // Helper function to determine branch status based on tank updates (similar to warehouse dashboard)
-  const getBranchUpdateStatus = () => {
+  // Memoized function to determine branch status based on tank updates (optimized for performance)
+  const branchUpdateStatus = useMemo(() => {
     const now = new Date();
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
@@ -717,11 +741,17 @@ export default function BranchDashboard() {
         totalTanks: tankUpdateDetails.length
       };
     });
-  };
+  }, [branches, oilTanks, updateLogs, recentTransactions]);
 
   // Photo capture functions with immediate preview (consistent with supply workflow)
   const handleGaugePhotoCapture = (blob: Blob, timestamp: string) => {
     const file = new File([blob], `gauge-photo-${timestamp}.jpg`, { type: 'image/jpeg' });
+    
+    // Clean up previous preview URL to prevent memory leaks
+    if (gaugePhotoPreview) {
+      URL.revokeObjectURL(gaugePhotoPreview);
+    }
+    
     const previewUrl = URL.createObjectURL(blob);
     setGaugePhoto(file);
     setGaugePhotoPreview(previewUrl);
@@ -734,6 +764,12 @@ export default function BranchDashboard() {
 
   const handleSystemPhotoCapture = (blob: Blob, timestamp: string) => {
     const file = new File([blob], `system-photo-${timestamp}.jpg`, { type: 'image/jpeg' });
+    
+    // Clean up previous preview URL to prevent memory leaks
+    if (systemPhotoPreview) {
+      URL.revokeObjectURL(systemPhotoPreview);
+    }
+    
     const previewUrl = URL.createObjectURL(blob);
     setSystemPhoto(file);
     setSystemPhotoPreview(previewUrl);
@@ -772,21 +808,53 @@ export default function BranchDashboard() {
     
     try {
       console.log('🔍 Loading complaints for user:', currentUser.uid, currentUser.email);
-      const complaintsCollection = collection(db, 'complaints');
       
-      // Try loading all complaints first, then filter client-side to avoid index issues
-      const snapshot = await getDocs(complaintsCollection);
-      const allComplaints = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      // Use efficient Firestore queries instead of loading all complaints
+      const complaintsCollection = collection(db, 'complaints');
+      const activeStatuses = ['open', 'in-progress', 'in_progress'];
+      
+      // Query by user branches for better performance
+      let allComplaints: any[] = [];
+      if (currentUser.branchIds && currentUser.branchIds.length > 0) {
+        for (const branchId of currentUser.branchIds) {
+          const branchQuery = query(
+            complaintsCollection,
+            where('branchId', '==', branchId),
+            orderBy('createdAt', 'desc'),
+            limit(20)
+          );
+          try {
+            const snapshot = await getDocs(branchQuery);
+            const branchComplaints = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            allComplaints.push(...branchComplaints);
+          } catch (error) {
+            // Fallback to loading all complaints if query fails
+            console.warn('Branch query failed, using fallback:', error);
+            const snapshot = await getDocs(complaintsCollection);
+            allComplaints = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data()
+            }));
+            break;
+          }
+        }
+      } else {
+        // Fallback for users without branchIds
+        const snapshot = await getDocs(complaintsCollection);
+        allComplaints = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      }
       
       console.log('📋 Total complaints in system:', allComplaints.length);
       console.log('📋 Sample complaint data:', allComplaints[0]);
       
       // Filter complaints for current user - check multiple possible field names
       // Only show active complaints (open, in-progress) - hide closed/completed/resolved
-      const activeStatuses = ['open', 'in-progress', 'in_progress'];
       const userComplaints = allComplaints.filter((complaint: any) => {
         const isUserComplaint = (complaint.reportedBy === currentUser.uid || 
                                 complaint.reportedByName === currentUser.displayName ||
@@ -999,6 +1067,7 @@ export default function BranchDashboard() {
       }
 
       setIsUpdatingTank(true);
+      setUpdateProgress('Validating data...');
       console.log('🚀 Starting concurrent-safe tank update:', {
         tankId: selectedTankForUpdate,
         previousLevel: selectedTank.currentLevel,
@@ -1018,6 +1087,7 @@ export default function BranchDashboard() {
       setOptimisticUpdates(prev => new Map(prev.set(selectedTankForUpdate, optimisticUpdate)));
 
       // PERFORMANCE OPTIMIZATION: Parallel photo processing and upload
+      setUpdateProgress('Processing photos...');
       console.log('📸 Processing photos for tank update (optimized parallel processing)...');
       
       // Get tank and branch information for professional watermarks
@@ -1054,6 +1124,7 @@ export default function BranchDashboard() {
       console.log(`⚡ Photo watermarking completed in ${watermarkTime.toFixed(0)}ms`);
 
       // PARALLEL UPLOAD - Upload both photos simultaneously with optimized paths
+      setUpdateProgress('Uploading photos...');
       console.log('☁️ Uploading photos to Firebase Storage (parallel)...');
       const uploadStartTime = performance.now();
       const uploadBasePath = `tank-updates/${selectedTankForUpdate}/${sessionId}`;
@@ -1093,6 +1164,7 @@ export default function BranchDashboard() {
       };
 
       // OPTIMIZED DATABASE UPDATE with reduced timeout for faster response
+      setUpdateProgress('Updating database...');
       console.log('💾 Updating tank level in database (concurrent-safe)...');
       const dbStartTime = performance.now();
       const result = await Promise.race([
@@ -1118,6 +1190,7 @@ export default function BranchDashboard() {
       });
 
       // Success state like supply workflow - show success and reset form  
+      setUpdateProgress('Update completed successfully!');
       setUpdateStep('success');
       
       // Auto-close dialog after 3 seconds like supply workflow
@@ -1132,6 +1205,15 @@ export default function BranchDashboard() {
         setSystemPhotoPreview('');
         setManualQuantity('');
         setUpdateNotes('');
+        setUpdateProgress('');
+        
+        // Clean up photo preview URLs to prevent memory leaks
+        if (gaugePhotoPreview) {
+          URL.revokeObjectURL(gaugePhotoPreview);
+        }
+        if (systemPhotoPreview) {
+          URL.revokeObjectURL(systemPhotoPreview);
+        }
         
         // Load updated logs AFTER dialog closes to prevent loading screen
         try {
@@ -1233,6 +1315,7 @@ export default function BranchDashboard() {
       });
     } finally {
       setIsUpdatingTank(false);
+      setUpdateProgress('');
     }
   };
 
@@ -1505,7 +1588,7 @@ export default function BranchDashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
-                {getBranchUpdateStatus().map((branch) => {
+                {branchUpdateStatus.map((branch: any) => {
                   // Determine branch styling based on update status
                   let branchCardClass = 'hover:shadow-lg transition-shadow';
                   let headerTextColor = 'text-gray-900';
@@ -1562,7 +1645,7 @@ export default function BranchDashboard() {
                           <h4 className="font-medium text-sm">Oil Tanks ({branch.tankUpdateDetails.length})</h4>
                           {branch.tankUpdateDetails.length > 0 ? (
                             <div className="space-y-2">
-                              {branch.tankUpdateDetails.map((tank, index) => {
+                              {branch.tankUpdateDetails.map((tank: any, index: number) => {
                                 const percentage = Math.round(((tank.currentLevel || 0) / (tank.capacity || 1)) * 100);
                                 const progressBarColor = tank.levelStatus.color === 'red' ? 'bg-red-500' :
                                                         tank.levelStatus.color === 'yellow' ? 'bg-yellow-500' : 'bg-green-500';
@@ -2411,7 +2494,7 @@ export default function BranchDashboard() {
                     isUpdatingTank
                   }
                 >
-                  {updateStep === 'confirm' ? (isUpdatingTank ? 'Submitting...' : 'Submit Update') : 'Next'}
+                  {updateStep === 'confirm' ? (isUpdatingTank ? updateProgress || 'Submitting...' : 'Submit Update') : 'Next'}
                 </Button>
               </div>
             )}
