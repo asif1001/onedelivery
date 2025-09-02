@@ -2314,15 +2314,7 @@ export default function WarehouseDashboard() {
                   🌙 Night
                 </button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => window.open('/monitoring-debug', '_blank')}
-                className="flex items-center gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
-                title="Open debug page to verify monitoring data queries"
-              >
-                🔍 Debug
-              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -3204,50 +3196,94 @@ export default function WarehouseDashboard() {
                         return (
                           <div key={branch.branchName} className={`${branchStatus.color} rounded-lg p-4 transition-colors`}>
                             <div className="mb-3">
-                              <h3 className={`font-medium ${branchStatus.textColor} text-sm mb-1`}>{branch.branchName}</h3>
-                              <p className="text-xs text-gray-500">
+                              <div className="flex items-center gap-2">
+                                <h3 className={`font-medium ${branchStatus.textColor} text-sm`}>{branch.branchName}</h3>
+                                {branchStatus.status === 'red' && (
+                                  <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
+                                    Needs attention
+                                  </span>
+                                )}
+                                {branchStatus.status === 'violet' && (
+                                  <span className="text-xs bg-violet-100 text-violet-700 px-2 py-0.5 rounded-full font-medium">
+                                    Partially updated
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">
                                 {branch.lastActivity ? `Last activity: ${branch.lastActivity.toLocaleDateString()}` : 'No recent activity'}
                               </p>
                             </div>
                             
                             <div className="space-y-2">
-                              {oilTypesArray.map((oilType, index) => (
-                                <div key={oilType.oilTypeName} className="text-xs">
-                                  <div className="font-medium text-gray-700 mb-1">
-                                    #{index + 1} {oilType.oilTypeName}
-                                  </div>
+                              {oilTypesArray.map((oilType, index) => {
+                                // Check if this oil type needs attention (>7 days since last update)
+                                const getOilTypeStatus = (oilType: any) => {
+                                  const now = new Date();
+                                  let lastUpdateDate = null;
                                   
-                                  <div className="space-y-1 pl-2">
-                                    {oilType.manualUpdate ? (
-                                      <div className="flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                                        <span className="text-gray-600">
-                                          Manual: {new Date(oilType.manualUpdate.updatedAt).toLocaleDateString()} by {oilType.manualUpdate.updatedBy}
+                                  // Check manual update
+                                  if (oilType.manualUpdate?.updatedAt) {
+                                    const manualDate = new Date(oilType.manualUpdate.updatedAt);
+                                    lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                                  }
+                                  
+                                  // Check supply activity
+                                  if (oilType.supplyLoading?.createdAt) {
+                                    const supplyDate = new Date(oilType.supplyLoading.createdAt);
+                                    lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
+                                  }
+                                  
+                                  if (!lastUpdateDate) return 'red'; // No updates at all
+                                  
+                                  const daysSinceUpdate = Math.floor((now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
+                                  return daysSinceUpdate > 7 ? 'red' : 'normal';
+                                };
+                                
+                                const oilTypeStatus = getOilTypeStatus(oilType);
+                                
+                                return (
+                                  <div key={oilType.oilTypeName} className={`text-xs ${oilTypeStatus === 'red' ? 'bg-red-50 border border-red-200 rounded p-2' : ''}`}>
+                                    <div className={`font-medium mb-1 flex items-center gap-2 ${oilTypeStatus === 'red' ? 'text-red-700' : 'text-gray-700'}`}>
+                                      <span>#{index + 1} {oilType.oilTypeName}</span>
+                                      {oilTypeStatus === 'red' && (
+                                        <span className="text-xs bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full font-medium">
+                                          Needs update
                                         </span>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
-                                        <span className="text-gray-400">No manual updates</span>
-                                      </div>
-                                    )}
-                                    
-                                    {oilType.supplyLoading ? (
-                                      <div className="flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                                        <span className="text-gray-600">
-                                          Supply: {new Date(oilType.supplyLoading.createdAt).toLocaleDateString()} by {oilType.supplyLoading.driverName}
-                                        </span>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-1">
-                                        <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
-                                        <span className="text-gray-400">No supply activity</span>
-                                      </div>
-                                    )}
+                                      )}
+                                    </div>
+                                  
+                                    <div className="space-y-1 pl-2">
+                                      {oilType.manualUpdate ? (
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                                          <span className="text-gray-600">
+                                            Manual: {new Date(oilType.manualUpdate.updatedAt).toLocaleDateString()} by {oilType.manualUpdate.updatedBy}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                          <span className="text-gray-400">No manual updates</span>
+                                        </div>
+                                      )}
+                                      
+                                      {oilType.supplyLoading ? (
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                                          <span className="text-gray-600">
+                                            Supply: {new Date(oilType.supplyLoading.createdAt).toLocaleDateString()} by {oilType.supplyLoading.driverName}
+                                          </span>
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center gap-1">
+                                          <div className="w-2 h-2 bg-gray-300 rounded-full flex-shrink-0"></div>
+                                          <span className="text-gray-400">No supply activity</span>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         );
