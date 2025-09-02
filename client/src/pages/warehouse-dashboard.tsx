@@ -3246,28 +3246,21 @@ export default function WarehouseDashboard() {
                             
                             <div className="space-y-2">
                               {oilTypesArray.map((oilType, index) => {
-                                // Check if this oil type needs attention (>7 days since last update OR no data found)
+                                // Check if this oil type needs attention (no manual updates OR >7 days since manual update)
                                 const getOilTypeStatus = (oilType: any) => {
                                   const now = new Date();
-                                  let lastUpdateDate = null;
                                   
-                                  // Check manual update
-                                  if (oilType.manualUpdate?.updatedAt) {
-                                    const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                                    lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                                  // Check if there's a manual update
+                                  if (!oilType.manualUpdate?.updatedAt) {
+                                    // No manual updates at all - needs attention regardless of supply activity
+                                    return 'red';
                                   }
                                   
-                                  // Check supply activity
-                                  if (oilType.supplyLoading?.createdAt) {
-                                    const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                                    lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
-                                  }
+                                  // Check how old the manual update is
+                                  const manualDate = new Date(oilType.manualUpdate.updatedAt);
+                                  const daysSinceManualUpdate = Math.floor((now.getTime() - manualDate.getTime()) / (1000 * 60 * 60 * 24));
                                   
-                                  // If no recent data found (within 30 days), assume it needs update
-                                  if (!lastUpdateDate) return 'red'; 
-                                  
-                                  const daysSinceUpdate = Math.floor((now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
-                                  return daysSinceUpdate > 7 ? 'red' : 'normal';
+                                  return daysSinceManualUpdate > 7 ? 'red' : 'normal';
                                 };
                                 
                                 const oilTypeStatus = getOilTypeStatus(oilType);
