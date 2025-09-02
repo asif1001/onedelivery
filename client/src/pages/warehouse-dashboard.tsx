@@ -123,6 +123,10 @@ export default function WarehouseDashboard() {
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   
+  // Enhanced tank tracking data with real-time database queries
+  const [enhancedBranchData, setEnhancedBranchData] = useState<any[]>([]);
+  const [dataFetchingMode, setDataFetchingMode] = useState<'cached' | 'realtime'>('cached');
+  
   // Get user's assigned branches for filtering
   const userBranchIds = user?.branchIds || [];
   const isRestrictedUser = user?.role === 'warehouse' && userBranchIds.length > 0;
@@ -278,6 +282,19 @@ export default function WarehouseDashboard() {
         }
       }, 2000); // Wait 2 seconds before loading background data
 
+      // Load enhanced tank data with real-time database queries
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Loading enhanced tank tracking data from entire database...');
+          setDataFetchingMode('realtime');
+          const enhancedData = await getBranchUpdateStatusWithFullData();
+          setEnhancedBranchData(enhancedData);
+          console.log('✅ Enhanced tank data loaded:', enhancedData.length, 'branches');
+        } catch (error) {
+          console.warn('⚠️ Failed to load enhanced data, using cached fallback:', error);
+          setDataFetchingMode('cached');
+        }
+      }, 3000); // Load enhanced data after 3 seconds
       
     } catch (error) {
       console.error('❌ Error loading warehouse data:', error);
@@ -892,7 +909,202 @@ export default function WarehouseDashboard() {
     return filtered.slice(0, 20); // Limit to most recent 20 transactions
   }
 
-  // Enhanced function to get detailed branch update status with tank-level tracking
+  // Helper function to fetch latest tank update from entire database collection
+  const fetchLatestTankUpdate = async (branchName: string, oilTypeName: string, tankId: string) => {
+    try {
+      const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
+      const q = query(
+        tankUpdateLogsRef, 
+        where('branchName', '==', branchName),
+        where('oilTypeName', '==', oilTypeName),
+        orderBy('updatedAt', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+        return {
+          date: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt),
+          by: data.updatedBy || 'Unknown User'
+        };
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch latest manual update for ${branchName} ${oilTypeName}:`, error);
+    }
+    return null;
+  };
+
+  // Helper function to fetch latest supply/loading transaction from entire database collection
+  const fetchLatestSupplyTransaction = async (branchId: string, oilTypeName: string) => {
+    try {
+      const transactionsRef = collection(db, 'transactions');
+      const q = query(
+        transactionsRef,
+        where('branchId', '==', branchId),
+        where('oilTypeName', '==', oilTypeName),
+        where('type', 'in', ['supply', 'loading']),
+        orderBy('timestamp', 'desc'),
+        limit(1)
+      );
+      const snapshot = await getDocs(q);
+      
+      if (!snapshot.empty) {
+        const doc = snapshot.docs[0];
+        const data = doc.data();
+        const timestamp = data.timestamp?.toDate ? data.timestamp.toDate() : 
+                         data.createdAt?.toDate ? data.createdAt.toDate() :
+                         new Date(data.timestamp || data.createdAt);
+        
+        // Get driver name with same logic as display
+        const driver = drivers.find(d => d.uid === data.driverUid || d.id === data.driverUid);
+        const driverName = driver ? (driver.displayName || driver.email) : 
+                          data.driverName || data.driverDisplayName ||
+                          data.reportedByName || data.reporterName || 'System';
+        
+        return {
+          date: timestamp,
+          by: driverName,
+          type: data.type
+        };
+      }
+    } catch (error) {
+      console.warn(`Failed to fetch latest supply transaction for ${branchId} ${oilTypeName}:`, error);
+    }
+    return null;
+  };
+
+  // Enhanced async function to get detailed branch update status with tank-level tracking from entire database
+  const getBranchUpdateStatusWithFullData = async () => {
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const oneDayAgo = new Date();
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+
+    const branchPromises = branches.map(async (branch) => {
+      const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
+
+      // Get detailed tank update status with dual tracking from entire database
+      const tankPromises = branchTanks.map(async (tank) => {
+        // Fetch latest manual update from entire tankUpdateLogs collection
+        const latestManualUpdate = await fetchLatestTankUpdate(branch.name, tank.oilTypeName, tank.id);
+        
+        // Fetch latest supply/loading from entire transactions collection
+        const latestSupplyUpdate = await fetchLatestSupplyTransaction(branch.id, tank.oilTypeName);
+
+        let lastManualUpdate = null;
+        let lastManualUpdateBy = null;
+        let daysSinceManualUpdate = null;
+        
+        if (latestManualUpdate) {
+          lastManualUpdate = latestManualUpdate.date;
+          lastManualUpdateBy = latestManualUpdate.by;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
+          daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        let lastSupplyLoading = null;
+        let lastSupplyLoadingBy = null;
+        let daysSinceSupplyLoading = null;
+        
+        if (latestSupplyUpdate) {
+          lastSupplyLoading = latestSupplyUpdate.date;
+          lastSupplyLoadingBy = latestSupplyUpdate.by;
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
+          daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Use manual update for overall status calculation (legacy compatibility)
+        let lastUpdate = lastManualUpdate;
+        let lastUpdateBy = lastManualUpdateBy;
+        let daysSinceUpdate = daysSinceManualUpdate;
+        
+        if (!lastUpdate && tank.lastUpdated) {
+          lastUpdate = new Date(tank.lastUpdated);
+          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+          const updateDate = new Date(lastUpdate.getFullYear(), lastUpdate.getMonth(), lastUpdate.getDate());
+          daysSinceUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        }
+
+        // Determine tank update status
+        let updateStatus = 'never'; // never, recent, stale, old
+        if (lastUpdate) {
+          if (lastUpdate > oneDayAgo) updateStatus = 'recent';
+          else if (lastUpdate > sevenDaysAgo) updateStatus = 'stale';
+          else updateStatus = 'old';
+        }
+
+        return {
+          tankId: tank.id,
+          oilTypeName: tank.oilTypeName,
+          currentLevel: tank.currentLevel,
+          capacity: tank.capacity,
+          lastUpdate,
+          lastUpdateBy,
+          daysSinceUpdate,
+          updateStatus,
+          percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1),
+          // Dual tracking data from entire database
+          lastManualUpdate,
+          lastManualUpdateBy,
+          daysSinceManualUpdate,
+          lastSupplyLoading,
+          lastSupplyLoadingBy,
+          daysSinceSupplyLoading
+        };
+      });
+
+      const tankUpdateDetails = await Promise.all(tankPromises);
+
+      // Calculate overall branch status
+      const recentlyUpdatedTanks = tankUpdateDetails.filter(t => t.updateStatus === 'recent').length;
+      const staleTanks = tankUpdateDetails.filter(t => t.updateStatus === 'stale').length;
+      const oldTanks = tankUpdateDetails.filter(t => t.updateStatus === 'old').length;
+      const neverUpdatedTanks = tankUpdateDetails.filter(t => t.updateStatus === 'never').length;
+
+      // Overall branch status logic
+      let branchStatus = 'up-to-date';
+      
+      const totalOutdatedTanks = neverUpdatedTanks + oldTanks;
+      const totalUpToDateTanks = recentlyUpdatedTanks;
+      
+      if (totalOutdatedTanks === branchTanks.length) {
+        branchStatus = 'needs-attention';
+      } else if (staleTanks > 0 || (totalUpToDateTanks > 0 && totalOutdatedTanks > 0)) {
+        branchStatus = 'partial-updates';
+      }
+
+      const allUpdates = tankUpdateDetails
+        .filter(t => t.lastUpdate)
+        .sort((a, b) => b.lastUpdate!.getTime() - a.lastUpdate!.getTime());
+
+      const lastBranchUpdate = allUpdates.length > 0 ? allUpdates[0].lastUpdate : null;
+      const daysSinceLastUpdate = lastBranchUpdate ? 
+        Math.floor((now.getTime() - lastBranchUpdate.getTime()) / (1000 * 60 * 60 * 24)) : null;
+
+      return {
+        branchId: branch.id,
+        branchName: branch.name,
+        status: branchStatus,
+        tankDetails: tankUpdateDetails.slice(0, 3), // Show top 3 tanks
+        recentlyUpdatedTanks,
+        staleTanks,
+        oldTanks,
+        neverUpdatedTanks,
+        lastUpdate: lastBranchUpdate,
+        daysSinceLastUpdate,
+        totalTanks: branchTanks.length
+      };
+    });
+
+    return Promise.all(branchPromises);
+  };
+
+  // Fallback function using cached data (existing implementation)
   const getBranchUpdateStatus = () => {
     const now = new Date();
     const sevenDaysAgo = new Date();
@@ -902,11 +1114,12 @@ export default function WarehouseDashboard() {
 
     return branches.map(branch => {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
-      const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
 
       // Get detailed tank update status with dual tracking (manual + supply/loading)
       const tankUpdateDetails = branchTanks.map(tank => {
-        // Manual Updates from tankUpdateLogs collection
+        // Manual Updates - Use cached data but acknowledge it might be limited
+        // Note: This will be enhanced to fetch latest from entire collection in a future update
+        const branchLogs = updateLogs.filter(log => log.branchName === branch.name);
         const tankLogs = branchLogs.filter(log => 
           log.oilTypeName === tank.oilTypeName && log.branchName === branch.name &&
           (log.tankId === tank.id || log.tankId === `${branch.id}_tank_${tank.id.split('_')[2]}`)
@@ -929,7 +1142,8 @@ export default function WarehouseDashboard() {
           daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // Supply/Loading from transactions collection
+        // Supply/Loading - Use cached data but acknowledge it might be limited
+        // Note: This will be enhanced to fetch latest from entire collection in a future update
         const tankTransactions = recentTransactions.filter(transaction => 
           transaction.branchId === branch.id && 
           transaction.oilTypeName === tank.oilTypeName && 
@@ -2348,15 +2562,35 @@ export default function WarehouseDashboard() {
                 <CardTitle className={`text-base flex items-center gap-2 ${themeClasses.text}`}>
                   <AlertCircleIcon className="h-4 w-4 text-blue-600" />
                   Branch Stock Update Tracking
+                  {dataFetchingMode === 'realtime' && (
+                    <div className="flex items-center gap-1 ml-2">
+                      {enhancedBranchData.length > 0 ? (
+                        <Badge variant="secondary" className="text-xs bg-green-100 text-green-800">
+                          Real-time Data ✓
+                        </Badge>
+                      ) : (
+                        <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800 animate-pulse">
+                          Loading Enhanced Data...
+                        </Badge>
+                      )}
+                    </div>
+                  )}
                 </CardTitle>
                 <CardDescription className={`text-sm ${themeClasses.secondaryText}`}>
                   Detailed tank-level update status for each branch. Shows which specific tanks have been updated recently with manual adjustments and supply/loading activities.
+                  {dataFetchingMode === 'realtime' && enhancedBranchData.length > 0 && (
+                    <span className="text-green-600 font-medium"> • Enhanced with latest records from entire database</span>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-0">
                 {/* Gallery-style grid layout: 4 cards per row */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {getBranchUpdateStatus().map((branch) => {
+                  {/* Use enhanced data if available, otherwise fallback to cached data */}
+                  {(dataFetchingMode === 'realtime' && enhancedBranchData.length > 0 
+                    ? enhancedBranchData 
+                    : getBranchUpdateStatus()
+                  ).map((branch) => {
                     // Determine branch status based on update timeline:
                     // Red = not updated for more than 7 days (includes never updated and old tanks)
                     // Yellow = updated 1-7 days ago (stale tanks)
