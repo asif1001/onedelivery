@@ -913,6 +913,63 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     window.URL.revokeObjectURL(url);
   };
 
+  // Download complaints register as CSV with resolutions and status updates
+  const downloadComplaintsCSV = () => {
+    const headers = [
+      'Complaint ID',
+      'Date Submitted',
+      'Customer Name',
+      'Customer Phone',
+      'Customer Email',
+      'Branch',
+      'Category',
+      'Priority',
+      'Status',
+      'Description',
+      'Driver Name',
+      'Resolution',
+      'Resolved By',
+      'Resolution Date',
+      'Last Updated',
+      'Photos Count',
+      'Follow-up Notes'
+    ];
+
+    const csvData = complaints.map((complaint: any) => [
+      complaint.id || '',
+      complaint.createdAt ? new Date(complaint.createdAt).toLocaleString() : '',
+      complaint.customerName || '',
+      complaint.customerPhone || '',
+      complaint.customerEmail || '',
+      complaint.branchName || '',
+      complaint.category || 'General',
+      complaint.priority || 'Medium',
+      complaint.status || 'Open',
+      (complaint.description || '').replace(/"/g, '""'), // Escape quotes in description
+      complaint.driverName || '',
+      (complaint.resolution || '').replace(/"/g, '""'), // Escape quotes in resolution
+      complaint.resolvedBy || '',
+      complaint.resolvedAt ? new Date(complaint.resolvedAt).toLocaleString() : '',
+      complaint.updatedAt ? new Date(complaint.updatedAt).toLocaleString() : '',
+      (complaint.photoUrls || []).length,
+      (complaint.notes || '').replace(/"/g, '""') // Escape quotes in notes
+    ]);
+
+    const csvContent = [headers, ...csvData]
+      .map(row => row.map(cell => `"${cell}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `complaints_register_${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  };
+
   // Apply filters when filter criteria change
   useEffect(() => {
     filterLogs();
@@ -3331,13 +3388,72 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             </Card>
           </div>
 
+          {/* Priority Breakdown - Non-Closed Complaints Only */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <AlertTriangleIcon className="h-5 w-5 mr-2 text-orange-600" />
+                  Priority Breakdown
+                </div>
+                <span className="text-sm font-normal text-gray-500">Open & In Progress Only</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                // Filter for non-closed complaints (open + in-progress)
+                const nonClosedComplaints = complaints.filter((c: any) => 
+                  c.status === 'open' || c.status === 'in-progress'
+                );
+                
+                const criticalCount = nonClosedComplaints.filter((c: any) => c.priority === 'critical').length;
+                const highCount = nonClosedComplaints.filter((c: any) => c.priority === 'high').length;
+                const mediumCount = nonClosedComplaints.filter((c: any) => c.priority === 'medium').length;
+                const lowCount = nonClosedComplaints.filter((c: any) => c.priority === 'low').length;
+                
+                return (
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                      <div className="text-3xl font-bold text-red-600">{criticalCount}</div>
+                      <div className="text-sm text-red-700 font-medium">Critical</div>
+                    </div>
+                    <div className="text-center p-4 bg-orange-50 rounded-lg border border-orange-200">
+                      <div className="text-3xl font-bold text-orange-600">{highCount}</div>
+                      <div className="text-sm text-orange-700 font-medium">High</div>
+                    </div>
+                    <div className="text-center p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+                      <div className="text-3xl font-bold text-yellow-600">{mediumCount}</div>
+                      <div className="text-sm text-yellow-700 font-medium">Medium</div>
+                    </div>
+                    <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                      <div className="text-3xl font-bold text-green-600">{lowCount}</div>
+                      <div className="text-sm text-green-700 font-medium">Low</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
+
           {/* Complaints List */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <AlertTriangleIcon className="h-5 w-5 mr-2" />
-                All Complaints
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center">
+                  <AlertTriangleIcon className="h-5 w-5 mr-2" />
+                  All Complaints
+                </CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadComplaintsCSV()}
+                  className="flex items-center gap-2"
+                  title="Download complaints register with all resolutions and status updates"
+                >
+                  <DownloadIcon className="h-4 w-4" />
+                  Download CSV
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
