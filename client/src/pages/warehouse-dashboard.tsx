@@ -245,15 +245,23 @@ export default function WarehouseDashboard() {
         displayName: user.displayName,
         role: user.role
       });
-      // Initial load removed - data will only load when user clicks refresh
-      setLoading(false);
+      // Automatically load data when dashboard opens
+      loadAllData();
     } else {
       console.log('❌ No user authenticated for warehouse dashboard');
+      setLoading(false);
     }
   }, [user]);
 
-  // Separate useEffect for monitoring data
-  // Removed auto-refresh - monitoring data will only load when user clicks refresh
+  // Separate useEffect for monitoring data - loads once on initial mount
+  useEffect(() => {
+    if (user && user.role === 'warehouse') {
+      // Load monitoring data on initial dashboard load
+      fetchMonitoringDebugData();
+    }
+  }, [user]);
+
+  // Note: No auto-refresh interval - monitoring data will only reload when user clicks refresh
 
   // Hierarchical data loading using debug page logic
   const loadTankActivityData = async (branchStatuses: any[]) => {
