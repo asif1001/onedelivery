@@ -2168,8 +2168,7 @@ export default function BranchDashboard() {
                     </p>
                   </div>
                   
-                  {/* Image Upload Guidance */}
-                  <ImageUploadGuidance />
+
                 </div>
                 
                 <div>
@@ -3004,8 +3003,11 @@ export default function BranchDashboard() {
                                 <img 
                                   src={log.photos.gaugePhoto} 
                                   alt="Tank Gauge"
-                                  className="w-full h-20 object-cover rounded cursor-pointer border"
-                                  onClick={() => setSelectedPhoto({url: log.photos.gaugePhoto, label: 'Tank Gauge'})}
+                                  className="w-full h-20 object-cover rounded cursor-pointer border hover:opacity-80 transition-opacity"
+                                  onClick={() => {
+                                    setSelectedPhoto({url: log.photos.gaugePhoto, label: 'Tank Gauge Photo'});
+                                    setShowPhotoModal(true);
+                                  }}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">Tank Gauge</p>
                               </div>
@@ -3015,8 +3017,11 @@ export default function BranchDashboard() {
                                 <img 
                                   src={log.photos.systemPhoto} 
                                   alt="System Screen"
-                                  className="w-full h-20 object-cover rounded cursor-pointer border"
-                                  onClick={() => setSelectedPhoto({url: log.photos.systemPhoto, label: 'System Screen'})}
+                                  className="w-full h-20 object-cover rounded cursor-pointer border hover:opacity-80 transition-opacity"
+                                  onClick={() => {
+                                    setSelectedPhoto({url: log.photos.systemPhoto, label: 'System Screen Photo'});
+                                    setShowPhotoModal(true);
+                                  }}
                                 />
                                 <p className="text-xs text-gray-500 mt-1">System Screen</p>
                               </div>
