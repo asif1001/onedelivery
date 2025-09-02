@@ -84,8 +84,15 @@ const MonitoringDebug: React.FC = () => {
       });
       
       console.log(`📊 Found ${branchMap.size} branches for name mapping`);
+      console.log(`🔍 User Role: ${userRole}`);
+      console.log(`🏢 User Branch IDs:`, userBranchIds);
+      console.log(`🏪 Assigned Branch Names:`, Array.from(assignedBranchNames));
+      
       if (userRole === 'warehouse' && userBranchIds.length > 0) {
         console.log(`👤 Warehouse user - showing ${assignedBranchNames.size} assigned branches only`);
+        console.log(`🔒 Will filter data to only show branches:`, Array.from(assignedBranchNames));
+      } else {
+        console.log(`👑 Admin/Driver user - showing all branches`);
       }
 
       // Fetch transactions from last 30 days
@@ -112,12 +119,22 @@ const MonitoringDebug: React.FC = () => {
         transactionsSnapshot = await getDocs(fallbackQuery);
       }
       
-      // Process transactions and keep only latest per branch+oilType
+      // Process transactions and keep only latest per branch+oilType (with user filtering)
       const txnMap = new Map<string, TransactionDebugRow>();
       transactionsSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
         const oilTypeName = data.oilTypeName || 'Unknown';
+        
+        // Filter out transactions for warehouse users not assigned to this branch
+        if (userRole === 'warehouse' && userBranchIds.length > 0) {
+          // Skip if this branch is not in user's assigned branches
+          if (!userBranchIds.includes(data.branchId) && !assignedBranchNames.has(branchName)) {
+            console.log(`🚫 Filtered out transaction: ${branchName} (not assigned to warehouse user)`);
+            return;
+          }
+        }
+        
         const key = `${branchName}-${oilTypeName}`;
         
         const row: TransactionDebugRow = {
@@ -150,12 +167,22 @@ const MonitoringDebug: React.FC = () => {
       
       const tankLogsSnapshot = await getDocs(tankLogsQuery);
       
-      // Process tank updates and keep only latest per branch+oilType
+      // Process tank updates and keep only latest per branch+oilType (with user filtering)
       const tankMap = new Map<string, TankUpdateLogRow>();
       tankLogsSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
         const oilTypeName = data.oilTypeName || 'Unknown';
+        
+        // Filter out tank updates for warehouse users not assigned to this branch
+        if (userRole === 'warehouse' && userBranchIds.length > 0) {
+          // Skip if this branch is not in user's assigned branches
+          if (!userBranchIds.includes(data.branchId) && !assignedBranchNames.has(branchName)) {
+            console.log(`🚫 Filtered out tank update: ${branchName} (not assigned to warehouse user)`);
+            return;
+          }
+        }
+        
         const key = `${branchName}-${oilTypeName}`;
         
         const row: TankUpdateLogRow = {
