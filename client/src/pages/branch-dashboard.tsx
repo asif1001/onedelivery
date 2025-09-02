@@ -2172,7 +2172,8 @@ export default function BranchDashboard() {
                   <ImageUploadGuidance />
                 </div>
                 
-                {!gaugePhoto ? (
+                <div>
+                  {!gaugePhoto ? (
                     <div className="space-y-3">
                       <PhotoCaptureButton
                         onCapture={handleGaugePhotoCapture}
