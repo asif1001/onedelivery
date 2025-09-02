@@ -2184,37 +2184,33 @@ export default function BranchDashboard() {
                         Take Gauge Photo
                       </PhotoCaptureButton>
                       
-                      {allowGalleryAccess && (
-                        <>
-                          <div className="text-center text-sm text-gray-500">or</div>
-                          
-                          <Button 
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = 'image/*';
-                              input.onchange = (e) => {
-                                const file = (e.target as HTMLInputElement).files?.[0];
-                                if (file) {
-                                  const previewUrl = URL.createObjectURL(file);
-                                  setGaugePhoto(file);
-                                  setGaugePhotoPreview(previewUrl);
-                                  toast({
-                                    title: "Photo Selected",
-                                    description: "Gauge reading photo selected from gallery"
-                                  });
-                                }
-                              };
-                              input.click();
-                            }}
-                            variant="outline"
-                            className="w-full h-12"
-                          >
-                            <GalleryVerticalIcon className="h-4 w-4 mr-2" />
-                            Choose from Gallery
-                          </Button>
-                        </>
-                      )}
+                      <div className="text-center text-sm text-gray-500">or</div>
+                      
+                      <Button 
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const previewUrl = URL.createObjectURL(file);
+                              setGaugePhoto(file);
+                              setGaugePhotoPreview(previewUrl);
+                              toast({
+                                title: "Photo Selected",
+                                description: "Gauge reading photo selected from gallery"
+                              });
+                            }
+                          };
+                          input.click();
+                        }}
+                        variant="outline"
+                        className="w-full h-12"
+                      >
+                        <GalleryVerticalIcon className="h-4 w-4 mr-2" />
+                        Choose from Gallery
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -2374,37 +2370,33 @@ export default function BranchDashboard() {
                         Take System Photo
                       </PhotoCaptureButton>
                       
-                      {allowGalleryAccess && (
-                        <>
-                          <div className="text-center text-sm text-gray-500">or</div>
-                          
-                          <Button 
-                            onClick={() => {
-                              const input = document.createElement('input');
-                              input.type = 'file';
-                              input.accept = 'image/*';
-                              input.onchange = (e) => {
-                                const file = (e.target as HTMLInputElement).files?.[0];
-                                if (file) {
-                                  const previewUrl = URL.createObjectURL(file);
-                                  setSystemPhoto(file);
-                                  setSystemPhotoPreview(previewUrl);
-                                  toast({
-                                    title: "Photo Selected",
-                                    description: "System screen photo selected from gallery"
-                                  });
-                                }
-                              };
-                              input.click();
-                            }}
-                            variant="outline"
-                            className="w-full h-12"
-                          >
-                            <GalleryVerticalIcon className="h-4 w-4 mr-2" />
-                            Choose from Gallery
-                          </Button>
-                        </>
-                      )}
+                      <div className="text-center text-sm text-gray-500">or</div>
+                      
+                      <Button 
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const previewUrl = URL.createObjectURL(file);
+                              setSystemPhoto(file);
+                              setSystemPhotoPreview(previewUrl);
+                              toast({
+                                title: "Photo Selected",
+                                description: "System screen photo selected from gallery"
+                              });
+                            }
+                          };
+                          input.click();
+                        }}
+                        variant="outline"
+                        className="w-full h-12"
+                      >
+                        <GalleryVerticalIcon className="h-4 w-4 mr-2" />
+                        Choose from Gallery
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-4">
