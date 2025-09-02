@@ -1095,8 +1095,16 @@ export default function WarehouseDashboard() {
       });
       
       console.log(`📊 Found ${branchMap.size} branches for name mapping`);
-      if (userRole === 'warehouse' && userBranchIds.length > 0) {
-        console.log(`👤 Warehouse user - showing ${assignedBranchNames.size} assigned branches only`);
+      if (userRole === 'warehouse') {
+        if (userBranchIds.length > 0) {
+          console.log(`👤 Warehouse user - ${userBranchIds.length} assigned branch IDs: [${userBranchIds.join(', ')}]`);
+          console.log(`📍 Assigned branch names: [${Array.from(assignedBranchNames).join(', ')}]`);
+          console.log(`🔒 Will filter to show ${assignedBranchNames.size} branches only`);
+        } else {
+          console.log(`⚠️ Warehouse user has no branch assignments - contact admin`);
+        }
+      } else {
+        console.log(`👑 Admin user - will show all branches`);
       }
 
       // Fetch transactions from last 30 days
@@ -2976,19 +2984,50 @@ export default function WarehouseDashboard() {
             {(() => {
               const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
               const isWarehouseUser = currentUserData?.role === 'warehouse';
+              const userBranchIds = currentUserData?.branchIds || [];
               
-              if (isWarehouseUser && userAssignedBranches.size > 0) {
-                return (
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertCircleIcon className="w-4 h-4 text-blue-600" />
-                      <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
+              if (isWarehouseUser) {
+                if (userAssignedBranches.size > 0) {
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircleIcon className="w-4 h-4 text-blue-600" />
+                        <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
+                      </div>
+                      <p className="text-sm text-blue-700">
+                        You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: 
+                        <span className="font-medium"> {Array.from(userAssignedBranches).join(', ')}</span>
+                      </p>
+                      <p className="text-xs text-blue-600 mt-1">
+                        Branches not assigned to you are automatically filtered out for security.
+                      </p>
                     </div>
-                    <p className="text-sm text-blue-700">
-                      You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: {Array.from(userAssignedBranches).join(', ')}
-                    </p>
-                  </div>
-                );
+                  );
+                } else if (userBranchIds.length === 0) {
+                  return (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircleIcon className="w-4 h-4 text-amber-600" />
+                        <span className="font-medium text-amber-800">No Branch Assignment</span>
+                      </div>
+                      <p className="text-sm text-amber-700">
+                        You have not been assigned to any branches yet. Please contact your administrator to assign branches.
+                      </p>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertCircleIcon className="w-4 h-4 text-gray-600" />
+                        <span className="font-medium text-gray-800">Loading Branch Data</span>
+                      </div>
+                      <p className="text-sm text-gray-700">
+                        Loading your assigned branch data...
+                      </p>
+                    </div>
+                  );
+                }
               }
               
               return null;
