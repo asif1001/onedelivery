@@ -120,6 +120,7 @@ export default function WarehouseDashboard() {
   const [oilTypes, setOilTypes] = useState<OilType[]>([]);
   const [oilTanks, setOilTanks] = useState<OilTank[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [updateLogs, setUpdateLogs] = useState<UpdateLog[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   
@@ -231,22 +232,24 @@ export default function WarehouseDashboard() {
       // Load everything else much later to avoid any blocking
       setTimeout(async () => {
         try {
-          // Load recent transactions (filtered for warehouse users)
+          // Load ALL transactions for accurate tank status calculations
           const allTxs = await getAllTransactions().catch(() => []);
           const filteredTxs = isRestrictedUser 
             ? allTxs.filter(tx => userBranchIds.includes(tx.branchId))
             : allTxs;
           
-          // Take only recent 10 transactions
-          const recentTxs = filteredTxs
-            .sort((a, b) => {
-              const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
-              const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
-              return dateB.getTime() - dateA.getTime();
-            })
-            .slice(0, 10);
+          // Sort all transactions by date
+          const sortedTxs = filteredTxs.sort((a, b) => {
+            const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+            const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+            return dateB.getTime() - dateA.getTime();
+          });
           
-          setRecentTransactions(recentTxs);
+          // Store ALL transactions for tank status calculations
+          setAllTransactions(sortedTxs);
+          
+          // Store only recent 10 for display in Recent Transactions tab
+          setRecentTransactions(sortedTxs.slice(0, 10));
           
           // Load drivers for proper transaction details
           const driversData = await getAllUsers().catch(() => []);
@@ -929,8 +932,9 @@ export default function WarehouseDashboard() {
           daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
         }
 
-        // Supply/Loading from transactions collection
-        const tankTransactions = recentTransactions.filter(transaction => 
+        // Supply/Loading from ALL transactions (not limited to recent 10)
+        // NOTE: This now uses the complete transaction database for accurate latest record per tank
+        const tankTransactions = allTransactions.filter(transaction => 
           transaction.branchId === branch.id && 
           transaction.oilTypeName === tank.oilTypeName && 
           (transaction.type === 'supply' || transaction.type === 'loading')
