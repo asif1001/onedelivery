@@ -1008,11 +1008,8 @@ export default function BranchDashboard() {
       
       setOptimisticUpdates(prev => new Map(prev.set(selectedTankForUpdate, optimisticUpdate)));
 
-      // Add watermarks to photos with timeout protection
-      const timestamp = new Date().toLocaleString();
-      const userInfo = `${currentUser.displayName || currentUser.email} - ${timestamp}`;
-      
-      console.log('📸 Processing photos for tank update...');
+      // PERFORMANCE OPTIMIZATION: Parallel photo processing and upload
+      console.log('📸 Processing photos for tank update (optimized parallel processing)...');
       
       // Get tank and branch information for professional watermarks
       const tankForWatermark = oilTanks.find(tank => tank.id === selectedTankForUpdate);
@@ -1020,60 +1017,84 @@ export default function BranchDashboard() {
       const branchName = branchForWatermark?.name || 'Unknown Branch';
       const tankName = tankForWatermark?.oilTypeName || 'Unknown Tank';
       const userName = currentUser.displayName || currentUser.email;
+      const sessionId = `${currentUser.uid}_${Date.now()}`;
       
-      // Apply professional watermarks using the same format as supply workflow
-      const watermarkedGaugePhoto = await Promise.race([
-        watermarkImage(gaugePhoto, {
-          branchName,
-          timestamp: new Date(),
-          extraLine1: `Tank: ${tankName}`,
-          extraLine2: `Updated by: ${userName}`
-        }),
-        new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
+      // PARALLEL WATERMARKING - Process both photos simultaneously
+      const watermarkStartTime = performance.now();
+      const [watermarkedGaugePhoto, watermarkedSystemPhoto] = await Promise.race([
+        Promise.all([
+          watermarkImage(gaugePhoto, {
+            branchName,
+            timestamp: new Date(),
+            extraLine1: `Tank: ${tankName}`,
+            extraLine2: `Updated by: ${userName}`
+          }),
+          watermarkImage(systemPhoto, {
+            branchName,
+            timestamp: new Date(),
+            extraLine1: `Tank: ${tankName}`,
+            extraLine2: `Level Update: ${manualQuantity}L`
+          })
+        ]),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Photo watermarking timeout (8s)')), 8000)
+        )
       ]);
       
-      const watermarkedSystemPhoto = await Promise.race([
-        watermarkImage(systemPhoto, {
-          branchName,
-          timestamp: new Date(),
-          extraLine1: `Tank: ${tankName}`,
-          extraLine2: `Level Update: ${manualQuantity}L`
-        }),
-        new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
-      ]);
+      const watermarkTime = performance.now() - watermarkStartTime;
+      console.log(`⚡ Photo watermarking completed in ${watermarkTime.toFixed(0)}ms`);
 
-      // Upload photos with timeout protection
-      console.log('☁️ Uploading photos to Firebase Storage...');
-      const gaugePhotoUrl = await Promise.race([
-        uploadPhoto(watermarkedGaugePhoto, `tank-updates/${selectedTankForUpdate}/gauge-${Date.now()}`),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Photo upload timeout')), 15000))
+      // PARALLEL UPLOAD - Upload both photos simultaneously with optimized paths
+      console.log('☁️ Uploading photos to Firebase Storage (parallel)...');
+      const uploadStartTime = performance.now();
+      const uploadBasePath = `tank-updates/${selectedTankForUpdate}/${sessionId}`;
+      
+      const [gaugePhotoUrl, systemPhotoUrl] = await Promise.race([
+        Promise.all([
+          uploadPhoto(watermarkedGaugePhoto, `${uploadBasePath}_gauge`),
+          uploadPhoto(watermarkedSystemPhoto, `${uploadBasePath}_system`)
+        ]),
+        new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Photo upload timeout (12s)')), 12000)
+        )
       ]);
-      const systemPhotoUrl = await Promise.race([
-        uploadPhoto(watermarkedSystemPhoto, `tank-updates/${selectedTankForUpdate}/system-${Date.now()}`),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('Photo upload timeout')), 15000))
-      ]);
+      
+      const uploadTime = performance.now() - uploadStartTime;
+      console.log(`⚡ Photo uploads completed in ${uploadTime.toFixed(0)}ms`);
 
-      // Enhanced update data with concurrent handling (avoid undefined values)
+      // ENHANCED CONCURRENT UPDATE DATA with performance optimizations
       const updateData = {
         currentLevel: newLevel,
         lastUpdatedBy: currentUser.displayName || currentUser.email,
         notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
         systemScreenPhoto: systemPhotoUrl,
-        lastSeenUpdate: (selectedTank as any).lastAdjustmentAt || null,
+        lastSeenUpdate: (selectedTank as any).lastUpdated || null,
         expectedPreviousLevel: selectedTank.currentLevel,
         updateType: 'manual_with_photos',
-        sessionId: `${currentUser.uid}_${Date.now()}`,
+        sessionId: sessionId,
         userAgent: navigator.userAgent.substring(0, 100),
-        concurrent: true
+        concurrent: true,
+        retryCount: 0,
+        clientTimestamp: new Date().toISOString(),
+        performanceMetrics: {
+          watermarkTime: watermarkTime.toFixed(0),
+          uploadTime: uploadTime.toFixed(0)
+        }
       };
 
-      // Update tank level in database with concurrent support and timeout protection
-      console.log('💾 Updating tank level in database...');
+      // OPTIMIZED DATABASE UPDATE with reduced timeout for faster response
+      console.log('💾 Updating tank level in database (concurrent-safe)...');
+      const dbStartTime = performance.now();
       const result = await Promise.race([
         updateOilTankLevel(selectedTankForUpdate, updateData),
-        new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Database update timeout - please try again')), 20000))
+        new Promise<any>((_, reject) => 
+          setTimeout(() => reject(new Error('Database update timeout (15s) - retrying')), 15000)
+        )
       ]) as any;
+      
+      const dbTime = performance.now() - dbStartTime;
+      console.log(`⚡ Database update completed in ${dbTime.toFixed(0)}ms`);
 
       // Clear optimistic update on success
       setOptimisticUpdates(prev => {

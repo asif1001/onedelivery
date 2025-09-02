@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
 import { createLoadSession, getOilTypes, getActiveBranchesOnly, uploadPhotoToFirebaseStorage } from '@/lib/firebase';
-import { watermarkImage, getCurrentTimestamp } from '@/utils/watermark';
+import { watermarkImage } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
 interface LoadingData {
@@ -85,7 +85,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
       // Apply watermark with loading-specific details
       const watermarkedFile = await watermarkImage(originalFile, {
         branchName,
-        timestamp: getCurrentTimestamp(),
+        timestamp: new Date(),
         extraLine2: "Oil Type: Loading"
       });
 

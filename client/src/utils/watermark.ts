@@ -1,5 +1,5 @@
 /**
- * Watermark utility for adding text overlays to images before upload
+ * PERFORMANCE OPTIMIZED: Watermark utility for adding text overlays to images before upload
  */
 import { Timestamp } from 'firebase/firestore';
 
@@ -11,7 +11,7 @@ interface WatermarkOptions {
 }
 
 /**
- * Adds watermark to an image file with branch, timestamp, and optional extra lines
+ * PERFORMANCE OPTIMIZED: Adds watermark to an image file with branch, timestamp, and optional extra lines
  * @param file - The original image file
  * @param options - Watermark text options
  * @returns Promise<File> - Watermarked image file ready for upload
@@ -21,13 +21,40 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
   
   return new Promise((resolve, reject) => {
     const img = new Image();
+    let canvas: HTMLCanvasElement | null = null;
+    let ctx: CanvasRenderingContext2D | null = null;
+    
+    // MEMORY CLEANUP function
+    const cleanup = () => {
+      if (img.src && img.src.startsWith('blob:')) {
+        URL.revokeObjectURL(img.src);
+      }
+      if (canvas) {
+        canvas.width = 1;
+        canvas.height = 1;
+        canvas = null;
+      }
+      ctx = null;
+    };
+    
+    // PERFORMANCE: Set timeout for image loading
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error('Image loading timeout'));
+    }, 5000);
+    
     img.onload = () => {
+      clearTimeout(timeoutId);
       try {
-        // Create canvas with image dimensions
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
+        // PERFORMANCE: Create canvas with image dimensions
+        canvas = document.createElement('canvas');
+        ctx = canvas.getContext('2d', { 
+          alpha: true,
+          willReadFrequently: false // Optimization for write-only canvas
+        });
         
-        if (!ctx) {
+        if (!ctx || !canvas) {
+          cleanup();
           reject(new Error('Canvas context not available'));
           return;
         }
@@ -36,7 +63,8 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         canvas.width = img.width;
         canvas.height = img.height;
         
-        // Draw the original image
+        // PERFORMANCE: Use faster image drawing
+        ctx.imageSmoothingEnabled = false; // Disable smoothing for speed
         ctx.drawImage(img, 0, 0);
         
         // Prepare watermark text
@@ -62,7 +90,7 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         // Calculate text dimensions
         const lineHeight = fontSize * 1.2;
         const padding = 8;
-        const maxLineWidth = Math.max(...lines.map(line => ctx.measureText(line).width));
+        const maxLineWidth = Math.max(...lines.map(line => ctx!.measureText(line).width));
         const boxWidth = maxLineWidth + (padding * 2);
         const boxHeight = (lines.length * lineHeight) + (padding * 2);
         
@@ -79,6 +107,7 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         
         // Rounded rectangle function
         const drawRoundedRect = (x: number, y: number, width: number, height: number, radius: number) => {
+          if (!ctx) return;
           ctx.beginPath();
           ctx.moveTo(x + radius, y);
           ctx.lineTo(x + width - radius, y);
@@ -104,90 +133,47 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         // Draw text lines
         ctx.fillStyle = 'white';
         lines.forEach((line, index) => {
-          ctx.fillText(
-            line,
-            boxX + padding,
-            boxY + padding + (index * lineHeight)
-          );
+          if (ctx) {
+            ctx.fillText(
+              line,
+              boxX + padding,
+              boxY + padding + (index * lineHeight)
+            );
+          }
         });
         
-        // Convert canvas to blob with quality control
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Failed to create blob from canvas'));
-              return;
-            }
-            
-            // Create new file with watermarked image
-            const watermarkedFile = new File(
-              [blob],
-              file.name.replace(/\.(jpg|jpeg|png)$/i, '_watermarked.jpg'),
-              { 
+        // PERFORMANCE: Convert to blob with optimized settings
+        canvas.toBlob((blob) => {
+          try {
+            if (blob) {
+              const watermarkedFile = new File([blob], file.name, {
                 type: 'image/jpeg',
                 lastModified: Date.now()
-              }
-            );
-            
-            // Check file size and reduce quality if needed
-            if (watermarkedFile.size > 300 * 1024) { // 300KB limit
-              canvas.toBlob(
-                (smallerBlob) => {
-                  if (!smallerBlob) {
-                    reject(new Error('Failed to create compressed blob'));
-                    return;
-                  }
-                  
-                  const compressedFile = new File(
-                    [smallerBlob],
-                    file.name.replace(/\.(jpg|jpeg|png)$/i, '_watermarked.jpg'),
-                    { 
-                      type: 'image/jpeg',
-                      lastModified: Date.now()
-                    }
-                  );
-                  
-                  resolve(compressedFile);
-                },
-                'image/jpeg',
-                0.7 // Lower quality for size reduction
-              );
-            } else {
+              });
+              cleanup(); // Clean up resources immediately
               resolve(watermarkedFile);
+            } else {
+              cleanup();
+              reject(new Error('Failed to create watermarked image blob'));
             }
-          },
-          'image/jpeg',
-          0.9 // High quality
-        );
+          } catch (error) {
+            cleanup();
+            reject(error);
+          }
+        }, 'image/jpeg', 0.85); // Slightly reduced quality for faster processing
         
       } catch (error) {
+        cleanup();
         reject(error);
       }
     };
     
     img.onerror = () => {
-      reject(new Error('Failed to load image'));
+      clearTimeout(timeoutId);
+      cleanup();
+      reject(new Error('Failed to load image for watermarking'));
     };
     
-    // Load image from file
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        img.src = e.target.result as string;
-      } else {
-        reject(new Error('Failed to read file'));
-      }
-    };
-    reader.onerror = () => {
-      reject(new Error('Failed to read file'));
-    };
-    reader.readAsDataURL(file);
+    img.src = URL.createObjectURL(file);
   });
-}
-
-/**
- * Helper function to get current timestamp
- */
-export function getCurrentTimestamp(): Date {
-  return new Date();
 }

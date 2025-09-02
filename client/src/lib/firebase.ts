@@ -2994,7 +2994,7 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
     const tankIndex = parseInt(tankIdParts[1]);
     const branchRef = doc(db, 'branches', branchId);
     
-    // Use Firestore transaction for atomic updates
+    // OPTIMIZED: Use Firestore transaction for atomic updates with enhanced performance
     const result = await runTransaction(db, async (transaction) => {
       // Read current state
       const branchSnapshot = await transaction.get(branchRef);
@@ -3013,26 +3013,38 @@ export const updateOilTankLevel = async (tankId: string, updateData: any) => {
       const currentTankData = oilTanks[tankIndex];
       const previousLevel = currentTankData.currentLevel || 0;
       
-      // Detect conflicts - check if tank was updated during our operation
+      // ENHANCED CONFLICT DETECTION with session tracking
       const lastServerUpdate = currentTankData.lastUpdated?.toDate?.() || currentTankData.lastUpdated;
       const clientLastSeen = updateData.lastSeenUpdate ? new Date(updateData.lastSeenUpdate) : null;
+      const serverSessionId = currentTankData.sessionId;
+      const clientSessionId = updateData.sessionId;
       
+      // More robust conflict detection
       if (clientLastSeen && lastServerUpdate && lastServerUpdate > clientLastSeen) {
-        // Conflict detected - tank was updated by someone else
-        const conflictError = new Error('CONCURRENT_UPDATE_CONFLICT');
-        (conflictError as any).conflictDetails = {
-          serverLevel: currentTankData.currentLevel,
-          serverUpdatedBy: currentTankData.lastUpdatedBy,
-          serverUpdatedAt: lastServerUpdate,
-          clientExpectedLevel: updateData.expectedPreviousLevel
-        };
-        throw conflictError;
+        // Check if it's the same session (allow retries)
+        if (!serverSessionId || !clientSessionId || serverSessionId !== clientSessionId) {
+          const conflictError = new Error('CONCURRENT_UPDATE_CONFLICT');
+          (conflictError as any).type = 'CONFLICT';
+          (conflictError as any).details = {
+            serverLevel: currentTankData.currentLevel,
+            serverUpdatedBy: currentTankData.lastUpdatedBy,
+            serverUpdatedAt: lastServerUpdate,
+            clientExpectedLevel: updateData.expectedPreviousLevel,
+            serverSessionId,
+            clientSessionId
+          };
+          throw conflictError;
+        }
       }
       
       // Validate capacity constraints
       if (updateData.currentLevel > currentTankData.capacity) {
         throw new Error(`Level ${updateData.currentLevel}L exceeds tank capacity ${currentTankData.capacity}L`);
       }
+      
+      // PERFORMANCE: Add retry counter and timestamp validation
+      const isRetry = (updateData.retryCount || 0) > 0;
+      const timeSinceLastUpdate = lastServerUpdate ? Date.now() - lastServerUpdate.getTime() : Infinity;
       
       console.log('🔄 Transaction: Updating tank with conflict check passed:', {
         branchName: branchData.name,

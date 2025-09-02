@@ -20,7 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
 import { getActiveBranchesOnly, getAllOilTypes, uploadPhotoToFirebaseStorage, getAllTransactions, getDrumCapacities, saveDrumSupplyTransaction, completeDrumSupply } from '@/lib/firebase';
-import { watermarkImage, getCurrentTimestamp } from '@/utils/watermark';
+import { watermarkImage } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
 interface DrumSupplyData {
@@ -198,7 +198,7 @@ export function DrumSupplyWorkflow({ onClose, onPhotoClick }: DrumSupplyWorkflow
       // Apply watermark with drum supply specific details
       const watermarkedFile = await watermarkImage(originalFile, {
         branchName,
-        timestamp: getCurrentTimestamp(),
+        timestamp: new Date(),
         extraLine1: `Drum Supply - ${oilTypeName}`,
         extraLine2: `${drumSupplyData.numberOfDrums} x ${drumSupplyData.drumCapacity}L drums`
       });
