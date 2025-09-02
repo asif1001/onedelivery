@@ -141,122 +141,7 @@ export default function WarehouseDashboard() {
     }
   };
 
-  // Cache for query results to avoid duplicate requests
-  const queryCache = new Map<string, any>();
 
-  const getLatestTransactionActivity = async (branchId: string, oilTypeId: string): Promise<{time: string, by: string}> => {
-    const cacheKey = `tx_${branchId}_${oilTypeId}`;
-    if (queryCache.has(cacheKey)) {
-      return queryCache.get(cacheKey);
-    }
-
-    try {
-      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
-      
-      // Optimize query with single call using timestamp field
-      const q = query(
-        collection(db, "transactions"),
-        where("branchId", "==", branchId),
-        where("oilTypeId", "==", oilTypeId),
-        where("type", "in", ["supply", "loading"]),
-        where("timestamp", ">=", since30d),
-        orderBy("timestamp", "desc"),
-        limit(1)
-      );
-      
-      const snap = await getDocs(q);
-      
-      let result = { time: '', by: '' };
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        const data = doc.data();
-        const timestamp = data.timestamp || data.createdAt;
-        const timeAgo = formatTimeAgo(timestamp);
-        const driverName = data.driverName || '-';
-        result = { time: timeAgo, by: driverName };
-      }
-      
-      queryCache.set(cacheKey, result);
-      return result;
-    } catch (error) {
-      console.error('Transaction query error:', error);
-      const fallback = { time: '', by: '' };
-      queryCache.set(cacheKey, fallback);
-      return fallback;
-    }
-  };
-
-  const getLatestManualActivity = async (branchId: string, oilTypeId: string, tankId?: string): Promise<{time: string, by: string}> => {
-    const cacheKey = `manual_${branchId}_${oilTypeId}_${tankId || 'notank'}`;
-    if (queryCache.has(cacheKey)) {
-      return queryCache.get(cacheKey);
-    }
-
-    try {
-      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
-      
-      // Optimize to single query using the most reliable field
-      const q = query(
-        collection(db, "tankUpdateLogs"),
-        where("branchId", "==", branchId),
-        where("oilTypeId", "==", oilTypeId),
-        where("updateType", "in", ["manual", "manual_with_photos"]),
-        where("updatedAt", ">=", since30d),
-        orderBy("updatedAt", "desc"),
-        limit(1)
-      );
-      
-      const snap = await getDocs(q);
-      
-      let result = { time: '', by: '' };
-      if (!snap.empty) {
-        const doc = snap.docs[0];
-        const data = doc.data();
-        const timeAgo = formatTimeAgo(data.updatedAt);
-        const updatedBy = data.updatedBy || '-';
-        result = { time: timeAgo, by: updatedBy };
-      }
-      
-      queryCache.set(cacheKey, result);
-      return result;
-    } catch (error) {
-      console.error('Manual activity query error:', error);
-      const fallback = { time: '', by: '' };
-      queryCache.set(cacheKey, fallback);
-      return fallback;
-    }
-  };
-
-  // Update tank display data with real-time information
-  const updateTankDisplayData = async (tankDetails: any[]) => {
-    const updatedTanks = await Promise.all(tankDetails.map(async (tank) => {
-      const branchId = tank.tankId.split('_')[0]; // Extract branchId from tankId
-      const oilTypeId = tank.oilTypeId || tank.oilTypeName; // Use oilTypeId or fallback to name
-      
-      // Fetch real-time data
-      const [transactionActivity, manualActivity] = await Promise.all([
-        getLatestTransactionActivity(branchId, oilTypeId),
-        getLatestManualActivity(branchId, oilTypeId, tank.tankId)
-      ]);
-      
-      // Format display text
-      const manualDisplay = manualActivity.time && manualActivity.by !== '-'
-        ? `${manualActivity.time} by ${manualActivity.by}`
-        : 'No activity in last 30 days';
-        
-      const supplyDisplay = transactionActivity.time && transactionActivity.by !== '-'
-        ? `${transactionActivity.time} by ${transactionActivity.by}`
-        : 'No activity in last 30 days';
-      
-      return {
-        ...tank,
-        manualUpdateDisplay: manualDisplay,
-        supplyUpdateDisplay: supplyDisplay
-      };
-    }));
-    
-    return updatedTanks;
-  };
   
   // Enhanced tank tracking data with real-time database queries
   const [enhancedBranchData, setEnhancedBranchData] = useState<any[]>([]);
@@ -342,83 +227,127 @@ export default function WarehouseDashboard() {
     }
   }, [user]);
 
-  // Optimized parallel loading of tank activity data
+  // Hierarchical data loading using debug page logic
   const loadTankActivityData = async (branchStatuses: any[]) => {
-    console.log('🚀 Loading tank activity data with parallel optimization...');
+    console.log('🚀 Loading tank activity data using hierarchical approach...');
     const startTime = Date.now();
     
-    // Collect all tank requests first
-    const tankRequests: Array<{tankId: string, branchId: string, oilTypeId: string}> = [];
-    
-    branchStatuses.forEach(branch => {
-      branch.tankDetails.slice(0, 3).forEach((tank: any) => {
-        tankRequests.push({
-          tankId: tank.tankId,
-          branchId: tank.tankId.split('_')[0],
-          oilTypeId: tank.oilTypeId || tank.oilTypeName
-        });
-      });
-    });
-    
-    console.log(`📊 Processing ${tankRequests.length} tanks with parallel queries...`);
-    
-    // Process all tanks in parallel with batching
-    const BATCH_SIZE = 5; // Process 5 tanks at a time to avoid overwhelming Firestore
-    const activityMap = new Map();
-    
-    for (let i = 0; i < tankRequests.length; i += BATCH_SIZE) {
-      const batch = tankRequests.slice(i, i + BATCH_SIZE);
+    try {
+      // Fetch all data in parallel first (same as debug page)
+      const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
       
-      const batchPromises = batch.map(async (tank) => {
-        try {
-          const [transactionActivity, manualActivity] = await Promise.all([
-            getLatestTransactionActivity(tank.branchId, tank.oilTypeId),
-            getLatestManualActivity(tank.branchId, tank.oilTypeId, tank.tankId)
-          ]);
-          
-          const manualDisplay = manualActivity.time && manualActivity.by !== '-'
-            ? `${manualActivity.time} by ${manualActivity.by}`
-            : 'No activity in last 30 days';
-            
-          const supplyDisplay = transactionActivity.time && transactionActivity.by !== '-'
-            ? `${transactionActivity.time} by ${transactionActivity.by}`
-            : 'No activity in last 30 days';
-            
-          return {
-            tankId: tank.tankId,
-            data: {
-              manualUpdateDisplay: manualDisplay,
-              supplyUpdateDisplay: supplyDisplay
-            }
+      console.log('📊 Fetching transactions and tank updates from last 30 days...');
+      
+      // Get branch mapping
+      const branchesSnapshot = await getDocs(collection(db, 'branches'));
+      const branchMap = new Map<string, string>();
+      branchesSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        branchMap.set(doc.id, data.name || doc.id);
+      });
+      
+      // Fetch all transactions and tank updates in parallel
+      const [transactionsSnapshot, tankLogsSnapshot] = await Promise.all([
+        getDocs(query(
+          collection(db, "transactions"),
+          where("createdAt", ">=", since30d),
+          orderBy("createdAt", "desc"),
+          limit(200)
+        )),
+        getDocs(query(
+          collection(db, "tankUpdateLogs"),
+          where("updatedAt", ">=", since30d),
+          orderBy("updatedAt", "desc"), 
+          limit(200)
+        ))
+      ]);
+      
+      // Process data using debug page logic
+      const branchOilTypeData = new Map<string, {
+        manualUpdate: { updatedAt: any; updatedBy: string } | null;
+        supplyLoading: { createdAt: any; driverName: string } | null;
+      }>();
+      
+      // Process tank updates (manual)
+      tankLogsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId;
+        const oilTypeName = data.oilTypeName;
+        const key = `${branchName}-${oilTypeName}`;
+        
+        if (!branchOilTypeData.has(key) || !branchOilTypeData.get(key)?.manualUpdate) {
+          const existing = branchOilTypeData.get(key) || { manualUpdate: null, supplyLoading: null };
+          existing.manualUpdate = {
+            updatedAt: data.updatedAt,
+            updatedBy: data.updatedBy || '-'
           };
-        } catch (error) {
-          console.error(`Error loading activity for tank ${tank.tankId}:`, error);
-          return {
-            tankId: tank.tankId,
-            data: {
-              manualUpdateDisplay: 'Error loading data',
-              supplyUpdateDisplay: 'Error loading data'
-            }
-          };
+          branchOilTypeData.set(key, existing);
         }
       });
       
-      const batchResults = await Promise.all(batchPromises);
-      batchResults.forEach(result => {
-        activityMap.set(result.tankId, result.data);
+      // Process transactions (supply/loading)
+      transactionsSnapshot.docs.forEach(doc => {
+        const data = doc.data();
+        if (!['supply', 'loading'].includes(data.type)) return;
+        
+        const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId;
+        const oilTypeName = data.oilTypeName;
+        const key = `${branchName}-${oilTypeName}`;
+        
+        if (!branchOilTypeData.has(key) || !branchOilTypeData.get(key)?.supplyLoading) {
+          const existing = branchOilTypeData.get(key) || { manualUpdate: null, supplyLoading: null };
+          existing.supplyLoading = {
+            createdAt: data.timestamp || data.createdAt,
+            driverName: data.driverName || '-'
+          };
+          branchOilTypeData.set(key, existing);
+        }
       });
       
-      // Update state after each batch for progressive loading
-      setTankActivityData(new Map(activityMap));
+      // Convert to tank-specific activity data for the UI
+      const activityMap = new Map();
       
-      // Small delay between batches to prevent rate limiting
-      if (i + BATCH_SIZE < tankRequests.length) {
-        await new Promise(resolve => setTimeout(resolve, 50)); // Reduced delay from 100ms to 50ms
-      }
+      branchStatuses.forEach(branch => {
+        branch.tankDetails.slice(0, 3).forEach((tank: any) => {
+          const key = `${branch.name}-${tank.oilTypeName}`;
+          const data = branchOilTypeData.get(key);
+          
+          // Format display using same logic as debug page
+          const manualDisplay = data?.manualUpdate 
+            ? formatTimeAgo(data.manualUpdate.updatedAt) + ` by ${data.manualUpdate.updatedBy}`
+            : 'No activity in last 30 days';
+            
+          const supplyDisplay = data?.supplyLoading
+            ? formatTimeAgo(data.supplyLoading.createdAt) + ` by ${data.supplyLoading.driverName}`
+            : 'No activity in last 30 days';
+          
+          activityMap.set(tank.tankId, {
+            manualUpdateDisplay: manualDisplay,
+            supplyUpdateDisplay: supplyDisplay
+          });
+        });
+      });
+      
+      setTankActivityData(activityMap);
+      
+      const endTime = Date.now();
+      console.log(`✅ Hierarchical tank activity data loaded in ${endTime - startTime}ms`);
+      
+    } catch (error) {
+      console.error('❌ Error loading hierarchical tank data:', error);
+      
+      // Fallback to show error state
+      const activityMap = new Map();
+      branchStatuses.forEach(branch => {
+        branch.tankDetails.slice(0, 3).forEach((tank: any) => {
+          activityMap.set(tank.tankId, {
+            manualUpdateDisplay: 'Error loading data',
+            supplyUpdateDisplay: 'Error loading data'
+          });
+        });
+      });
+      setTankActivityData(activityMap);
     }
-    
-    const endTime = Date.now();
-    console.log(`✅ Tank activity data loaded in ${endTime - startTime}ms for ${tankRequests.length} tanks`);
   };
 
   const loadAllData = async () => {
