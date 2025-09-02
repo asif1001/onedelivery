@@ -85,22 +85,32 @@ const MonitoringDebug: React.FC = () => {
         transactionsSnapshot = await getDocs(fallbackQuery);
       }
       
-      const txnResults: TransactionDebugRow[] = [];
+      // Process transactions and keep only latest per branch+oilType
+      const txnMap = new Map<string, TransactionDebugRow>();
       transactionsSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
+        const oilTypeName = data.oilTypeName || 'Unknown';
+        const key = `${branchName}-${oilTypeName}`;
         
         const row: TransactionDebugRow = {
-          oilTypeName: data.oilTypeName || 'Unknown',
+          oilTypeName: oilTypeName,
           driverName: data.driverName || '-',
           createdAt: formatTimestamp(data.createdAt || data.timestamp),
           branchName: branchName,
           docId: doc.id
         };
         
-        txnResults.push(row);
-        console.log(`✅ Transaction: ${row.oilTypeName} by ${row.driverName} at ${row.branchName}`);
+        // Keep only the latest (first in ordered results)
+        if (!txnMap.has(key)) {
+          txnMap.set(key, row);
+          console.log(`✅ Latest Transaction for ${key}: ${row.createdAt} by ${row.driverName}`);
+        } else {
+          console.log(`⏭️ Skipping older transaction for ${key}`);
+        }
       });
+      
+      const txnResults = Array.from(txnMap.values());
 
       // Fetch tankUpdateLogs from last 30 days
       console.log('\n🛢️ Fetching tankUpdateLogs from last 30 days...');
@@ -112,23 +122,33 @@ const MonitoringDebug: React.FC = () => {
       );
       
       const tankLogsSnapshot = await getDocs(tankLogsQuery);
-      const tankResults: TankUpdateLogRow[] = [];
       
+      // Process tank updates and keep only latest per branch+oilType
+      const tankMap = new Map<string, TankUpdateLogRow>();
       tankLogsSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
+        const oilTypeName = data.oilTypeName || 'Unknown';
+        const key = `${branchName}-${oilTypeName}`;
         
         const row: TankUpdateLogRow = {
-          oilTypeName: data.oilTypeName || 'Unknown',
+          oilTypeName: oilTypeName,
           branchName: branchName,
           updatedAt: formatTimestamp(data.updatedAt),
           updatedBy: data.updatedBy || '-',
           docId: doc.id
         };
         
-        tankResults.push(row);
-        console.log(`✅ Tank Update: ${row.oilTypeName} by ${row.updatedBy} at ${row.branchName}`);
+        // Keep only the latest (first in ordered results)
+        if (!tankMap.has(key)) {
+          tankMap.set(key, row);
+          console.log(`✅ Latest Tank Update for ${key}: ${row.updatedAt} by ${row.updatedBy}`);
+        } else {
+          console.log(`⏭️ Skipping older tank update for ${key}`);
+        }
       });
+      
+      const tankResults = Array.from(tankMap.values());
       
       console.log(`\n✅ Debug fetch complete.`);
       console.log(`📋 Transactions (30d): ${txnResults.length}`);
@@ -262,6 +282,7 @@ const MonitoringDebug: React.FC = () => {
             <p><strong>TankUpdateLogs:</strong> Shows oilTypeName, branchName (converted from branchId), updatedAt, updatedBy from last 30 days</p>
             <p><strong>Branch Mapping:</strong> branchId is automatically converted to branchName using branches collection</p>
             <p><strong>Time Filter:</strong> Both queries limited to documents from the last 30 days only</p>
+            <p><strong>Latest Only Filter:</strong> Shows only the most recent record per branch+oilType combination (e.g., only latest "Janabiya S18 - Mineral Oil")</p>
             <p><strong>Fallback:</strong> Transactions query tries createdAt first, falls back to timestamp if needed</p>
           </div>
         </div>
