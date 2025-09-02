@@ -51,6 +51,7 @@ import {
 } from "@/lib/firebase";
 import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { PhotoCaptureButton } from "@/components/PhotoCaptureButton";
 
 // Helper function to add watermarks to File objects
 const addWatermarkToImage = async (file: File, watermarkText: string): Promise<File> => {
@@ -243,6 +244,8 @@ export default function BranchDashboard() {
   const [selectedTankForUpdate, setSelectedTankForUpdate] = useState<string>('');
   const [gaugePhoto, setGaugePhoto] = useState<File | null>(null);
   const [systemPhoto, setSystemPhoto] = useState<File | null>(null);
+  const [gaugePhotoPreview, setGaugePhotoPreview] = useState<string>('');
+  const [systemPhotoPreview, setSystemPhotoPreview] = useState<string>('');
   const [manualQuantity, setManualQuantity] = useState<string>('');
   const [updateNotes, setUpdateNotes] = useState<string>('');
   const [isCreatingTanks, setIsCreatingTanks] = useState(false);
@@ -714,25 +717,29 @@ export default function BranchDashboard() {
     });
   };
 
-  // Photo capture functions (same as oil supply process)
-  const capturePhoto = (inputId: string, setPhoto: (file: File | null) => void, useCamera: boolean = false) => {
-    const input = document.getElementById(inputId) as HTMLInputElement;
-    if (input) {
-      input.accept = 'image/*';
-      // Only set capture for camera mode, otherwise allow gallery selection
-      if (useCamera) {
-        input.capture = 'environment';
-      } else {
-        input.removeAttribute('capture');
-      }
-      input.click();
-      input.onchange = (e) => {
-        const file = (e.target as HTMLInputElement).files?.[0];
-        if (file) {
-          setPhoto(file);
-        }
-      };
-    }
+  // Photo capture functions with immediate preview (consistent with supply workflow)
+  const handleGaugePhotoCapture = (blob: Blob, timestamp: string) => {
+    const file = new File([blob], `gauge-photo-${timestamp}.jpg`, { type: 'image/jpeg' });
+    const previewUrl = URL.createObjectURL(blob);
+    setGaugePhoto(file);
+    setGaugePhotoPreview(previewUrl);
+    
+    toast({
+      title: "Photo Captured",
+      description: "Gauge reading photo captured successfully"
+    });
+  };
+
+  const handleSystemPhotoCapture = (blob: Blob, timestamp: string) => {
+    const file = new File([blob], `system-photo-${timestamp}.jpg`, { type: 'image/jpeg' });
+    const previewUrl = URL.createObjectURL(blob);
+    setSystemPhoto(file);
+    setSystemPhotoPreview(previewUrl);
+    
+    toast({
+      title: "Photo Captured", 
+      description: "System screen photo captured successfully"
+    });
   };
 
   const captureComplaintPhoto = () => {
@@ -2046,36 +2053,44 @@ export default function BranchDashboard() {
                   </div>
                   
                   {!gaugePhoto ? (
-                    <>
-                      <div className={`grid gap-3 ${allowGalleryAccess ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                        <Button 
-                          onClick={() => capturePhoto('gauge-photo-input', setGaugePhoto, true)}
-                          className="w-full bg-blue-600 hover:bg-blue-700"
-                        >
-                          <CameraIcon className="h-4 w-4 mr-2" />
-                          Take Photo
-                        </Button>
-                        {allowGalleryAccess && (
-                          <Button 
-                            onClick={() => capturePhoto('gauge-photo-input', setGaugePhoto, false)}
-                            variant="outline"
-                            className="w-full"
-                          >
-                            <GalleryVerticalIcon className="h-4 w-4 mr-2" />
-                            From Gallery
-                          </Button>
-                        )}
-                      </div>
-                      <input id="gauge-photo-input" type="file" accept="image/*" className="hidden" />
-                    </>
+                    <PhotoCaptureButton
+                      onCapture={handleGaugePhotoCapture}
+                      className="w-full bg-blue-600 hover:bg-blue-700 h-16"
+                      title="Tank Gauge Reading"
+                      branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
+                    >
+                      <GaugeIcon className="h-4 w-4 mr-2" />
+                      Take Gauge Photo
+                    </PhotoCaptureButton>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-4">
+                      {/* Photo Preview */}
+                      {gaugePhotoPreview && (
+                        <div className="flex flex-col items-center">
+                          <div className="relative group cursor-pointer"
+                               onClick={() => setSelectedPhoto({url: gaugePhotoPreview, label: 'Tank Gauge Photo'})}>
+                            <img 
+                              src={gaugePhotoPreview} 
+                              alt="Tank Gauge" 
+                              className="w-32 h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
+                              <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="mt-2">Photo Captured</Badge>
+                        </div>
+                      )}
+                      
                       <div className="text-green-600 text-center">
                         ✓ Gauge photo captured: {gaugePhoto.name}
                       </div>
                       <Button 
                         variant="outline" 
-                        onClick={() => setGaugePhoto(null)}
+                        onClick={() => {
+                          setGaugePhoto(null);
+                          setGaugePhotoPreview('');
+                        }}
                         className="w-full"
                       >
                         Retake Photo
@@ -2194,34 +2209,44 @@ export default function BranchDashboard() {
                   </div>
                   
                   {!systemPhoto ? (
-                    <>
-                      <div className="grid grid-cols-2 gap-3">
-                        <Button 
-                          onClick={() => capturePhoto('system-photo-input', setSystemPhoto, true)}
-                          className="w-full bg-green-600 hover:bg-green-700"
-                        >
-                          <CameraIcon className="h-4 w-4 mr-2" />
-                          Take Photo
-                        </Button>
-                        <Button 
-                          onClick={() => capturePhoto('system-photo-input', setSystemPhoto, false)}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          <GalleryVerticalIcon className="h-4 w-4 mr-2" />
-                          From Gallery
-                        </Button>
-                      </div>
-                      <input id="system-photo-input" type="file" accept="image/*" className="hidden" />
-                    </>
+                    <PhotoCaptureButton
+                      onCapture={handleSystemPhotoCapture}
+                      className="w-full bg-green-600 hover:bg-green-700 h-16"
+                      title="System Screen Display"
+                      branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
+                    >
+                      <MonitorIcon className="h-4 w-4 mr-2" />
+                      Take System Photo
+                    </PhotoCaptureButton>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-4">
+                      {/* Photo Preview */}
+                      {systemPhotoPreview && (
+                        <div className="flex flex-col items-center">
+                          <div className="relative group cursor-pointer"
+                               onClick={() => setSelectedPhoto({url: systemPhotoPreview, label: 'System Screen Photo'})}>
+                            <img 
+                              src={systemPhotoPreview} 
+                              alt="System Screen" 
+                              className="w-32 h-32 object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
+                              <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="mt-2">Photo Captured</Badge>
+                        </div>
+                      )}
+                      
                       <div className="text-green-600 text-center">
-                        ✓ System screen photo captured: {systemPhoto.name}
+                        ✓ System photo captured: {systemPhoto.name}
                       </div>
                       <Button 
                         variant="outline" 
-                        onClick={() => setSystemPhoto(null)}
+                        onClick={() => {
+                          setSystemPhoto(null);
+                          setSystemPhotoPreview('');
+                        }}
                         className="w-full"
                       >
                         Retake Photo
