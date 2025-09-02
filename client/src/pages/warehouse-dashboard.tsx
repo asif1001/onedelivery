@@ -909,14 +909,17 @@ export default function WarehouseDashboard() {
     return filtered.slice(0, 20); // Limit to most recent 20 transactions
   }
 
-  // Helper function to fetch latest tank update from entire database collection
-  const fetchLatestTankUpdate = async (branchName: string, oilTypeName: string, tankId: string) => {
+  // Helper function to fetch latest tank update from entire database collection (last 30 days)
+  const fetchLatestTankUpdate = async (tankId: string) => {
     try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
       const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
       const q = query(
         tankUpdateLogsRef, 
-        where('branchName', '==', branchName),
-        where('oilTypeName', '==', oilTypeName),
+        where('tankId', '==', tankId),
+        where('updatedAt', '>=', thirtyDaysAgo),
         orderBy('updatedAt', 'desc'),
         limit(1)
       );
@@ -925,26 +928,43 @@ export default function WarehouseDashboard() {
       if (!snapshot.empty) {
         const doc = snapshot.docs[0];
         const data = doc.data();
+        const updateDate = data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt);
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+        
         return {
-          date: data.updatedAt?.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt),
-          by: data.updatedBy || 'Unknown User'
+          date: updateDate,
+          by: data.updatedBy || 'Unknown User',
+          daysAgo: daysDiff
         };
       }
+      
+      // If no data found in last 30 days, return "more than 30 days" indicator
+      return {
+        date: null,
+        by: null,
+        daysAgo: 31, // Indicates > 30 days
+        isOlderThan30Days: true
+      };
     } catch (error) {
-      console.warn(`Failed to fetch latest manual update for ${branchName} ${oilTypeName}:`, error);
+      console.warn(`Failed to fetch latest manual update for ${tankId}:`, error);
     }
     return null;
   };
 
-  // Helper function to fetch latest supply/loading transaction from entire database collection
+  // Helper function to fetch latest supply/loading transaction from entire database collection (last 30 days)
   const fetchLatestSupplyTransaction = async (branchId: string, oilTypeName: string) => {
     try {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
       const transactionsRef = collection(db, 'transactions');
       const q = query(
         transactionsRef,
         where('branchId', '==', branchId),
         where('oilTypeName', '==', oilTypeName),
         where('type', 'in', ['supply', 'loading']),
+        where('timestamp', '>=', thirtyDaysAgo),
         orderBy('timestamp', 'desc'),
         limit(1)
       );
@@ -957,6 +977,9 @@ export default function WarehouseDashboard() {
                          data.createdAt?.toDate ? data.createdAt.toDate() :
                          new Date(data.timestamp || data.createdAt);
         
+        const now = new Date();
+        const daysDiff = Math.floor((now.getTime() - timestamp.getTime()) / (1000 * 60 * 60 * 24));
+        
         // Get driver name with same logic as display
         const driver = drivers.find(d => d.uid === data.driverUid || d.id === data.driverUid);
         const driverName = driver ? (driver.displayName || driver.email) : 
@@ -966,9 +989,19 @@ export default function WarehouseDashboard() {
         return {
           date: timestamp,
           by: driverName,
-          type: data.type
+          type: data.type,
+          daysAgo: daysDiff
         };
       }
+      
+      // If no data found in last 30 days, return "more than 30 days" indicator
+      return {
+        date: null,
+        by: null,
+        type: null,
+        daysAgo: 31, // Indicates > 30 days
+        isOlderThan30Days: true
+      };
     } catch (error) {
       console.warn(`Failed to fetch latest supply transaction for ${branchId} ${oilTypeName}:`, error);
     }
@@ -986,36 +1019,50 @@ export default function WarehouseDashboard() {
     const branchPromises = branches.map(async (branch) => {
       const branchTanks = oilTanks.filter(tank => tank.branchId === branch.id);
 
-      // Get detailed tank update status with dual tracking from entire database
+      // Get detailed tank update status with dual tracking from entire database (last 30 days)
       const tankPromises = branchTanks.map(async (tank) => {
-        // Fetch latest manual update from entire tankUpdateLogs collection
-        const latestManualUpdate = await fetchLatestTankUpdate(branch.name, tank.oilTypeName, tank.id);
+        // Fetch latest manual update from entire tankUpdateLogs collection (last 30 days)
+        const latestManualUpdate = await fetchLatestTankUpdate(tank.id);
         
-        // Fetch latest supply/loading from entire transactions collection
+        // Fetch latest supply/loading from entire transactions collection (last 30 days)
         const latestSupplyUpdate = await fetchLatestSupplyTransaction(branch.id, tank.oilTypeName);
 
         let lastManualUpdate = null;
         let lastManualUpdateBy = null;
         let daysSinceManualUpdate = null;
+        let manualUpdateDisplay = null;
         
         if (latestManualUpdate) {
-          lastManualUpdate = latestManualUpdate.date;
-          lastManualUpdateBy = latestManualUpdate.by;
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const updateDate = new Date(lastManualUpdate.getFullYear(), lastManualUpdate.getMonth(), lastManualUpdate.getDate());
-          daysSinceManualUpdate = Math.floor((nowDate.getTime() - updateDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (latestManualUpdate.isOlderThan30Days) {
+            manualUpdateDisplay = 'More than 30 days';
+            daysSinceManualUpdate = 31;
+          } else {
+            lastManualUpdate = latestManualUpdate.date;
+            lastManualUpdateBy = latestManualUpdate.by;
+            daysSinceManualUpdate = latestManualUpdate.daysAgo;
+            manualUpdateDisplay = `${daysSinceManualUpdate === 0 ? 'Today' : 
+                                  daysSinceManualUpdate === 1 ? 'Yesterday' : 
+                                  `${daysSinceManualUpdate}d ago`} by ${lastManualUpdateBy}`;
+          }
         }
 
         let lastSupplyLoading = null;
         let lastSupplyLoadingBy = null;
         let daysSinceSupplyLoading = null;
+        let supplyUpdateDisplay = null;
         
         if (latestSupplyUpdate) {
-          lastSupplyLoading = latestSupplyUpdate.date;
-          lastSupplyLoadingBy = latestSupplyUpdate.by;
-          const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-          const movementDate = new Date(lastSupplyLoading.getFullYear(), lastSupplyLoading.getMonth(), lastSupplyLoading.getDate());
-          daysSinceSupplyLoading = Math.floor((nowDate.getTime() - movementDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (latestSupplyUpdate.isOlderThan30Days) {
+            supplyUpdateDisplay = 'More than 30 days';
+            daysSinceSupplyLoading = 31;
+          } else {
+            lastSupplyLoading = latestSupplyUpdate.date;
+            lastSupplyLoadingBy = latestSupplyUpdate.by;
+            daysSinceSupplyLoading = latestSupplyUpdate.daysAgo;
+            supplyUpdateDisplay = `${daysSinceSupplyLoading === 0 ? 'Today' : 
+                                 daysSinceSupplyLoading === 1 ? 'Yesterday' : 
+                                 `${daysSinceSupplyLoading}d ago`} by ${lastSupplyLoadingBy}`;
+          }
         }
 
         // Use manual update for overall status calculation (legacy compatibility)
@@ -1048,13 +1095,15 @@ export default function WarehouseDashboard() {
           daysSinceUpdate,
           updateStatus,
           percentage: ((tank.currentLevel / tank.capacity) * 100).toFixed(1),
-          // Dual tracking data from entire database
+          // Dual tracking data from entire database (last 30 days)
           lastManualUpdate,
           lastManualUpdateBy,
           daysSinceManualUpdate,
+          manualUpdateDisplay,
           lastSupplyLoading,
           lastSupplyLoadingBy,
-          daysSinceSupplyLoading
+          daysSinceSupplyLoading,
+          supplyUpdateDisplay
         };
       });
 
@@ -2716,20 +2765,20 @@ export default function WarehouseDashboard() {
 
                                 {/* Dual Tracking Information - Compact Single Lines */}
                                 <div className="space-y-1">
-                                  {/* Last Manual Update */}
-                                  {tank.lastManualUpdate ? (
+                                  {/* Last Manual Update (30-day optimized) */}
+                                  {tank.manualUpdateDisplay ? (
                                     <div className={`p-1.5 rounded border-l-2 ${
-                                      theme === 'night' 
-                                        ? 'bg-blue-900/40 border-blue-400' 
-                                        : 'bg-blue-50 border-blue-300'
+                                      tank.daysSinceManualUpdate && tank.daysSinceManualUpdate > 30
+                                        ? (theme === 'night' ? 'bg-red-900/40 border-red-400' : 'bg-red-50 border-red-300')
+                                        : (theme === 'night' ? 'bg-blue-900/40 border-blue-400' : 'bg-blue-50 border-blue-300')
                                     }`}>
                                       <p className={`text-xs ${
-                                        theme === 'night' ? 'text-blue-200' : 'text-blue-800'
+                                        tank.daysSinceManualUpdate && tank.daysSinceManualUpdate > 30
+                                          ? (theme === 'night' ? 'text-red-200' : 'text-red-800')
+                                          : (theme === 'night' ? 'text-blue-200' : 'text-blue-800')
                                       }`}>
                                         <span className="font-medium">Manual:</span>{' '}
-                                        {tank.daysSinceManualUpdate === 0 ? 'Today' :
-                                         tank.daysSinceManualUpdate === 1 ? 'Yesterday' :
-                                         `${tank.daysSinceManualUpdate}d ago`} by {tank.lastManualUpdateBy}
+                                        {tank.manualUpdateDisplay}
                                       </p>
                                     </div>
                                   ) : (
@@ -2746,20 +2795,20 @@ export default function WarehouseDashboard() {
                                     </div>
                                   )}
 
-                                  {/* Last Supply/Loading */}
-                                  {tank.lastSupplyLoading ? (
+                                  {/* Last Supply/Loading (30-day optimized) */}
+                                  {tank.supplyUpdateDisplay ? (
                                     <div className={`p-1.5 rounded border-l-2 ${
-                                      theme === 'night' 
-                                        ? 'bg-orange-900/40 border-orange-400' 
-                                        : 'bg-orange-50 border-orange-300'
+                                      tank.daysSinceSupplyLoading && tank.daysSinceSupplyLoading > 30
+                                        ? (theme === 'night' ? 'bg-red-900/40 border-red-400' : 'bg-red-50 border-red-300')
+                                        : (theme === 'night' ? 'bg-orange-900/40 border-orange-400' : 'bg-orange-50 border-orange-300')
                                     }`}>
                                       <p className={`text-xs ${
-                                        theme === 'night' ? 'text-orange-200' : 'text-orange-800'
+                                        tank.daysSinceSupplyLoading && tank.daysSinceSupplyLoading > 30
+                                          ? (theme === 'night' ? 'text-red-200' : 'text-red-800')
+                                          : (theme === 'night' ? 'text-orange-200' : 'text-orange-800')
                                       }`}>
                                         <span className="font-medium">Supply/Loading:</span>{' '}
-                                        {tank.daysSinceSupplyLoading === 0 ? 'Today' :
-                                         tank.daysSinceSupplyLoading === 1 ? 'Yesterday' :
-                                         `${tank.daysSinceSupplyLoading}d ago`} by {tank.lastSupplyLoadingBy}
+                                        {tank.supplyUpdateDisplay}
                                       </p>
                                     </div>
                                   ) : (
