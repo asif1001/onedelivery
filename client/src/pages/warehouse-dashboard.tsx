@@ -245,26 +245,15 @@ export default function WarehouseDashboard() {
         displayName: user.displayName,
         role: user.role
       });
-      loadAllData();
+      // Initial load removed - data will only load when user clicks refresh
+      setLoading(false);
     } else {
       console.log('❌ No user authenticated for warehouse dashboard');
     }
   }, [user]);
 
   // Separate useEffect for monitoring data
-  useEffect(() => {
-    // Only fetch monitoring data if user is authenticated
-    if (user && user.role === 'warehouse') {
-      fetchMonitoringDebugData();
-      
-      // Auto-refresh every 5 minutes
-      const interval = setInterval(() => {
-        fetchMonitoringDebugData();
-      }, 5 * 60 * 1000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [user]);
+  // Removed auto-refresh - monitoring data will only load when user clicks refresh
 
   // Hierarchical data loading using debug page logic
   const loadTankActivityData = async (branchStatuses: any[]) => {
@@ -2318,11 +2307,16 @@ export default function WarehouseDashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={loadAllData}
+                onClick={() => {
+                  loadAllData();
+                  fetchMonitoringDebugData();
+                }}
+                disabled={loading || monitoringLoading}
                 className="flex items-center gap-2"
+                title="Refresh all dashboard data"
               >
-                <RefreshCwIcon className="h-4 w-4" />
-                Refresh
+                <RefreshCwIcon className={`h-4 w-4 ${loading || monitoringLoading ? 'animate-spin' : ''}`} />
+                {loading || monitoringLoading ? 'Loading...' : 'Refresh Data'}
               </Button>
               <Button
                 variant="outline"
@@ -2340,6 +2334,20 @@ export default function WarehouseDashboard() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        {/* Manual Refresh Notice */}
+        {(!loading && branches.length === 0) && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center gap-2">
+              <RefreshCwIcon className="w-5 h-5 text-blue-600" />
+              <span className="font-medium text-blue-800">Click "Refresh Data" to load dashboard information</span>
+            </div>
+            <p className="text-sm text-blue-700 mt-1">
+              Data is loaded manually to optimize database usage and reduce costs.
+            </p>
+          </div>
+        )}
+
         <Tabs defaultValue="overview" className="space-y-6">
           {/* Mobile Tab Navigation - Scrollable */}
           <div className="block md:hidden">
