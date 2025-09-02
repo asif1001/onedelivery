@@ -20,6 +20,7 @@ Preferred communication style: Simple, everyday language.
 - **Enhanced error handling**: Better error recovery for photo watermarking, Firebase Storage uploads, and transaction logging
 - **Improved user feedback**: Clear console logging for debugging and step-by-step progress tracking
 - **Transaction reliability**: Oil level updates now consistently save to database without hanging
+- **Professional watermarking**: Branch oil level photos now use the same watermark format as supply workflows with structured text boxes, branch name, timestamp, tank info, and user details
 
 ### ✅ Progressive Web App (PWA) Implementation - DEPLOYED (August 31, 2025)
 - **Windows Desktop App Installation**: Complete PWA functionality enabling users to install OneDelivery as a desktop application on Windows

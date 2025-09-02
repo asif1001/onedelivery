@@ -105,6 +105,7 @@ const addWatermarkToImage = async (file: File, watermarkText: string): Promise<F
   });
 };
 import { useToast } from "@/hooks/use-toast";
+import { watermarkImage } from "@/utils/watermark";
 
 // Helper function to format complaint dates consistently
 const formatComplaintDate = (date: any, dateOnly: boolean = false) => {
@@ -1012,12 +1013,32 @@ export default function BranchDashboard() {
       const userInfo = `${currentUser.displayName || currentUser.email} - ${timestamp}`;
       
       console.log('📸 Processing photos for tank update...');
+      
+      // Get tank and branch information for professional watermarks
+      const tankForWatermark = oilTanks.find(tank => tank.id === selectedTankForUpdate);
+      const branchForWatermark = branches.find(b => b.id === selectedBranchForUpdate);
+      const branchName = branchForWatermark?.name || 'Unknown Branch';
+      const tankName = tankForWatermark?.oilTypeName || 'Unknown Tank';
+      const userName = currentUser.displayName || currentUser.email;
+      
+      // Apply professional watermarks using the same format as supply workflow
       const watermarkedGaugePhoto = await Promise.race([
-        addWatermarkToImage(gaugePhoto, `Tank Gauge - ${userInfo}`),
+        watermarkImage(gaugePhoto, {
+          branchName,
+          timestamp: new Date(),
+          extraLine1: `Tank: ${tankName}`,
+          extraLine2: `Updated by: ${userName}`
+        }),
         new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
       ]);
+      
       const watermarkedSystemPhoto = await Promise.race([
-        addWatermarkToImage(systemPhoto, `System Screen - ${userInfo}`),
+        watermarkImage(systemPhoto, {
+          branchName,
+          timestamp: new Date(),
+          extraLine1: `Tank: ${tankName}`,
+          extraLine2: `Level Update: ${manualQuantity}L`
+        }),
         new Promise<File>((_, reject) => setTimeout(() => reject(new Error('Photo watermarking timeout')), 10000))
       ]);
 
