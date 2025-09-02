@@ -19,7 +19,26 @@ interface WatermarkOptions {
 export async function watermarkImage(file: File, options: WatermarkOptions): Promise<File> {
   const { branchName, timestamp, extraLine1, extraLine2 } = options;
   
-  // DEVICE COMPATIBILITY: Check for unsupported formats (HEIC, etc.)
+  // COMPREHENSIVE ERROR DETECTION: Check multiple failure scenarios
+  console.log('🔍 Starting watermark analysis:', {
+    fileName: file.name,
+    fileType: file.type,
+    fileSize: `${(file.size / 1024 / 1024).toFixed(2)}MB`,
+    timestamp: new Date().toISOString()
+  });
+  
+  // 1. FILE SIZE CHECK: Large images can cause memory issues
+  const maxSizeMB = 50; // 50MB limit
+  if (file.size > maxSizeMB * 1024 * 1024) {
+    throw new Error(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size: ${maxSizeMB}MB`);
+  }
+  
+  // 2. FILE TYPE VALIDATION: Check if browser supports the format
+  if (!file.type.startsWith('image/')) {
+    throw new Error(`Invalid file type: ${file.type}. Expected image format.`);
+  }
+  
+  // 3. DEVICE COMPATIBILITY: Check for unsupported formats (HEIC, etc.)
   const fileExtension = file.name.toLowerCase();
   const unsupportedFormats = ['.heic', '.heif'];
   const isUnsupportedFormat = unsupportedFormats.some(ext => fileExtension.endsWith(ext));
@@ -36,6 +55,17 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         type: 'image/jpeg',
         lastModified: Date.now()
       });
+    }
+  }
+  
+  // 4. MEMORY CHECK: Verify available memory (rough estimate)
+  if (typeof performance !== 'undefined' && (performance as any).memory) {
+    const memory = (performance as any).memory;
+    const availableMemory = memory.jsHeapSizeLimit - memory.usedJSHeapSize;
+    const estimatedImageMemory = file.size * 4; // Rough estimate for canvas processing
+    
+    if (availableMemory < estimatedImageMemory) {
+      console.warn('⚠️ Low memory detected, may affect watermarking');
     }
   }
   
@@ -57,11 +87,17 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
       ctx = null;
     };
     
-    // PERFORMANCE: Set timeout for image loading
+    // PERFORMANCE: Set timeout for image loading (increased for large images)
+    const timeoutDuration = Math.max(5000, Math.min(15000, file.size / 1024)); // Dynamic timeout based on file size
     const timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error('Image loading timeout'));
-    }, 5000);
+      console.error('❌ Image loading timeout:', {
+        fileName: file.name,
+        fileSize: `${(file.size / 1024).toFixed(1)}KB`,
+        timeoutDuration: `${timeoutDuration}ms`
+      });
+      reject(new Error(`Image loading timeout (${timeoutDuration}ms). File may be corrupted or too large.`));
+    }, timeoutDuration);
     
     img.onload = () => {
       clearTimeout(timeoutId);
@@ -75,17 +111,42 @@ export async function watermarkImage(file: File, options: WatermarkOptions): Pro
         
         if (!ctx || !canvas) {
           cleanup();
-          reject(new Error('Canvas context not available'));
+          reject(new Error('Canvas context not available. Browser may not support canvas operations or is out of memory.'));
+          return;
+        }
+        
+        // 5. IMAGE DIMENSION CHECK: Verify reasonable dimensions
+        if (img.width <= 0 || img.height <= 0) {
+          cleanup();
+          reject(new Error(`Invalid image dimensions: ${img.width}x${img.height}`));
+          return;
+        }
+        
+        if (img.width > 8192 || img.height > 8192) {
+          cleanup();
+          reject(new Error(`Image too large: ${img.width}x${img.height}. Maximum: 8192x8192 pixels`));
           return;
         }
 
-        // Set canvas size to image size
-        canvas.width = img.width;
-        canvas.height = img.height;
+        // Set canvas size to image size with memory safety
+        try {
+          canvas.width = img.width;
+          canvas.height = img.height;
+        } catch (error) {
+          cleanup();
+          reject(new Error(`Canvas allocation failed. Image too large: ${img.width}x${img.height}. Try a smaller image.`));
+          return;
+        }
         
-        // PERFORMANCE: Use faster image drawing
-        ctx.imageSmoothingEnabled = false; // Disable smoothing for speed
-        ctx.drawImage(img, 0, 0);
+        // PERFORMANCE: Use faster image drawing with error handling
+        try {
+          ctx.imageSmoothingEnabled = false; // Disable smoothing for speed
+          ctx.drawImage(img, 0, 0);
+        } catch (error) {
+          cleanup();
+          reject(new Error('Failed to draw image on canvas. Image may be corrupted.'));
+          return;
+        }
         
         // Prepare watermark text
         const formattedTimestamp = timestamp instanceof Date 
