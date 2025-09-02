@@ -2907,118 +2907,146 @@ export default function WarehouseDashboard() {
                     });
                     
                     return sortedBranches.map((branch, branchIndex) => {
-                      // Determine if branch needs attention (7+ days without updates)
-                      const now = new Date();
                       const daysSinceUpdate = branch.lastActivity 
-                        ? Math.floor((now.getTime() - branch.lastActivity.getTime()) / (1000 * 60 * 60 * 24))
-                        : 999;
+                        ? Math.floor((Date.now() - branch.lastActivity.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
                       
-                      const needsAttention = daysSinceUpdate >= 7;
+                      const oilTypesArray = Array.from(branch.oilTypes.values()).sort((a, b) => a.oilTypeName.localeCompare(b.oilTypeName));
+                      
+                      // Check if any tank has manual updates within 7 days
+                      const hasRecentManualUpdate = oilTypesArray.some(oilType => {
+                        if (!oilType.manualUpdate) return false;
+                        const manualUpdateDate = oilType.manualUpdate.updatedAt?.toDate ? 
+                          oilType.manualUpdate.updatedAt.toDate() : 
+                          new Date(oilType.manualUpdate.updatedAt);
+                        const daysSinceManual = Math.floor((Date.now() - manualUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
+                        return daysSinceManual < 7;
+                      });
+                      
+                      const isRecentlyUpdated = daysSinceUpdate !== null && daysSinceUpdate < 7;
+                      const needsAttention = !hasRecentManualUpdate; // Red if no manual updates in 7 days
                       
                       return (
-                        <Card 
-                          key={`branch-${branchIndex}`}
-                          className={`p-4 ${
-                            needsAttention 
-                              ? 'bg-red-50 border-red-400 shadow-red-100' 
-                              : 'bg-white border-gray-200 hover:shadow-md'
-                          } transition-shadow duration-200`}
-                        >
-                          <div className="space-y-4">
-                            {/* Branch Header */}
+                        <Card key={branchIndex} className={`h-fit transition-all hover:shadow-lg ${
+                          needsAttention 
+                            ? 'border-red-300 bg-red-50/30' 
+                            : isRecentlyUpdated
+                              ? 'border-green-200 bg-green-50/30' 
+                              : 'border-gray-200 bg-white hover:bg-gray-50/30'
+                        }`}>
+                          <CardHeader className="pb-3">
                             <div className="flex items-center justify-between">
-                              <h3 className={`text-lg font-semibold ${needsAttention ? 'text-red-800' : 'text-gray-800'}`}>
-                                {branch.branchName}
-                              </h3>
                               <div className="flex items-center gap-2">
-                                {branch.lastActivity && (
-                                  <span className="text-xs text-gray-500">
-                                    Last: {branch.lastActivity.toLocaleDateString()}
-                                  </span>
-                                )}
-                                {needsAttention && (
-                                  <Badge variant="destructive" className="text-xs">
-                                    Needs Update
-                                  </Badge>
-                                )}
+                                <div className={`w-2.5 h-2.5 rounded-full ${
+                                  isRecentlyUpdated ? 'bg-green-500' : 'bg-gray-400'
+                                }`} />
+                                <CardTitle className="text-base font-semibold">
+                                  {branch.branchName}
+                                </CardTitle>
                               </div>
+                              {needsAttention ? (
+                                <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                                  Needs Update
+                                </div>
+                              ) : isRecentlyUpdated && (
+                                <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                                  Active
+                                </div>
+                              )}
                             </div>
                             
-                            {/* Oil Types Grid */}
-                            <div className="space-y-3">
-                              {Array.from(branch.oilTypes.entries()).map(([oilTypeName, oilType], oilIndex) => (
-                                <div key={`oil-${branchIndex}-${oilIndex}`} className="space-y-2">
-                                  <h4 className="font-medium text-gray-800 text-sm">{oilTypeName}</h4>
+                            <div className="text-xs text-gray-500">
+                              {daysSinceUpdate !== null ? (
+                                daysSinceUpdate === 0 ? 'Updated today' : `Updated ${daysSinceUpdate} days ago`
+                              ) : (
+                                'No recent activity'
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-3 text-xs">
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-blue-500 rounded-sm"></div>
+                                <span className="text-gray-600">{oilTypesArray.length} Oil Types</span>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          
+                          <CardContent className="pt-0 space-y-3">
+                            {oilTypesArray.map((oilType, oilIndex) => (
+                              <div key={oilIndex} className="border rounded-lg p-3 bg-white/80">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4 className="font-medium text-sm text-gray-800">
+                                    {oilType.oilTypeName}
+                                  </h4>
+                                  <span className="text-xs text-gray-500 font-mono">
+                                    #{oilIndex + 1}
+                                  </span>
+                                </div>
+                                
+                                <div className="space-y-2 text-xs">
+                                  {/* Manual Update */}
+                                  <div className={`p-2 rounded border-l-4 ${
+                                    oilType.manualUpdate 
+                                      ? 'bg-blue-50 border-blue-400' 
+                                      : 'bg-gray-50 border-gray-300'
+                                  }`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-blue-700">Manual Update</span>
+                                    </div>
+                                    {oilType.manualUpdate ? (
+                                      <div className="text-gray-700">
+                                        <div className="font-medium">{oilType.manualUpdate.updatedBy}</div>
+                                        <div className="text-gray-500">
+                                          {(() => {
+                                            try {
+                                              const date = oilType.manualUpdate.updatedAt?.toDate ? 
+                                                oilType.manualUpdate.updatedAt.toDate() : 
+                                                new Date(oilType.manualUpdate.updatedAt);
+                                              return `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+                                            } catch (e) {
+                                              return 'Invalid date';
+                                            }
+                                          })()}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-400 italic">No recent activity</div>
+                                    )}
+                                  </div>
                                   
-                                  <div className="grid grid-cols-1 gap-2">
-                                    {/* Manual Update Card */}
-                                    <div className={`p-3 rounded border-l-4 ${
-                                      oilType.manualUpdate 
-                                        ? 'bg-blue-50 border-blue-400' 
-                                        : 'bg-gray-50 border-gray-300'
-                                    }`}>
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-medium text-blue-700">Manual Update</span>
-                                      </div>
-                                      {oilType.manualUpdate ? (
-                                        <div className="text-gray-700">
-                                          <p className="text-sm">
-                                            Updated by <span className="font-medium">{oilType.manualUpdate.updatedBy}</span>
-                                          </p>
-                                          <p className="text-xs text-gray-500">
-                                            {(() => {
-                                              try {
-                                                const date = oilType.manualUpdate.updatedAt?.toDate ? 
-                                                  oilType.manualUpdate.updatedAt.toDate() : 
-                                                  new Date(oilType.manualUpdate.updatedAt);
-                                                return date.toLocaleString();
-                                              } catch (e) {
-                                                return 'Invalid date';
-                                              }
-                                            })()}
-                                          </p>
-                                        </div>
-                                      ) : (
-                                        <p className="text-gray-500 text-sm">No recent activity</p>
-                                      )}
+                                  {/* Supply/Loading */}
+                                  <div className={`p-2 rounded border-l-4 ${
+                                    oilType.supplyLoading 
+                                      ? 'bg-orange-50 border-orange-400' 
+                                      : 'bg-gray-50 border-gray-300'
+                                  }`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-orange-700">Supply/Loading</span>
                                     </div>
-                                    
-                                    {/* Supply/Loading Card */}
-                                    <div className={`p-3 rounded border-l-4 ${
-                                      oilType.supplyLoading 
-                                        ? 'bg-orange-50 border-orange-400' 
-                                        : 'bg-gray-50 border-gray-300'
-                                    }`}>
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className="font-medium text-orange-700">Supply/Loading</span>
-                                      </div>
-                                      {oilType.supplyLoading ? (
-                                        <div className="text-gray-700">
-                                          <p className="text-sm">
-                                            Driver: <span className="font-medium">{oilType.supplyLoading.driverName}</span>
-                                          </p>
-                                          <p className="text-xs text-gray-500">
-                                            {(() => {
-                                              try {
-                                                const date = oilType.supplyLoading.createdAt?.toDate ? 
-                                                  oilType.supplyLoading.createdAt.toDate() : 
-                                                  new Date(oilType.supplyLoading.createdAt);
-                                                return date.toLocaleString();
-                                              } catch (e) {
-                                                return 'Invalid date';
-                                              }
-                                            })()}
-                                          </p>
+                                    {oilType.supplyLoading ? (
+                                      <div className="text-gray-700">
+                                        <div className="font-medium">{oilType.supplyLoading.driverName}</div>
+                                        <div className="text-gray-500">
+                                          {(() => {
+                                            try {
+                                              const date = oilType.supplyLoading.createdAt?.toDate ? 
+                                                oilType.supplyLoading.createdAt.toDate() : 
+                                                new Date(oilType.supplyLoading.createdAt);
+                                              return `${date.toLocaleDateString()} at ${date.toLocaleTimeString()}`;
+                                            } catch (e) {
+                                              return 'Invalid date';
+                                            }
+                                          })()}
                                         </div>
-                                      ) : (
-                                        <p className="text-gray-500 text-sm">No recent activity</p>
-                                      )}
-                                    </div>
+                                      </div>
+                                    ) : (
+                                      <div className="text-gray-400 italic">No supply/loading activity</div>
+                                    )}
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
+                              </div>
+                            ))}
+                          </CardContent>
                         </Card>
                       );
                     });
