@@ -120,6 +120,15 @@ export default function AdminUsers({
       }
 
       // Validate role-specific fields
+      if (formData.role === 'warehouse' && (!formData.branchIds || formData.branchIds.length === 0)) {
+        toast({
+          title: "Missing Branch Assignment",
+          description: "Please assign at least one branch to this warehouse user",
+          variant: "destructive"
+        });
+        return;
+      }
+
       if (formData.role === 'driver' && (!formData.driverLicenceNo || !formData.tankerLicenceNo)) {
         toast({
           title: "Missing Driver Information",
@@ -365,10 +374,17 @@ export default function AdminUsers({
                 </Select>
               </div>
 
-              {/* Multiple Branch Selection for Branch Users */}
-              {formData.role === 'branch_user' && (
+              {/* Multiple Branch Selection for Branch Users and Warehouse Users */}
+              {(formData.role === 'branch_user' || formData.role === 'warehouse') && (
                 <div>
-                  <Label>Assign to Branches</Label>
+                  <Label>
+                    Assign to Branches
+                    {formData.role === 'warehouse' && (
+                      <span className="text-sm text-gray-500 ml-1">
+                        (Warehouse user will only be able to view/manage assigned branches)
+                      </span>
+                    )}
+                  </Label>
                   <div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-3">
                     {branches?.map((branch) => (
                       <div key={branch.id} className="flex items-center space-x-2">
@@ -394,6 +410,9 @@ export default function AdminUsers({
                         />
                         <Label htmlFor={`branch-${branch.id}`} className="text-sm font-normal">
                           {branch.name}
+                          {branch.location && (
+                            <span className="text-xs text-gray-500 ml-1">({branch.location})</span>
+                          )}
                         </Label>
                       </div>
                     ))}
@@ -401,6 +420,11 @@ export default function AdminUsers({
                   {formData.branchIds?.length > 0 && (
                     <div className="text-sm text-gray-600 mt-1">
                       Selected: {formData.branchIds.length} branch{formData.branchIds.length !== 1 ? 'es' : ''}
+                    </div>
+                  )}
+                  {formData.role === 'warehouse' && formData.branchIds?.length === 0 && (
+                    <div className="text-sm text-amber-600 mt-1">
+                      ⚠️ Warning: Warehouse user without branch assignment will have no access to any branches
                     </div>
                   )}
                 </div>
@@ -618,8 +642,8 @@ export default function AdminUsers({
                   </Badge>
                 </div>
                 
-                {/* Show branch assignments for branch users */}
-                {driver.role === 'branch_user' && driver.branchIds && driver.branchIds.length > 0 && (
+                {/* Show branch assignments for branch users and warehouse users */}
+                {(driver.role === 'branch_user' || driver.role === 'warehouse') && driver.branchIds && driver.branchIds.length > 0 && (
                   <div>
                     <span className="text-sm font-medium">Assigned Branches:</span>
                     <div className="flex flex-wrap gap-1 mt-1">
@@ -628,6 +652,9 @@ export default function AdminUsers({
                         return branch ? (
                           <Badge key={branchId} variant="secondary" className="text-xs">
                             {branch.name}
+                            {branch.location && (
+                              <span className="ml-1 text-xs opacity-75">({branch.location})</span>
+                            )}
                           </Badge>
                         ) : (
                           <Badge key={branchId} variant="outline" className="text-xs">
@@ -635,6 +662,24 @@ export default function AdminUsers({
                           </Badge>
                         );
                       })}
+                    </div>
+                    {driver.role === 'warehouse' && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        This warehouse user can only access these assigned branches
+                      </p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Warning for warehouse users without branch assignments */}
+                {driver.role === 'warehouse' && (!driver.branchIds || driver.branchIds.length === 0) && (
+                  <div className="p-2 bg-amber-50 border border-amber-200 rounded">
+                    <div className="flex items-center space-x-2">
+                      <div className="text-amber-600">⚠️</div>
+                      <div>
+                        <p className="text-xs font-medium text-amber-800">No Branch Assignment</p>
+                        <p className="text-xs text-amber-600">This warehouse user has no access to any branches</p>
+                      </div>
                     </div>
                   </div>
                 )}
