@@ -1073,38 +1073,31 @@ export default function WarehouseDashboard() {
       const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
       console.log(`📅 Fetching data since: ${since30d.toDate().toISOString()}`);
       
-      // Get branches for branchId -> branchName conversion and user filtering
-      const branchesSnapshot = await getDocs(collection(db, 'branches'));
+      // Get branches using the same filtering logic as Stock Update tab
+      const branchesData = await getActiveBranchesOnly().catch(() => []);
+      
+      // Filter branches for warehouse users with assigned branches (same as loadAllData)
+      const filteredBranches = isRestrictedUser 
+        ? branchesData.filter(branch => userBranchIds.includes(branch.id))
+        : branchesData;
+      
+      console.log(`🏢 Monitoring: Loaded ${filteredBranches.length} branches for ${user?.role} user:`, 
+        filteredBranches.map(b => b.name));
+      
+      // Create branch mapping from filtered branches
       const branchMap = new Map<string, string>();
       const assignedBranchNames = new Set<string>();
       
-      // Get user data for filtering
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      const userRole = userData?.role;
-      const userBranchIds = userData?.branchIds || [];
-      
-      branchesSnapshot.docs.forEach(doc => {
-        const data = doc.data();
-        const branchName = data.name || doc.id;
-        branchMap.set(doc.id, branchName);
-        
-        // If warehouse user with branch assignments, collect assigned branch names
-        if (userRole === 'warehouse' && userBranchIds.length > 0 && userBranchIds.includes(doc.id)) {
-          assignedBranchNames.add(branchName);
-        }
+      filteredBranches.forEach(branch => {
+        branchMap.set(branch.id, branch.name);
+        assignedBranchNames.add(branch.name);
       });
       
-      console.log(`📊 Found ${branchMap.size} branches for name mapping`);
-      if (userRole === 'warehouse') {
-        if (userBranchIds.length > 0) {
-          console.log(`👤 Warehouse user - ${userBranchIds.length} assigned branch IDs: [${userBranchIds.join(', ')}]`);
-          console.log(`📍 Assigned branch names: [${Array.from(assignedBranchNames).join(', ')}]`);
-          console.log(`🔒 Will filter to show ${assignedBranchNames.size} branches only`);
-        } else {
-          console.log(`⚠️ Warehouse user has no branch assignments - contact admin`);
-        }
+      console.log(`📊 Found ${branchMap.size} branches for monitoring (filtered for user)`);
+      if (isRestrictedUser) {
+        console.log(`🔒 Warehouse user - showing ${assignedBranchNames.size} assigned branches only: [${Array.from(assignedBranchNames).join(', ')}]`);
       } else {
-        console.log(`👑 Admin user - will show all branches`);
+        console.log(`👑 Admin user - showing all ${assignedBranchNames.size} branches`);
       }
 
       // Fetch transactions from last 30 days
@@ -2981,57 +2974,45 @@ export default function WarehouseDashboard() {
           <TabsContent value="tracking" className="space-y-4">
 
             {/* User Access Information */}
-            {(() => {
-              const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
-              const isWarehouseUser = currentUserData?.role === 'warehouse';
-              const userBranchIds = currentUserData?.branchIds || [];
-              
-              if (isWarehouseUser) {
-                if (userAssignedBranches.size > 0) {
-                  return (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertCircleIcon className="w-4 h-4 text-blue-600" />
-                        <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
-                      </div>
-                      <p className="text-sm text-blue-700">
-                        You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: 
-                        <span className="font-medium"> {Array.from(userAssignedBranches).join(', ')}</span>
-                      </p>
-                      <p className="text-xs text-blue-600 mt-1">
-                        Branches not assigned to you are automatically filtered out for security.
-                      </p>
+            {user?.role === 'warehouse' && (
+              <>
+                {isRestrictedUser && userAssignedBranches.size > 0 ? (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircleIcon className="w-4 h-4 text-blue-600" />
+                      <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
                     </div>
-                  );
-                } else if (userBranchIds.length === 0) {
-                  return (
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertCircleIcon className="w-4 h-4 text-amber-600" />
-                        <span className="font-medium text-amber-800">No Branch Assignment</span>
-                      </div>
-                      <p className="text-sm text-amber-700">
-                        You have not been assigned to any branches yet. Please contact your administrator to assign branches.
-                      </p>
+                    <p className="text-sm text-blue-700">
+                      You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: 
+                      <span className="font-medium"> {Array.from(userAssignedBranches).join(', ')}</span>
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      Branches not assigned to you are automatically filtered out for security.
+                    </p>
+                  </div>
+                ) : !isRestrictedUser ? (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircleIcon className="w-4 h-4 text-amber-600" />
+                      <span className="font-medium text-amber-800">No Branch Assignment</span>
                     </div>
-                  );
-                } else {
-                  return (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <AlertCircleIcon className="w-4 h-4 text-gray-600" />
-                        <span className="font-medium text-gray-800">Loading Branch Data</span>
-                      </div>
-                      <p className="text-sm text-gray-700">
-                        Loading your assigned branch data...
-                      </p>
+                    <p className="text-sm text-amber-700">
+                      You have not been assigned to any branches yet. Please contact your administrator to assign branches.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <AlertCircleIcon className="w-4 h-4 text-gray-600" />
+                      <span className="font-medium text-gray-800">Loading Branch Data</span>
                     </div>
-                  );
-                }
-              }
-              
-              return null;
-            })()}
+                    <p className="text-sm text-gray-700">
+                      Loading your assigned branch data...
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Error Display */}
             {monitoringError && (
@@ -3143,24 +3124,20 @@ export default function WarehouseDashboard() {
                         } catch (e) {}
                       });
                       
-                      // Filter branches based on user assignments (warehouse users only)
+                      // Filter branches based on user assignments (same logic as Stock Update tab)
                       let filteredBranches = Array.from(branchData.values());
                       
-                      // Get current user data for filtering
-                      const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
-                      const isWarehouseUser = currentUserData?.role === 'warehouse';
-                      
-                      // If warehouse user with branch assignments, filter branches
-                      if (isWarehouseUser && userAssignedBranches.size > 0) {
+                      // Apply the same filtering logic as loadAllData function
+                      if (isRestrictedUser && userAssignedBranches.size > 0) {
                         const originalCount = filteredBranches.length;
                         filteredBranches = filteredBranches.filter(branch => 
                           userAssignedBranches.has(branch.branchName)
                         );
-                        console.log(`🔒 Warehouse user filter: ${originalCount} → ${filteredBranches.length} branches (showing assigned only)`);
-                      } else if (isWarehouseUser) {
-                        console.log(`⚠️ Warehouse user but no branch assignments found`);
+                        console.log(`🔒 Monitoring filter: ${originalCount} → ${filteredBranches.length} branches (warehouse user assigned only)`);
+                      } else if (user?.role === 'warehouse' && !isRestrictedUser) {
+                        console.log(`⚠️ Warehouse user with no branch assignments`);
                       } else {
-                        console.log(`👑 Admin user - showing all ${filteredBranches.length} branches`);
+                        console.log(`👑 Admin/unrestricted user - showing all ${filteredBranches.length} branches`);
                       }
                       
                       // Sort by last activity
