@@ -27,6 +27,7 @@ const MonitoringDebug: React.FC = () => {
   const [tankUpdateRows, setTankUpdateRows] = useState<TankUpdateLogRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [userAssignedBranches, setUserAssignedBranches] = useState<Set<string>>(new Set());
   const { theme } = useTheme();
 
   // Helper to format timestamps
@@ -51,15 +52,31 @@ const MonitoringDebug: React.FC = () => {
       const since30d = Timestamp.fromDate(new Date(Date.now() - 30*24*60*60*1000));
       console.log(`📅 Fetching data since: ${since30d.toDate().toISOString()}`);
       
-      // Get branches for branchId -> branchName conversion
+      // Get branches for branchId -> branchName conversion and user filtering
       const branchesSnapshot = await getDocs(collection(db, 'branches'));
       const branchMap = new Map<string, string>();
+      const assignedBranchNames = new Set<string>();
+      
+      // Get user data for filtering
+      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+      const userRole = userData?.role;
+      const userBranchIds = userData?.branchIds || [];
+      
       branchesSnapshot.docs.forEach(doc => {
         const data = doc.data();
-        branchMap.set(doc.id, data.name || doc.id);
+        const branchName = data.name || doc.id;
+        branchMap.set(doc.id, branchName);
+        
+        // If warehouse user with branch assignments, collect assigned branch names
+        if (userRole === 'warehouse' && userBranchIds.length > 0 && userBranchIds.includes(doc.id)) {
+          assignedBranchNames.add(branchName);
+        }
       });
       
       console.log(`📊 Found ${branchMap.size} branches for name mapping`);
+      if (userRole === 'warehouse' && userBranchIds.length > 0) {
+        console.log(`👤 Warehouse user - showing ${assignedBranchNames.size} assigned branches only`);
+      }
 
       // Fetch transactions from last 30 days
       console.log('\n🚛 Fetching transactions from last 30 days...');
@@ -156,6 +173,7 @@ const MonitoringDebug: React.FC = () => {
       
       setTransactionRows(txnResults);
       setTankUpdateRows(tankResults);
+      setUserAssignedBranches(assignedBranchNames);
       
     } catch (error: any) {
       console.error('❌ Debug fetch error:', error);
@@ -290,8 +308,18 @@ const MonitoringDebug: React.FC = () => {
                   } catch (e) {}
                 });
                 
-                // Convert to array and sort by last activity
-                const sortedBranches = Array.from(branchData.values()).sort((a, b) => {
+                // Filter branches based on user assignments (warehouse users only)
+                let filteredBranches = Array.from(branchData.values());
+                
+                // If warehouse user with branch assignments, filter branches
+                if (userAssignedBranches.size > 0) {
+                  filteredBranches = filteredBranches.filter(branch => 
+                    userAssignedBranches.has(branch.branchName)
+                  );
+                }
+                
+                // Sort by last activity
+                const sortedBranches = filteredBranches.sort((a, b) => {
                   if (!a.lastActivity) return 1;
                   if (!b.lastActivity) return -1;
                   return b.lastActivity.getTime() - a.lastActivity.getTime();
@@ -302,14 +330,26 @@ const MonitoringDebug: React.FC = () => {
                     ? Math.floor((Date.now() - branch.lastActivity.getTime()) / (1000 * 60 * 60 * 24))
                     : null;
                   
-                  const isRecentlyUpdated = daysSinceUpdate !== null && daysSinceUpdate < 7;
                   const oilTypesArray = Array.from(branch.oilTypes.values()).sort((a, b) => a.oilTypeName.localeCompare(b.oilTypeName));
+                  
+                  // Check if any tank has manual updates within 7 days
+                  const hasRecentManualUpdate = oilTypesArray.some(oilType => {
+                    if (!oilType.manualUpdate) return false;
+                    const manualUpdateDate = new Date(oilType.manualUpdate.updatedAt);
+                    const daysSinceManual = Math.floor((Date.now() - manualUpdateDate.getTime()) / (1000 * 60 * 60 * 24));
+                    return daysSinceManual < 7;
+                  });
+                  
+                  const isRecentlyUpdated = daysSinceUpdate !== null && daysSinceUpdate < 7;
+                  const needsAttention = !hasRecentManualUpdate; // Red if no manual updates in 7 days
                   
                   return (
                     <Card key={branchIndex} className={`h-fit transition-all hover:shadow-lg ${
-                      isRecentlyUpdated 
-                        ? 'border-green-200 bg-green-50/30' 
-                        : 'border-gray-200 bg-white hover:bg-gray-50/30'
+                      needsAttention 
+                        ? 'border-red-300 bg-red-50/30' 
+                        : isRecentlyUpdated
+                          ? 'border-green-200 bg-green-50/30' 
+                          : 'border-gray-200 bg-white hover:bg-gray-50/30'
                     }`}>
                       <CardHeader className="pb-3">
                         <div className="flex items-center justify-between">
@@ -321,7 +361,11 @@ const MonitoringDebug: React.FC = () => {
                               {branch.branchName}
                             </CardTitle>
                           </div>
-                          {isRecentlyUpdated && (
+                          {needsAttention ? (
+                            <div className="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full font-medium">
+                              Needs Update
+                            </div>
+                          ) : isRecentlyUpdated && (
                             <div className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full font-medium">
                               Active
                             </div>
@@ -365,7 +409,6 @@ const MonitoringDebug: React.FC = () => {
                               }`}>
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-medium text-blue-700">Manual Update</span>
-                                  <span className="text-gray-400 text-xs">(TankUpdateLogs)</span>
                                 </div>
                                 {oilType.manualUpdate ? (
                                   <div className="text-gray-700">
@@ -388,7 +431,6 @@ const MonitoringDebug: React.FC = () => {
                               }`}>
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-medium text-orange-700">Supply/Loading</span>
-                                  <span className="text-gray-400 text-xs">(Transactions)</span>
                                 </div>
                                 {oilType.supplyLoading ? (
                                   <div className="text-gray-700">
