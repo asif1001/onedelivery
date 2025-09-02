@@ -1969,6 +1969,15 @@ export default function WarehouseDashboard() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => window.open('/monitoring-debug', '_blank')}
+                className="flex items-center gap-2 text-orange-600 border-orange-300 hover:bg-orange-50"
+                title="Open debug page to verify monitoring data queries"
+              >
+                🔍 Debug
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={loadAllData}
                 className="flex items-center gap-2"
               >
