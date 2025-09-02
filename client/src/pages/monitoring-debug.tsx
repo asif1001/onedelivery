@@ -39,6 +39,10 @@ const MonitoringDebug: React.FC = () => {
   const [userAssignedBranches, setUserAssignedBranches] = useState<Set<string>>(new Set());
   const { theme } = useTheme();
   const { userData: user, logout } = useAuth();
+  
+  // Get user's assigned branches for filtering (same as warehouse dashboard)
+  const userBranchIds = user?.branchIds || [];
+  const isRestrictedUser = user?.role === 'warehouse' && userBranchIds.length > 0;
 
   // Helper to format timestamps
   const formatTimestamp = (ts: any): string => {
@@ -67,32 +71,28 @@ const MonitoringDebug: React.FC = () => {
       const branchMap = new Map<string, string>();
       const assignedBranchNames = new Set<string>();
       
-      // Get user data for filtering
-      const userData = JSON.parse(localStorage.getItem('userData') || '{}');
-      const userRole = userData?.role;
-      const userBranchIds = userData?.branchIds || [];
-      
       branchesSnapshot.docs.forEach(doc => {
         const data = doc.data();
         const branchName = data.name || doc.id;
         branchMap.set(doc.id, branchName);
         
-        // If warehouse user with branch assignments, collect assigned branch names
-        if (userRole === 'warehouse' && userBranchIds.length > 0 && userBranchIds.includes(doc.id)) {
+        // If restricted user, collect assigned branch names
+        if (isRestrictedUser && userBranchIds.includes(doc.id)) {
           assignedBranchNames.add(branchName);
         }
       });
       
       console.log(`📊 Found ${branchMap.size} branches for name mapping`);
-      console.log(`🔍 User Role: ${userRole}`);
+      console.log(`🔍 User Role: ${user?.role}`);
       console.log(`🏢 User Branch IDs:`, userBranchIds);
+      console.log(`🏪 Is Restricted User: ${isRestrictedUser}`);
       console.log(`🏪 Assigned Branch Names:`, Array.from(assignedBranchNames));
       
-      if (userRole === 'warehouse' && userBranchIds.length > 0) {
+      if (isRestrictedUser) {
         console.log(`👤 Warehouse user - showing ${assignedBranchNames.size} assigned branches only`);
         console.log(`🔒 Will filter data to only show branches:`, Array.from(assignedBranchNames));
       } else {
-        console.log(`👑 Admin/Driver user - showing all branches`);
+        console.log(`👑 Admin user - showing all branches`);
       }
 
       // Fetch transactions from last 30 days
@@ -126,11 +126,11 @@ const MonitoringDebug: React.FC = () => {
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
         const oilTypeName = data.oilTypeName || 'Unknown';
         
-        // Filter out transactions for warehouse users not assigned to this branch
-        if (userRole === 'warehouse' && userBranchIds.length > 0) {
+        // Filter out transactions for restricted warehouse users not assigned to this branch
+        if (isRestrictedUser) {
           // Skip if this branch is not in user's assigned branches
-          if (!userBranchIds.includes(data.branchId) && !assignedBranchNames.has(branchName)) {
-            console.log(`🚫 Filtered out transaction: ${branchName} (not assigned to warehouse user)`);
+          if (!userBranchIds.includes(data.branchId)) {
+            console.log(`🚫 Filtered out transaction: ${branchName} (branchId: ${data.branchId}, not assigned to warehouse user)`);
             return;
           }
         }
@@ -174,11 +174,11 @@ const MonitoringDebug: React.FC = () => {
         const branchName = branchMap.get(data.branchId) || data.branchName || data.branchId || 'Unknown';
         const oilTypeName = data.oilTypeName || 'Unknown';
         
-        // Filter out tank updates for warehouse users not assigned to this branch
-        if (userRole === 'warehouse' && userBranchIds.length > 0) {
+        // Filter out tank updates for restricted warehouse users not assigned to this branch
+        if (isRestrictedUser) {
           // Skip if this branch is not in user's assigned branches
-          if (!userBranchIds.includes(data.branchId) && !assignedBranchNames.has(branchName)) {
-            console.log(`🚫 Filtered out tank update: ${branchName} (not assigned to warehouse user)`);
+          if (!userBranchIds.includes(data.branchId)) {
+            console.log(`🚫 Filtered out tank update: ${branchName} (branchId: ${data.branchId}, not assigned to warehouse user)`);
             return;
           }
         }
@@ -310,26 +310,17 @@ const MonitoringDebug: React.FC = () => {
         )}
 
         {/* User Access Information */}
-        {(() => {
-          const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
-          const isWarehouseUser = currentUserData?.role === 'warehouse';
-          
-          if (isWarehouseUser && userAssignedBranches.size > 0) {
-            return (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertCircleIcon className="w-4 h-4 text-blue-600" />
-                  <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
-                </div>
-                <p className="text-sm text-blue-700">
-                  You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: {Array.from(userAssignedBranches).join(', ')}
-                </p>
-              </div>
-            );
-          }
-          
-          return null;
-        })()}
+        {isRestrictedUser && userAssignedBranches.size > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircleIcon className="w-4 h-4 text-blue-600" />
+              <span className="font-medium text-blue-800">Warehouse User - Limited Access</span>
+            </div>
+            <p className="text-sm text-blue-700">
+              You are viewing data for {userAssignedBranches.size} assigned branch{userAssignedBranches.size > 1 ? 'es' : ''}: {Array.from(userAssignedBranches).join(', ')}
+            </p>
+          </div>
+        )}
 
             <Card className={themeClasses.card}>
               <CardHeader className="pb-3">
@@ -426,19 +417,13 @@ const MonitoringDebug: React.FC = () => {
                 // Filter branches based on user assignments (warehouse users only)
                 let filteredBranches = Array.from(branchData.values());
                 
-                // Get current user data for filtering
-                const currentUserData = JSON.parse(localStorage.getItem('userData') || '{}');
-                const isWarehouseUser = currentUserData?.role === 'warehouse';
-                
-                // If warehouse user with branch assignments, filter branches
-                if (isWarehouseUser && userAssignedBranches.size > 0) {
+                // Apply same filtering logic as warehouse dashboard
+                if (isRestrictedUser) {
                   const originalCount = filteredBranches.length;
                   filteredBranches = filteredBranches.filter(branch => 
                     userAssignedBranches.has(branch.branchName)
                   );
                   console.log(`🔒 Warehouse user filter: ${originalCount} → ${filteredBranches.length} branches (showing assigned only)`);
-                } else if (isWarehouseUser) {
-                  console.log(`⚠️ Warehouse user but no branch assignments found`);
                 } else {
                   console.log(`👑 Admin user - showing all ${filteredBranches.length} branches`);
                 }
