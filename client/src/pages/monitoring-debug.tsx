@@ -195,7 +195,14 @@ const MonitoringDebug: React.FC = () => {
 
   useEffect(() => {
     fetchDebugData();
-  }, []); // Fetch once on mount
+    
+    // Auto-refresh data every 5 minutes
+    const interval = setInterval(() => {
+      fetchDebugData();
+    }, 5 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []); // Fetch once on mount and setup auto-refresh
 
   const themeClasses = {
     card: theme === 'night' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200',
@@ -206,35 +213,40 @@ const MonitoringDebug: React.FC = () => {
 
   return (
     <div className={`min-h-screen ${themeClasses.bg}`}>
-      {/* Simple Header with Logo - No Navigation Tabs */}
+      {/* Header matching warehouse dashboard exactly */}
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               <OilDeliveryLogo className="w-10 h-10 sm:w-12 sm:h-12" />
               <div>
-                <h1 className="text-lg sm:text-xl font-bold text-gray-900">OneDelivery</h1>
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900">OneDelivery Warehouse</h1>
                 <p className="text-xs sm:text-sm text-gray-600">
-                  Branch Stock Update Tracking
+                  Welcome, {user?.displayName || user?.email || 'Ali Alsaeed'}
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
-              <Button
-                onClick={fetchDebugData}
-                disabled={loading}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1.5"
-              >
-                {loading ? (
-                  <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <RefreshCwIcon className="h-3 w-3" />
-                )}
-                {loading ? 'Loading...' : 'Refresh'}
-              </Button>
+            <div className="flex items-center gap-2">
+              {/* Theme indicators matching warehouse dashboard */}
+              <div className="hidden sm:flex items-center gap-1 text-xs">
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">
+                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                  Light
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                  Midday
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-600">
+                  <div className="w-2 h-2 bg-gray-800 rounded-full"></div>
+                  Night
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-red-100 text-red-600">
+                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                  Debug
+                </div>
+              </div>
               
               <Button
                 onClick={() => window.location.href = '/warehouse-dashboard'}
@@ -242,7 +254,7 @@ const MonitoringDebug: React.FC = () => {
                 size="sm"
                 className="flex items-center gap-1.5"
               >
-                ← Back to Dashboard
+                ← Back
               </Button>
               
               <Button
@@ -252,7 +264,7 @@ const MonitoringDebug: React.FC = () => {
                 className="text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
               >
                 <LogOutIcon className="h-3 w-3" />
-                Sign Out
+                Logout
               </Button>
             </div>
           </div>
