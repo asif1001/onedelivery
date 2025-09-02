@@ -261,6 +261,7 @@ export default function BranchDashboard() {
   const [activeUsers, setActiveUsers] = useState<Map<string, string>>(new Map());
   const [showMyLogsDialog, setShowMyLogsDialog] = useState(false);
   const [allowGalleryAccess, setAllowGalleryAccess] = useState(true);
+  const [isUpdatingTank, setIsUpdatingTank] = useState(false);
 
   const [complaintData, setComplaintData] = useState({
     branchId: '',
@@ -997,7 +998,7 @@ export default function BranchDashboard() {
         return;
       }
 
-      setLoading(true);
+      setIsUpdatingTank(true);
       console.log('🚀 Starting concurrent-safe tank update:', {
         tankId: selectedTankForUpdate,
         previousLevel: selectedTank.currentLevel,
@@ -1231,7 +1232,7 @@ export default function BranchDashboard() {
         conflictDetails: error.details
       });
     } finally {
-      setLoading(false);
+      setIsUpdatingTank(false);
     }
   };
 
@@ -2407,10 +2408,10 @@ export default function BranchDashboard() {
                     (updateStep === 'gauge-photo' && !gaugePhoto) ||
                     (updateStep === 'quantity' && !manualQuantity) ||
                     (updateStep === 'system-photo' && !systemPhoto) ||
-                    loading
+                    isUpdatingTank
                   }
                 >
-                  {updateStep === 'confirm' ? (loading ? 'Submitting...' : 'Submit Update') : 'Next'}
+                  {updateStep === 'confirm' ? (isUpdatingTank ? 'Submitting...' : 'Submit Update') : 'Next'}
                 </Button>
               </div>
             )}
@@ -2982,28 +2983,36 @@ export default function BranchDashboard() {
               variant="secondary"
               onClick={() => {
                 setConflictDialogOpen(false);
-                // Refresh data to see the latest changes
-                loadData();
                 setConflictDetails(null);
                 setRetryUpdateData(null);
+                setShowUpdateDialog(false);
+                setUpdateStep('branch');
+                // Reset form without triggering page reload
+                setSelectedBranchForUpdate('');
+                setSelectedTankForUpdate('');
+                setGaugePhoto(null);
+                setSystemPhoto(null);
+                setGaugePhotoPreview('');
+                setSystemPhotoPreview('');
+                setManualQuantity('');
+                setUpdateNotes('');
               }}
             >
-              Refresh & Start Over
+              Start Over
             </Button>
             <Button 
-              onClick={async () => {
+              onClick={() => {
                 if (retryUpdateData) {
                   setConflictDialogOpen(false);
-                  // Retry with the original data but fresh conflict check
+                  // Retry with the original data - no page reload needed
                   setManualQuantity(retryUpdateData.newLevel.toString());
                   if (retryUpdateData.photos?.gauge) setGaugePhoto(retryUpdateData.photos.gauge);
                   if (retryUpdateData.photos?.system) setSystemPhoto(retryUpdateData.photos.system);
                   
-                  // Force refresh the tank data first, then retry
-                  await loadData();
+                  // Retry immediately without loadData() to prevent loading screen
                   setTimeout(() => {
                     handleSubmitTankUpdate();
-                  }, 500);
+                  }, 100);
                 }
                 setConflictDetails(null);
                 setRetryUpdateData(null);
