@@ -296,6 +296,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   
   // Date filter states
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Date range filters for complaints CSV export
+  const [complaintsStartDate, setComplaintsStartDate] = useState('');
+  const [complaintsEndDate, setComplaintsEndDate] = useState('');
   const [csvStartDate, setCsvStartDate] = useState('');
   const [csvEndDate, setCsvEndDate] = useState('');
   const [showDateFilter, setShowDateFilter] = useState(false);
@@ -935,7 +939,25 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       'Follow-up Notes'
     ];
 
-    const csvData = complaints.map((complaint: any) => [
+    // Filter complaints by date range if provided
+    let filteredComplaints = complaints;
+    
+    if (complaintsStartDate || complaintsEndDate) {
+      filteredComplaints = complaints.filter((complaint: any) => {
+        if (!complaint.createdAt) return false;
+        
+        const complaintDate = new Date(complaint.createdAt);
+        const startDate = complaintsStartDate ? new Date(complaintsStartDate) : null;
+        const endDate = complaintsEndDate ? new Date(complaintsEndDate + 'T23:59:59') : null;
+        
+        if (startDate && complaintDate < startDate) return false;
+        if (endDate && complaintDate > endDate) return false;
+        
+        return true;
+      });
+    }
+
+    const csvData = filteredComplaints.map((complaint: any) => [
       complaint.id || '',
       complaint.createdAt ? new Date(complaint.createdAt).toLocaleString() : '',
       complaint.customerName || '',
@@ -963,7 +985,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `complaints_register_${new Date().toISOString().split('T')[0]}.csv`;
+    
+    // Include date range in filename if filters are applied
+    let filename = 'complaints_register';
+    if (complaintsStartDate || complaintsEndDate) {
+      const startStr = complaintsStartDate ? complaintsStartDate : 'start';
+      const endStr = complaintsEndDate ? complaintsEndDate : 'end';
+      filename += `_${startStr}_to_${endStr}`;
+    } else {
+      filename += `_${new Date().toISOString().split('T')[0]}`;
+    }
+    filename += '.csv';
+    
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -3443,16 +3477,36 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <AlertTriangleIcon className="h-5 w-5 mr-2" />
                   All Complaints
                 </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => downloadComplaintsCSV()}
-                  className="flex items-center gap-2"
-                  title="Download complaints register with all resolutions and status updates"
-                >
-                  <DownloadIcon className="h-4 w-4" />
-                  Download CSV
-                </Button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-medium text-gray-700">From:</Label>
+                    <Input
+                      type="date"
+                      value={complaintsStartDate}
+                      onChange={(e) => setComplaintsStartDate(e.target.value)}
+                      className="w-auto text-xs"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs font-medium text-gray-700">To:</Label>
+                    <Input
+                      type="date"
+                      value={complaintsEndDate}
+                      onChange={(e) => setComplaintsEndDate(e.target.value)}
+                      className="w-auto text-xs"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadComplaintsCSV()}
+                    className="flex items-center gap-2"
+                    title="Download complaints register with date range filter"
+                  >
+                    <DownloadIcon className="h-4 w-4" />
+                    Download CSV
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
