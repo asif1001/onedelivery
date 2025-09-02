@@ -123,6 +123,8 @@ function Router() {
           <Route path="/" component={() => <WarehouseDashboard />} />
           <Route path="/warehouse" component={() => <WarehouseDashboard />} />
           <Route path="/warehouse-dashboard" component={() => <WarehouseDashboard />} />
+          <Route path="/monitoring-debug" component={() => <MonitoringDebug />} />
+          <Route path="/monitoring-debug" component={() => <MonitoringDebug />} />
           <Route path="/admin-dashboard" component={() => <AccessDenied requiredRole="admin" />} />
           <Route path="/driver-dashboard" component={() => <AccessDenied requiredRole="driver" />} />
           <Route path="/branch-dashboard" component={() => <AccessDenied requiredRole="branch user" />} />
