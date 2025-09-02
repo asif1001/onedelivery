@@ -2396,12 +2396,160 @@ export default function WarehouseDashboard() {
           {/* Overview Statistics Tab */}
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              {/* Branch Update Summary Card */}
+              {/* Branch Update Summary Card - Using Monitoring Tab Logic */}
               {(() => {
-                const branchStatuses = getBranchUpdateStatus();
-                const needsAttention = branchStatuses.filter(b => b.status === 'needs-attention').length;
-                const partiallyUpdated = branchStatuses.filter(b => b.status === 'partially-updated').length;
-                const fullyUpdated = branchStatuses.filter(b => b.status === 'fully-updated' || b.status === 'up-to-date').length;
+                // Calculate branch statuses using the same logic as monitoring tab
+                const calculateBranchStatuses = () => {
+                  // Create hierarchical data structure (same as monitoring tab)
+                  const branchData = new Map<string, {
+                    branchName: string;
+                    lastActivity: Date | null;
+                    oilTypes: Map<string, {
+                      oilTypeName: string;
+                      manualUpdate: { updatedAt: string; updatedBy: string } | null;
+                      supplyLoading: { createdAt: string; driverName: string } | null;
+                    }>
+                  }>();
+
+                  // Process tank updates
+                  updateLogs.forEach(tank => {
+                    if (!branchData.has(tank.branchName)) {
+                      branchData.set(tank.branchName, {
+                        branchName: tank.branchName,
+                        lastActivity: null,
+                        oilTypes: new Map()
+                      });
+                    }
+                    
+                    const branch = branchData.get(tank.branchName)!;
+                    if (!branch.oilTypes.has(tank.oilTypeName)) {
+                      branch.oilTypes.set(tank.oilTypeName, {
+                        oilTypeName: tank.oilTypeName,
+                        manualUpdate: null,
+                        supplyLoading: null
+                      });
+                    }
+                    
+                    const oilType = branch.oilTypes.get(tank.oilTypeName)!;
+                    oilType.manualUpdate = {
+                      updatedAt: tank.updatedAt,
+                      updatedBy: tank.updatedBy
+                    };
+                  });
+
+                  // Process transactions
+                  recentTransactions.forEach(txn => {
+                    if (!branchData.has(txn.branchName)) {
+                      branchData.set(txn.branchName, {
+                        branchName: txn.branchName,
+                        lastActivity: null,
+                        oilTypes: new Map()
+                      });
+                    }
+                    
+                    const branch = branchData.get(txn.branchName)!;
+                    if (!branch.oilTypes.has(txn.oilTypeName)) {
+                      branch.oilTypes.set(txn.oilTypeName, {
+                        oilTypeName: txn.oilTypeName,
+                        manualUpdate: null,
+                        supplyLoading: null
+                      });
+                    }
+                    
+                    const oilType = branch.oilTypes.get(txn.oilTypeName)!;
+                    oilType.supplyLoading = {
+                      createdAt: txn.timestamp?.toDate ? txn.timestamp.toDate().toISOString() : txn.timestamp,
+                      driverName: txn.driverName
+                    };
+                  });
+
+                  // Ensure all branches have all their configured oil types
+                  branches.forEach(branchConfig => {
+                    const branchOilTypes = oilTanks.filter(tank => tank.branchName === branchConfig.name);
+                    
+                    if (!branchData.has(branchConfig.name)) {
+                      branchData.set(branchConfig.name, {
+                        branchName: branchConfig.name,
+                        lastActivity: null,
+                        oilTypes: new Map()
+                      });
+                    }
+                    
+                    const branchDataEntry = branchData.get(branchConfig.name)!;
+                    
+                    branchOilTypes.forEach(tank => {
+                      if (!branchDataEntry.oilTypes.has(tank.oilTypeName)) {
+                        branchDataEntry.oilTypes.set(tank.oilTypeName, {
+                          oilTypeName: tank.oilTypeName,
+                          manualUpdate: null,
+                          supplyLoading: null
+                        });
+                      }
+                    });
+                  });
+
+                  // Filter branches for warehouse users
+                  let filteredBranches = Array.from(branchData.values());
+                  if (isRestrictedUser && userAssignedBranches.size > 0) {
+                    filteredBranches = filteredBranches.filter(branch => 
+                      userAssignedBranches.has(branch.branchName)
+                    );
+                  }
+
+                  // Calculate status for each branch using monitoring tab logic
+                  const branchStatuses = filteredBranches.map(branch => {
+                    const getBranchStatus = (branch: any) => {
+                      const now = new Date();
+                      const oilTypesArray = Array.from(branch.oilTypes.values());
+                      
+                      let updatedOilTypes = 0;
+                      let oldestUpdate = null;
+                      let newestUpdate = null;
+                      
+                      oilTypesArray.forEach((oilType: any) => {
+                        let lastUpdateDate = null;
+                        
+                        if (oilType.manualUpdate?.updatedAt) {
+                          const manualDate = new Date(oilType.manualUpdate.updatedAt);
+                          lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                        }
+                        
+                        if (oilType.supplyLoading?.createdAt) {
+                          const supplyDate = new Date(oilType.supplyLoading.createdAt);
+                          lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
+                        }
+                        
+                        if (lastUpdateDate) {
+                          updatedOilTypes++;
+                          if (!oldestUpdate || lastUpdateDate < oldestUpdate) oldestUpdate = lastUpdateDate;
+                          if (!newestUpdate || lastUpdateDate > newestUpdate) newestUpdate = lastUpdateDate;
+                        }
+                      });
+                      
+                      if (updatedOilTypes === 0) return 'red';
+                      if (updatedOilTypes < oilTypesArray.length) return 'violet';
+                      
+                      const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - oldestUpdate.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+                      
+                      if (daysSinceOldest > 7) return 'red';
+                      else if (daysSinceOldest >= 2) return 'yellow';
+                      else return 'green';
+                    };
+
+                    return {
+                      branchName: branch.branchName,
+                      status: getBranchStatus(branch)
+                    };
+                  });
+
+                  return branchStatuses;
+                };
+
+                const branchStatuses = calculateBranchStatuses();
+                const needsAttention = branchStatuses.filter(b => b.status === 'red').length;
+                const partiallyUpdated = branchStatuses.filter(b => b.status === 'violet').length;
+                const needsUpdateSoon = branchStatuses.filter(b => b.status === 'yellow').length;
+                const fullyUpdated = branchStatuses.filter(b => b.status === 'green').length;
                 
                 return (
                   <Card className={themeClasses.card}>
@@ -2419,10 +2567,16 @@ export default function WarehouseDashboard() {
                             <span className="text-red-700 font-medium">{needsAttention} need attention</span>
                           </div>
                         )}
-                        {partiallyUpdated > 0 && (
+                        {needsUpdateSoon > 0 && (
                           <div className="flex items-center gap-2 text-xs">
                             <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                            <span className="text-yellow-700 font-medium">{partiallyUpdated} partial updates</span>
+                            <span className="text-yellow-700 font-medium">{needsUpdateSoon} needs attention soon</span>
+                          </div>
+                        )}
+                        {partiallyUpdated > 0 && (
+                          <div className="flex items-center gap-2 text-xs">
+                            <div className="w-2 h-2 bg-violet-500 rounded-full"></div>
+                            <span className="text-violet-700 font-medium">{partiallyUpdated} partial updates</span>
                           </div>
                         )}
                         <div className="flex items-center gap-2 text-xs">
