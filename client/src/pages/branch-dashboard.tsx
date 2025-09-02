@@ -34,7 +34,8 @@ import {
   Zap,
   MessageSquareIcon,
   XIcon,
-  GalleryVerticalIcon
+  GalleryVerticalIcon,
+  CheckIcon
 } from "lucide-react";
 import { 
   getActiveBranchesOnly,
@@ -239,7 +240,7 @@ export default function BranchDashboard() {
     notes: ''
   });
 
-  const [updateStep, setUpdateStep] = useState<'branch' | 'tank' | 'gauge-photo' | 'quantity' | 'system-photo' | 'confirm'>('branch');
+  const [updateStep, setUpdateStep] = useState<'branch' | 'tank' | 'gauge-photo' | 'quantity' | 'system-photo' | 'confirm' | 'success'>('branch');
   const [selectedBranchForUpdate, setSelectedBranchForUpdate] = useState<string>('');
   const [selectedTankForUpdate, setSelectedTankForUpdate] = useState<string>('');
   const [gaugePhoto, setGaugePhoto] = useState<File | null>(null);
@@ -1115,15 +1116,22 @@ export default function BranchDashboard() {
         description: `Tank level updated: ${result.levelDifference > 0 ? '+' : ''}${result.levelDifference}L with photo evidence`
       });
 
-      // Reset dialog state
-      setShowUpdateDialog(false);
-      setUpdateStep('branch');
-      setSelectedBranchForUpdate('');
-      setSelectedTankForUpdate('');
-      setGaugePhoto(null);
-      setSystemPhoto(null);
-      setManualQuantity('');
-      setUpdateNotes('');
+      // Success state like supply workflow - show success and reset form  
+      setUpdateStep('success');
+      
+      // Auto-close dialog after 3 seconds like supply workflow
+      setTimeout(() => {
+        setShowUpdateDialog(false);
+        setUpdateStep('branch');
+        setSelectedBranchForUpdate('');
+        setSelectedTankForUpdate('');
+        setGaugePhoto(null);
+        setSystemPhoto(null);
+        setGaugePhotoPreview('');
+        setSystemPhotoPreview('');
+        setManualQuantity('');
+        setUpdateNotes('');
+      }, 3000);
       
       // Log the successful update
       console.log('✅ Concurrent-safe tank update completed:', {
@@ -1963,13 +1971,17 @@ export default function BranchDashboard() {
       <Dialog open={showUpdateDialog} onOpenChange={setShowUpdateDialog}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Update Tank Level - Step {
-              updateStep === 'branch' ? '1' :
-              updateStep === 'tank' ? '2' :
-              updateStep === 'gauge-photo' ? '3' :
-              updateStep === 'quantity' ? '4' :
-              updateStep === 'system-photo' ? '5' : '6'
-            } of 6</DialogTitle>
+            <DialogTitle>
+              {updateStep === 'success' ? 'Update Successful' : 
+                `Update Tank Level - Step ${
+                  updateStep === 'branch' ? '1' :
+                  updateStep === 'tank' ? '2' :
+                  updateStep === 'gauge-photo' ? '3' :
+                  updateStep === 'quantity' ? '4' :
+                  updateStep === 'system-photo' ? '5' : '6'
+                } of 6`
+              }
+            </DialogTitle>
             <DialogDescription>
               {updateStep === 'branch' && 'Select the branch to update'}
               {updateStep === 'tank' && 'Select the oil tank to update'}
@@ -1977,6 +1989,7 @@ export default function BranchDashboard() {
               {updateStep === 'quantity' && 'Enter the current oil quantity'}
               {updateStep === 'system-photo' && 'Take a photo of the system screen'}
               {updateStep === 'confirm' && 'Review and confirm the update'}
+              {updateStep === 'success' && 'Tank level updated successfully with photo evidence'}
             </DialogDescription>
           </DialogHeader>
           
@@ -2053,15 +2066,45 @@ export default function BranchDashboard() {
                   </div>
                   
                   {!gaugePhoto ? (
-                    <PhotoCaptureButton
-                      onCapture={handleGaugePhotoCapture}
-                      className="w-full bg-blue-600 hover:bg-blue-700 h-16"
-                      title="Tank Gauge Reading"
-                      branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
-                    >
-                      <GaugeIcon className="h-4 w-4 mr-2" />
-                      Take Gauge Photo
-                    </PhotoCaptureButton>
+                    <div className="space-y-3">
+                      <PhotoCaptureButton
+                        onCapture={handleGaugePhotoCapture}
+                        className="w-full bg-blue-600 hover:bg-blue-700 h-16"
+                        title="Tank Gauge Reading"
+                        branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
+                      >
+                        <GaugeIcon className="h-4 w-4 mr-2" />
+                        Take Gauge Photo
+                      </PhotoCaptureButton>
+                      
+                      <div className="text-center text-sm text-gray-500">or</div>
+                      
+                      <Button 
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const previewUrl = URL.createObjectURL(file);
+                              setGaugePhoto(file);
+                              setGaugePhotoPreview(previewUrl);
+                              toast({
+                                title: "Photo Selected",
+                                description: "Gauge reading photo selected from gallery"
+                              });
+                            }
+                          };
+                          input.click();
+                        }}
+                        variant="outline"
+                        className="w-full h-12"
+                      >
+                        <GalleryVerticalIcon className="h-4 w-4 mr-2" />
+                        Choose from Gallery
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       {/* Photo Preview */}
@@ -2209,15 +2252,45 @@ export default function BranchDashboard() {
                   </div>
                   
                   {!systemPhoto ? (
-                    <PhotoCaptureButton
-                      onCapture={handleSystemPhotoCapture}
-                      className="w-full bg-green-600 hover:bg-green-700 h-16"
-                      title="System Screen Display"
-                      branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
-                    >
-                      <MonitorIcon className="h-4 w-4 mr-2" />
-                      Take System Photo
-                    </PhotoCaptureButton>
+                    <div className="space-y-3">
+                      <PhotoCaptureButton
+                        onCapture={handleSystemPhotoCapture}
+                        className="w-full bg-green-600 hover:bg-green-700 h-16"
+                        title="System Screen Display"
+                        branchName={branches.find(b => b.id === selectedBranchForUpdate)?.name || 'Unknown Branch'}
+                      >
+                        <MonitorIcon className="h-4 w-4 mr-2" />
+                        Take System Photo
+                      </PhotoCaptureButton>
+                      
+                      <div className="text-center text-sm text-gray-500">or</div>
+                      
+                      <Button 
+                        onClick={() => {
+                          const input = document.createElement('input');
+                          input.type = 'file';
+                          input.accept = 'image/*';
+                          input.onchange = (e) => {
+                            const file = (e.target as HTMLInputElement).files?.[0];
+                            if (file) {
+                              const previewUrl = URL.createObjectURL(file);
+                              setSystemPhoto(file);
+                              setSystemPhotoPreview(previewUrl);
+                              toast({
+                                title: "Photo Selected",
+                                description: "System screen photo selected from gallery"
+                              });
+                            }
+                          };
+                          input.click();
+                        }}
+                        variant="outline"
+                        className="w-full h-12"
+                      >
+                        <GalleryVerticalIcon className="h-4 w-4 mr-2" />
+                        Choose from Gallery
+                      </Button>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       {/* Photo Preview */}
@@ -2285,29 +2358,60 @@ export default function BranchDashboard() {
               </div>
             )}
 
+            {/* Success Step */}
+            {updateStep === 'success' && (
+              <div className="space-y-6 text-center">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                    <CheckIcon className="w-8 h-8 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-green-800">Tank Level Updated Successfully!</h3>
+                    <p className="text-sm text-gray-600 mt-2">
+                      The tank level has been updated with photo evidence.<br/>
+                      This dialog will close automatically in a few seconds.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 p-4 rounded-lg space-y-2 text-left">
+                  <h4 className="font-medium text-green-800">Update Summary:</h4>
+                  <div className="text-sm space-y-1 text-green-700">
+                    <p><strong>Branch:</strong> {branches.find(b => b.id === selectedBranchForUpdate)?.name}</p>
+                    <p><strong>Tank:</strong> {oilTanks.find(t => t.id === selectedTankForUpdate)?.oilTypeName}</p>
+                    <p><strong>New Level:</strong> {manualQuantity} Liters</p>
+                    <p><strong>Photos:</strong> Gauge + System (2 photos captured)</p>
+                    {updateNotes && <p><strong>Notes:</strong> {updateNotes}</p>}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Navigation Buttons */}
-            <div className="flex justify-between">
-              <Button 
-                variant="outline" 
-                onClick={updateStep === 'branch' ? () => setShowUpdateDialog(false) : handleStepBack}
-              >
-                {updateStep === 'branch' ? 'Cancel' : 'Back'}
-              </Button>
-              
-              <Button 
-                onClick={updateStep === 'confirm' ? handleSubmitTankUpdate : handleStepNext}
-                disabled={
-                  (updateStep === 'branch' && !selectedBranchForUpdate) ||
-                  (updateStep === 'tank' && !selectedTankForUpdate) ||
-                  (updateStep === 'gauge-photo' && !gaugePhoto) ||
-                  (updateStep === 'quantity' && !manualQuantity) ||
-                  (updateStep === 'system-photo' && !systemPhoto) ||
-                  loading
-                }
-              >
-                {updateStep === 'confirm' ? (loading ? 'Submitting...' : 'Submit Update') : 'Next'}
-              </Button>
-            </div>
+            {updateStep !== 'success' && (
+              <div className="flex justify-between">
+                <Button 
+                  variant="outline" 
+                  onClick={updateStep === 'branch' ? () => setShowUpdateDialog(false) : handleStepBack}
+                >
+                  {updateStep === 'branch' ? 'Cancel' : 'Back'}
+                </Button>
+                
+                <Button 
+                  onClick={updateStep === 'confirm' ? handleSubmitTankUpdate : handleStepNext}
+                  disabled={
+                    (updateStep === 'branch' && !selectedBranchForUpdate) ||
+                    (updateStep === 'tank' && !selectedTankForUpdate) ||
+                    (updateStep === 'gauge-photo' && !gaugePhoto) ||
+                    (updateStep === 'quantity' && !manualQuantity) ||
+                    (updateStep === 'system-photo' && !systemPhoto) ||
+                    loading
+                  }
+                >
+                  {updateStep === 'confirm' ? (loading ? 'Submitting...' : 'Submit Update') : 'Next'}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
