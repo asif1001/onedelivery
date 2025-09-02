@@ -156,21 +156,21 @@ export default function AdminUsers({
           driverLicenceNo: formData.driverLicenceNo,
           tankerLicenceNo: formData.tankerLicenceNo,
           licenceExpiryDate: formData.licenceExpiryDate ? new Date(formData.licenceExpiryDate) : undefined,
-          // CRITICAL: Include branchIds for branch users
-          branchIds: formData.role === 'branch_user' ? formData.branchIds : []
+          // CRITICAL: Include branchIds for both branch users AND warehouse users
+          branchIds: (formData.role === 'branch_user' || formData.role === 'warehouse') ? formData.branchIds : []
         };
         
         console.log('📝 Updating user with data:', updateData);
         onUpdateDriver(editingDriver.uid, updateData);
         toast({
           title: "Success",
-          description: `${formData.role === 'driver' ? 'Driver' : formData.role === 'branch_user' ? 'Branch user' : 'User'} updated successfully`
+          description: `${formData.role === 'driver' ? 'Driver' : formData.role === 'branch_user' ? 'Branch user' : formData.role === 'warehouse' ? 'Warehouse user' : 'User'} updated successfully`
         });
       } else {
         onAddDriver(formData as CreateUser);
         toast({
           title: "Success",
-          description: `${formData.role === 'driver' ? 'Driver' : formData.role === 'branch_user' ? 'Branch user' : 'User'} added successfully`
+          description: `${formData.role === 'driver' ? 'Driver' : formData.role === 'branch_user' ? 'Branch user' : formData.role === 'warehouse' ? 'Warehouse user' : 'User'} added successfully`
         });
       }
 

@@ -8,6 +8,15 @@ OneDelivery is a comprehensive enterprise oil delivery management system designe
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### September 2, 2025 - Warehouse User Branch Assignment System
+- **Fixed Critical Bug**: Warehouse user branch assignments now properly save and persist
+- **Branch Assignment Interface**: Extended existing branch user assignment system to include warehouse users
+- **Access Control**: Warehouse users restricted to assigned branches only
+- **Admin Validation**: Prevents creating warehouse users without branch assignments
+- **UI Enhancements**: Shows branch assignment status and warnings for both user types
+
 ## System Architecture
 
 ### Frontend Architecture
