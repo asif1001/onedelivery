@@ -197,81 +197,188 @@ const MonitoringDebug: React.FC = () => {
           )}
         </div>
 
-        {/* Transactions Table */}
+        {/* Hierarchical Branch View */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle>Transactions Collection (Last 30 Days) - {transactionRows.length} rows</CardTitle>
+            <CardTitle>Branch Activity Summary (Last 30 Days)</CardTitle>
+            <p className="text-sm text-gray-600">
+              Grouped by branch, showing latest manual updates and supply/loading activities per oil type
+            </p>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-4 py-2 text-left">oilTypeName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">driverName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">createdAt</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">branchName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">docId</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {transactionRows.map((row, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="border border-gray-300 px-4 py-2">{row.oilTypeName}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.driverName}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs font-mono">{row.createdAt}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.branchName}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs font-mono">{row.docId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-6">
+              {(() => {
+                // Create hierarchical data structure
+                const branchData = new Map<string, {
+                  branchName: string;
+                  lastActivity: Date | null;
+                  oilTypes: Map<string, {
+                    oilTypeName: string;
+                    manualUpdate: { updatedAt: string; updatedBy: string } | null;
+                    supplyLoading: { createdAt: string; driverName: string } | null;
+                  }>
+                }>();
+                
+                // Process tank updates
+                tankUpdateRows.forEach(tank => {
+                  if (!branchData.has(tank.branchName)) {
+                    branchData.set(tank.branchName, {
+                      branchName: tank.branchName,
+                      lastActivity: null,
+                      oilTypes: new Map()
+                    });
+                  }
+                  
+                  const branch = branchData.get(tank.branchName)!;
+                  if (!branch.oilTypes.has(tank.oilTypeName)) {
+                    branch.oilTypes.set(tank.oilTypeName, {
+                      oilTypeName: tank.oilTypeName,
+                      manualUpdate: null,
+                      supplyLoading: null
+                    });
+                  }
+                  
+                  const oilType = branch.oilTypes.get(tank.oilTypeName)!;
+                  oilType.manualUpdate = {
+                    updatedAt: tank.updatedAt,
+                    updatedBy: tank.updatedBy
+                  };
+                  
+                  // Update last activity for branch
+                  try {
+                    const updateDate = new Date(tank.updatedAt);
+                    if (!branch.lastActivity || updateDate > branch.lastActivity) {
+                      branch.lastActivity = updateDate;
+                    }
+                  } catch (e) {}
+                });
+                
+                // Process transactions
+                transactionRows.forEach(txn => {
+                  if (!branchData.has(txn.branchName)) {
+                    branchData.set(txn.branchName, {
+                      branchName: txn.branchName,
+                      lastActivity: null,
+                      oilTypes: new Map()
+                    });
+                  }
+                  
+                  const branch = branchData.get(txn.branchName)!;
+                  if (!branch.oilTypes.has(txn.oilTypeName)) {
+                    branch.oilTypes.set(txn.oilTypeName, {
+                      oilTypeName: txn.oilTypeName,
+                      manualUpdate: null,
+                      supplyLoading: null
+                    });
+                  }
+                  
+                  const oilType = branch.oilTypes.get(txn.oilTypeName)!;
+                  oilType.supplyLoading = {
+                    createdAt: txn.createdAt,
+                    driverName: txn.driverName
+                  };
+                  
+                  // Update last activity for branch
+                  try {
+                    const txnDate = new Date(txn.createdAt);
+                    if (!branch.lastActivity || txnDate > branch.lastActivity) {
+                      branch.lastActivity = txnDate;
+                    }
+                  } catch (e) {}
+                });
+                
+                // Convert to array and sort by last activity
+                const sortedBranches = Array.from(branchData.values()).sort((a, b) => {
+                  if (!a.lastActivity) return 1;
+                  if (!b.lastActivity) return -1;
+                  return b.lastActivity.getTime() - a.lastActivity.getTime();
+                });
+                
+                return sortedBranches.map((branch, branchIndex) => {
+                  const daysSinceUpdate = branch.lastActivity 
+                    ? Math.floor((Date.now() - branch.lastActivity.getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+                  
+                  const isRecentlyUpdated = daysSinceUpdate !== null && daysSinceUpdate < 7;
+                  
+                  return (
+                    <div key={branchIndex} className="border rounded-lg p-4 bg-white">
+                      <div className="flex items-center gap-2 mb-3">
+                        <div className={`w-3 h-3 rounded-full ${
+                          isRecentlyUpdated ? 'bg-green-500' : 'bg-gray-400'
+                        }`} />
+                        <h3 className="text-lg font-semibold">
+                          {branch.branchName} 
+                          {isRecentlyUpdated && (
+                            <span className="text-green-600 text-sm font-normal ml-2">(updated)</span>
+                          )}
+                        </h3>
+                        {daysSinceUpdate !== null && (
+                          <span className="text-gray-500 text-sm">
+                            ({daysSinceUpdate === 0 ? 'today' : `${daysSinceUpdate} days ago`})
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="ml-6 space-y-3">
+                        {Array.from(branch.oilTypes.values())
+                          .sort((a, b) => a.oilTypeName.localeCompare(b.oilTypeName))
+                          .map((oilType, oilIndex) => (
+                            <div key={oilIndex} className="border-l-2 border-gray-200 pl-4">
+                              <h4 className="font-medium text-gray-800 mb-2">
+                                {oilType.oilTypeName} - {oilIndex + 1}
+                              </h4>
+                              
+                              <div className="space-y-1 text-sm">
+                                <div className="flex items-start gap-2">
+                                  <span className="font-medium text-blue-700 w-20">Manual:</span>
+                                  <span className="text-gray-700">
+                                    {oilType.manualUpdate ? (
+                                      <>
+                                        {new Date(oilType.manualUpdate.updatedAt).toLocaleString()} by{' '}
+                                        <span className="font-medium">{oilType.manualUpdate.updatedBy}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          (from TankUpdateLogs)
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-gray-400">No manual updates</span>
+                                    )}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex items-start gap-2">
+                                  <span className="font-medium text-orange-700 w-20">Supply/Loading:</span>
+                                  <span className="text-gray-700">
+                                    {oilType.supplyLoading ? (
+                                      <>
+                                        {new Date(oilType.supplyLoading.createdAt).toLocaleString()} by{' '}
+                                        <span className="font-medium">{oilType.supplyLoading.driverName}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          (from Transactions Collection)
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <span className="text-gray-400">No supply/loading activity</span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        }
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+              
+              {transactionRows.length === 0 && tankUpdateRows.length === 0 && !loading && (
+                <div className="text-center py-8 text-gray-500">
+                  No data found in the last 30 days.
+                </div>
+              )}
             </div>
-            
-            {transactionRows.length === 0 && !loading && (
-              <div className="text-center py-8 text-gray-500">
-                No transactions found in the last 30 days.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Tank Update Logs Table */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle>TankUpdateLogs Collection (Last 30 Days) - {tankUpdateRows.length} rows</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border border-gray-300">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="border border-gray-300 px-4 py-2 text-left">oilTypeName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">branchName</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">updatedAt</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">updatedBy</th>
-                    <th className="border border-gray-300 px-4 py-2 text-left">docId</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tankUpdateRows.map((row, index) => (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                      <td className="border border-gray-300 px-4 py-2">{row.oilTypeName}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.branchName}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs font-mono">{row.updatedAt}</td>
-                      <td className="border border-gray-300 px-4 py-2">{row.updatedBy}</td>
-                      <td className="border border-gray-300 px-4 py-2 text-xs font-mono">{row.docId}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {tankUpdateRows.length === 0 && !loading && (
-              <div className="text-center py-8 text-gray-500">
-                No tank updates found in the last 30 days.
-              </div>
-            )}
           </CardContent>
         </Card>
 
