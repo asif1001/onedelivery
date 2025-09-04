@@ -358,16 +358,10 @@ export function TransactionEditModal({
                   <p className="font-medium">
                     {(transaction.oilSuppliedLiters || 
                      transaction.actualDeliveredLiters || 
-                     transaction.totalLoadedLiters || 
-                     transaction.loadedLiters ||
-                     transaction.deliveredLiters ||
-                     transaction.quantity || 0) > 0 ? 
+                     transaction.totalLoadedLiters || 0) > 0 ? 
                      `${(transaction.oilSuppliedLiters || 
                        transaction.actualDeliveredLiters || 
-                       transaction.totalLoadedLiters ||
-                       transaction.loadedLiters ||
-                       transaction.deliveredLiters ||
-                       transaction.quantity || 0).toLocaleString()}L` : 'N/A'}
+                       transaction.totalLoadedLiters || 0).toLocaleString()}L` : 'N/A'}
                   </p>
                 </div>
                 <div>
@@ -412,7 +406,7 @@ export function TransactionEditModal({
                                 className="w-full h-12 object-cover rounded border hover:opacity-90 transition-opacity"
                               />
                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
-                                <EyeIcon className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <span className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity">👁</span>
                               </div>
                             </div>
                             <p className="text-xs text-gray-400 mt-1 truncate">

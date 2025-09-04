@@ -637,16 +637,10 @@ export function AdminTransactionManagement() {
                       <p className="font-medium">
                         {(selectedTransaction.oilSuppliedLiters || 
                          selectedTransaction.actualDeliveredLiters || 
-                         selectedTransaction.totalLoadedLiters || 
-                         selectedTransaction.loadedLiters ||
-                         selectedTransaction.deliveredLiters ||
-                         selectedTransaction.quantity || 0) > 0 ? 
+                         selectedTransaction.totalLoadedLiters || 0) > 0 ? 
                          `${(selectedTransaction.oilSuppliedLiters || 
                            selectedTransaction.actualDeliveredLiters || 
-                           selectedTransaction.totalLoadedLiters ||
-                           selectedTransaction.loadedLiters ||
-                           selectedTransaction.deliveredLiters ||
-                           selectedTransaction.quantity || 0).toLocaleString()}L` : 'N/A'}
+                           selectedTransaction.totalLoadedLiters || 0).toLocaleString()}L` : 'N/A'}
                       </p>
                     </div>
                     <div>
@@ -657,10 +651,10 @@ export function AdminTransactionManagement() {
                       <Label className="text-sm font-medium text-gray-600">Branch</Label>
                       <p className="font-medium">{selectedTransaction.branchName || 'N/A'}</p>
                     </div>
-                    {selectedTransaction.deliveryOrderId && (
+                    {selectedTransaction.deliveryOrderNo && (
                       <div>
                         <Label className="text-sm font-medium text-gray-600">Delivery Order</Label>
-                        <p className="font-medium">{selectedTransaction.deliveryOrderId}</p>
+                        <p className="font-medium">{selectedTransaction.deliveryOrderNo}</p>
                       </div>
                     )}
                     {(selectedTransaction.startMeterReading !== undefined || selectedTransaction.endMeterReading !== undefined) && (
@@ -682,7 +676,7 @@ export function AdminTransactionManagement() {
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Session ID</Label>
                       <p className="font-medium text-xs text-gray-500">
-                        {selectedTransaction.loadSessionId || selectedTransaction.id || 'N/A'}
+                        {selectedTransaction.id || 'N/A'}
                       </p>
                     </div>
                   </div>
