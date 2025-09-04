@@ -636,27 +636,13 @@ export function AdminTransactionManagement() {
                       <Label className="text-sm font-medium text-gray-600">Quantity</Label>
                       <p className="font-medium">
                         {(() => {
-                          // Debug: log the transaction to see all available fields
-                          console.log('Transaction data for quantity:', selectedTransaction);
                           
                           const quantity = selectedTransaction.oilSuppliedLiters || 
                                          selectedTransaction.actualDeliveredLiters || 
                                          selectedTransaction.totalLoadedLiters ||
-                                         selectedTransaction.quantity ||
-                                         selectedTransaction.meterReading ||
-                                         selectedTransaction.loadMeterReading ||
-                                         selectedTransaction.endMeterReading - selectedTransaction.startMeterReading ||
                                          0;
                           
-                          return quantity > 0 ? `${quantity.toLocaleString()}L` : 
-                                 `Debug: ${JSON.stringify({
-                                   oilSuppliedLiters: selectedTransaction.oilSuppliedLiters,
-                                   actualDeliveredLiters: selectedTransaction.actualDeliveredLiters,
-                                   totalLoadedLiters: selectedTransaction.totalLoadedLiters,
-                                   quantity: selectedTransaction.quantity,
-                                   meterReading: selectedTransaction.meterReading,
-                                   loadMeterReading: selectedTransaction.loadMeterReading
-                                 })}`;
+                          return quantity > 0 ? `${quantity.toLocaleString()}L` : 'N/A';
                         })()}
                       </p>
                     </div>
@@ -677,19 +663,13 @@ export function AdminTransactionManagement() {
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Start Meter</Label>
                       <p className="font-medium">
-                        {selectedTransaction.startMeterReading ?? 
-                         selectedTransaction.meterBefore ?? 
-                         selectedTransaction.actualDeliveryStartFuel ?? 
-                         'N/A'}
+                        {selectedTransaction.startMeterReading ?? 'N/A'}
                       </p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">End Meter</Label>
                       <p className="font-medium">
-                        {selectedTransaction.endMeterReading ?? 
-                         selectedTransaction.meterAfter ?? 
-                         selectedTransaction.actualDeliveryEndFuel ?? 
-                         'N/A'}
+                        {selectedTransaction.endMeterReading ?? 'N/A'}
                       </p>
                     </div>
                     <div>

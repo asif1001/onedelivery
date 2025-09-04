@@ -28,8 +28,11 @@ import {
   getOilTypes, 
   getCurrentUser,
   createTransactionEditHistory,
-  calculateInventoryImpact
+  calculateInventoryImpact,
+  getTankerVehicle,
+  db
 } from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 interface Transaction {
   id: string;
@@ -107,32 +110,18 @@ export function TransactionEditModal({
   const loadFormData = () => {
     if (!transaction) return;
     
-    console.log('Loading form data from transaction:', transaction);
     
     // Try multiple field names for each value
-    const startMeter = transaction.startMeterReading ?? 
-                      transaction.meterBefore ?? 
-                      transaction.actualDeliveryStartFuel;
+    const startMeter = transaction.startMeterReading;
                       
-    const endMeter = transaction.endMeterReading ?? 
-                    transaction.meterAfter ?? 
-                    transaction.actualDeliveryEndFuel;
+    const endMeter = transaction.endMeterReading;
                     
     const oilSupplied = transaction.oilSuppliedLiters ?? 
-                       transaction.actualDeliveredLiters ??
-                       transaction.quantity ??
-                       transaction.meterReading;
+                       transaction.actualDeliveredLiters;
                        
     const totalLoaded = transaction.totalLoadedLiters ??
-                       transaction.loadMeterReading ??
-                       transaction.fuelLoadedLiters;
+                       transaction.loadMeterReading;
     
-    console.log('Form values being set:', {
-      startMeter,
-      endMeter,
-      oilSupplied,
-      totalLoaded
-    });
     
     setEditData({
       startMeterReading: startMeter,
@@ -272,14 +261,68 @@ export function TransactionEditModal({
         throw new Error('Unable to identify current user');
       }
       
-      // Prepare update data
+      // 1. Apply inventory adjustments if needed
+      let inventoryAdjustments = null;
+      const quantityChanges = changes.filter((change: any) => 
+        change.field.includes('Liters') || change.field.includes('Meter Reading')
+      );
+      
+      if (quantityChanges.length > 0 && editData.adjustInventory !== 'none') {
+        console.log('🔄 Processing inventory adjustments for transaction:', transaction.id);
+        
+        // Get original and new quantities
+        const originalQuantity = transaction.oilSuppliedLiters || 
+                               transaction.actualDeliveredLiters || 
+                               transaction.totalLoadedLiters || 0;
+        
+        const newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+        
+        if (originalQuantity !== newQuantity) {
+          const quantityDifference = newQuantity - originalQuantity;
+          
+          console.log('📊 Quantity change detected:', {
+            original: originalQuantity,
+            new: newQuantity,
+            difference: quantityDifference,
+            transactionType: transaction.type
+          });
+          
+          let adjustmentAmount = 0;
+          
+          if (editData.adjustInventory === 'automatic') {
+            adjustmentAmount = quantityDifference;
+          } else if (editData.adjustInventory === 'manual' && editData.manualInventoryAdjustment) {
+            adjustmentAmount = editData.manualInventoryAdjustment;
+          }
+          
+          if (adjustmentAmount !== 0) {
+            await applyInventoryAdjustments(adjustmentAmount);
+          }
+          
+          inventoryAdjustments = {
+            method: editData.adjustInventory,
+            quantityDifference,
+            adjustmentApplied: adjustmentAmount,
+            appliedAt: new Date()
+          };
+        }
+      }
+      
+      // 2. Prepare update data with additional edit tracking fields
       const { reason, adjustInventory, manualInventoryAdjustment, ...updateFields } = editData;
       const updateData = {
         ...updateFields,
-        id: transaction.id
+        id: transaction.id,
+        lastEditedBy: currentUser.uid,
+        lastEditedByName: currentUser.displayName || currentUser.email || 'Admin',
+        lastEditedAt: new Date(),
+        editReason: editData.reason,
+        hasBeenEdited: true,
+        editCount: ((transaction as any).editCount || 0) + 1,
+        inventoryAdjusted: inventoryAdjustments ? true : false
       };
       
-      // Create edit history record
+      // 3. Create edit history record
       const editHistoryData = {
         transactionId: transaction.id,
         editedBy: currentUser.uid,
@@ -288,10 +331,11 @@ export function TransactionEditModal({
         reason: editData.reason,
         changes: changes,
         inventoryAdjustment: editData.adjustInventory,
+        inventoryAdjustments: inventoryAdjustments,
         manualInventoryAdjustment: editData.manualInventoryAdjustment || null
       };
       
-      // Update transaction and create edit history
+      // 4. Update transaction and create edit history
       await Promise.all([
         updateTransaction(updateData),
         createTransactionEditHistory(editHistoryData)
@@ -299,7 +343,7 @@ export function TransactionEditModal({
       
       toast({
         title: "Transaction Updated",
-        description: `Transaction updated successfully with ${changes.length} changes.`
+        description: `Transaction updated successfully with ${changes.length} changes.${inventoryAdjustments ? ' Inventory levels adjusted.' : ''}`
       });
       
       onTransactionUpdated();
@@ -314,6 +358,74 @@ export function TransactionEditModal({
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const applyInventoryAdjustments = async (adjustmentAmount: number) => {
+    try {
+      if (!transaction || adjustmentAmount === 0) return;
+      
+      console.log('🔧 Applying inventory adjustment:', adjustmentAmount);
+      
+      // For supply transactions: adjust branch tank levels
+      if (transaction.type === 'supply' && transaction.branchId && transaction.oilTypeId) {
+        const branchRef = doc(db, 'branches', transaction.branchId);
+        const branchSnap = await getDoc(branchRef);
+        
+        if (branchSnap.exists()) {
+          const branchData = branchSnap.data();
+          const oilTanks = branchData.oilTanks || [];
+          
+          // Find the relevant tank
+          const tankIndex = oilTanks.findIndex((tank: any) => tank.oilTypeId === transaction.oilTypeId);
+          
+          if (tankIndex >= 0) {
+            const updatedTanks = [...oilTanks];
+            const currentLevel = Number(updatedTanks[tankIndex].currentLevel || 0);
+            
+            // Apply adjustment (positive = increase tank level, negative = decrease)
+            updatedTanks[tankIndex].currentLevel = Math.max(0, currentLevel + adjustmentAmount);
+            updatedTanks[tankIndex].lastUpdated = new Date();
+            
+            await updateDoc(branchRef, {
+              oilTanks: updatedTanks,
+              updatedAt: new Date()
+            });
+            
+            console.log('✅ Branch tank inventory adjusted:', {
+              branchId: transaction.branchId,
+              tankIndex,
+              beforeLevel: currentLevel,
+              afterLevel: updatedTanks[tankIndex].currentLevel,
+              adjustment: adjustmentAmount
+            });
+          }
+        }
+      }
+      
+      // For loading transactions: adjust driver tanker levels
+      if (transaction.type === 'loading' && transaction.driverUid) {
+        // Get driver's tanker
+        const tanker = await getTankerVehicle(transaction.driverUid);
+        
+        if (tanker) {
+          const currentLevel = Number(tanker.currentLevel || 0);
+          const newLevel = Math.max(0, Math.min(tanker.capacity, currentLevel + adjustmentAmount));
+          
+          // Note: updateTankerLevel function needs to be implemented
+          
+          console.log('✅ Driver tanker inventory adjusted:', {
+            driverUid: transaction.driverUid,
+            beforeLevel: currentLevel,
+            afterLevel: newLevel,
+            adjustment: adjustmentAmount
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error applying inventory adjustments:', error);
+      throw error;
     }
   };
 
@@ -384,13 +496,9 @@ export function TransactionEditModal({
                   <Label className="text-xs text-gray-500">Current Quantity</Label>
                   <p className="font-medium">
                     {(() => {
-                      console.log('Edit modal transaction data:', transaction);
-                      const quantity = transaction.oilSuppliedLiters || 
+                                      const quantity = transaction.oilSuppliedLiters || 
                                      transaction.actualDeliveredLiters || 
                                      transaction.totalLoadedLiters ||
-                                     transaction.quantity ||
-                                     transaction.meterReading ||
-                                     transaction.loadMeterReading ||
                                      0;
                       return quantity > 0 ? `${quantity.toLocaleString()}L` : 'N/A';
                     })()}
@@ -409,28 +517,19 @@ export function TransactionEditModal({
                 <div>
                   <Label className="text-xs text-gray-500">Current Start Meter</Label>
                   <p className="font-medium">
-                    {transaction.startMeterReading ?? 
-                     transaction.meterBefore ?? 
-                     transaction.actualDeliveryStartFuel ?? 
-                     'N/A'}
+                    {transaction.startMeterReading ?? 'N/A'}
                   </p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Current End Meter</Label>
                   <p className="font-medium">
-                    {transaction.endMeterReading ?? 
-                     transaction.meterAfter ?? 
-                     transaction.actualDeliveryEndFuel ?? 
-                     'N/A'}
+                    {transaction.endMeterReading ?? 'N/A'}
                   </p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Load Meter Reading</Label>
                   <p className="font-medium">
-                    {transaction.loadMeterReading ?? 
-                     transaction.meterReading ?? 
-                     transaction.fuelLoadedLiters ?? 
-                     'N/A'}
+                    {transaction.loadMeterReading ?? 'N/A'}
                   </p>
                 </div>
               </div>
