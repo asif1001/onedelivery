@@ -89,6 +89,7 @@ import {
 import { collection, query, orderBy, limit, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
 import { TransactionViewer } from "@/components/TransactionViewer";
+import { TransactionEditModal } from "@/components/TransactionEditModal";
 import { AdminTransactionManagement } from "@/components/AdminTransactionManagement";
 import EnhancedTaskModal from "@/components/EnhancedTaskModal";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
@@ -285,6 +286,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
+  const [showEditTransactionModal, setShowEditTransactionModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{url: string, label: string} | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [isTransactionViewerOpen, setIsTransactionViewerOpen] = useState(false);
@@ -2719,19 +2721,34 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                 );
                               })()}
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedTransaction(transaction);
-                                setShowTransactionModal(true);
-                              }}
-                              className="flex items-center gap-2"
-                              data-testid={`button-view-transaction-${index}`}
-                            >
-                              <EyeIcon className="h-4 w-4" />
-                              View
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTransaction(transaction);
+                                  setShowTransactionModal(true);
+                                }}
+                                className="flex items-center gap-2"
+                                data-testid={`button-view-transaction-${index}`}
+                              >
+                                <EyeIcon className="h-4 w-4" />
+                                View
+                              </Button>
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedTransaction(transaction);
+                                  setShowEditTransactionModal(true);
+                                }}
+                                className="flex items-center gap-2"
+                                data-testid={`button-edit-transaction-${index}`}
+                              >
+                                <EditIcon className="h-4 w-4" />
+                                Edit
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -4309,6 +4326,21 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         onPhotoClick={(url, label) => {
           setSelectedPhoto({ url, label });
           setShowPhotoModal(true);
+        }}
+      />
+
+      {/* Transaction Edit Modal */}
+      <TransactionEditModal
+        transaction={selectedTransaction}
+        isOpen={showEditTransactionModal}
+        onClose={() => {
+          setShowEditTransactionModal(false);
+          setSelectedTransaction(null);
+        }}
+        onTransactionUpdated={() => {
+          loadData(); // Refresh all data including recent transactions
+          setShowEditTransactionModal(false);
+          setSelectedTransaction(null);
         }}
       />
 
