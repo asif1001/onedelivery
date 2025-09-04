@@ -885,48 +885,19 @@ const compressImage = async (file: Blob, quality: number = 0.8, maxWidth: number
 };
 
 // Original working photo upload function - restored to working state
-export const uploadPhotoToFirebaseStorage = async (
-  file: File | Blob, 
-  folder: string = 'photos', 
-  photoMetadata?: {
-    transactionId?: string;
-    flowType?: string; // 'Loading' | 'Supply' | 'Drum'
-    photoType?: string; // 'Meterphoto' | 'Drumphoto' | 'Tankphoto' etc.
-    branchName?: string;
-    oilType?: string;
-  }
-): Promise<string> => {
+export const uploadPhotoToFirebaseStorage = async (file: File | Blob, folder: string = 'photos'): Promise<string> => {
   try {
     console.log('📷 Starting photo upload to folder:', folder);
     
     // Compress image before upload to reduce storage size
     const compressedFile = await compressImage(file, 0.8, 1200);
     
-    // Generate filename using the new naming convention
-    let filename = '';
-    
-    if (photoMetadata && photoMetadata.transactionId) {
-      // Create structured filename: Transaction ID + flow type + photo type + Branch Name + Oil Type + Date
-      const date = new Date().toLocaleDateString('en-GB').replace(/\//g, '-'); // DD-MM-YYYY format
-      const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_-]/g, '_').replace(/\s+/g, '_');
-      
-      const transactionId = photoMetadata.transactionId;
-      const flowType = sanitize(photoMetadata.flowType || 'Photo');
-      const photoType = sanitize(photoMetadata.photoType || 'photo');
-      const branchName = sanitize(photoMetadata.branchName || 'Unknown_Branch');
-      const oilType = sanitize(photoMetadata.oilType || 'Unknown_Oil');
-      
-      filename = `${transactionId}_${flowType}_${photoType}_${branchName}_${oilType}_${date}.jpg`;
-    } else {
-      // Fallback to original naming for backward compatibility
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      filename = `${timestamp}-${Math.random().toString(36).substr(2, 9)}.jpg`;
-    }
-    
+    // Generate unique filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${timestamp}-${Math.random().toString(36).substr(2, 9)}.jpg`;
     const filePath = `${folder}/${filename}`;
     
     console.log('📁 Upload path:', filePath);
-    console.log('📝 Photo naming:', photoMetadata);
     
     // Create storage reference - using the initialized storage from config
     const storageRef = ref(storage, filePath);

@@ -19,7 +19,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useQuery } from '@tanstack/react-query';
 
-import { createLoadSession, getOilTypes, getActiveBranchesOnly, uploadPhotoToFirebaseStorage, getNextFormattedId } from '@/lib/firebase';
+import { createLoadSession, getOilTypes, getActiveBranchesOnly, uploadPhotoToFirebaseStorage } from '@/lib/firebase';
 import { safeWatermarkImage } from '@/utils/watermark';
 import { useAuth } from '@/hooks/useAuth';
 
