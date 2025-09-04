@@ -55,6 +55,11 @@ interface Transaction {
   actualDeliveredLiters?: number;
   transactionId?: string;
   deliveryOrderNo?: string;
+  deliveryOrderId?: string;
+  loadSessionId?: string;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
   editHistory?: any[];
 }
 
@@ -116,10 +121,12 @@ export function TransactionEditModal({
                       
     const endMeter = transaction.endMeterReading;
                     
-    const oilSupplied = transaction.oilSuppliedLiters ?? 
+    const oilSupplied = transaction.deliveredLiters ?? 
+                       transaction.oilSuppliedLiters ?? 
                        transaction.actualDeliveredLiters;
                        
-    const totalLoaded = transaction.totalLoadedLiters ??
+    const totalLoaded = transaction.loadedLiters ??
+                       transaction.totalLoadedLiters ??
                        transaction.loadMeterReading;
     
     
@@ -198,7 +205,7 @@ export function TransactionEditModal({
       });
     }
     
-    const originalQuantity = transaction.oilSuppliedLiters || transaction.totalLoadedLiters;
+    const originalQuantity = transaction.deliveredLiters || transaction.loadedLiters || transaction.quantity || transaction.oilSuppliedLiters || transaction.totalLoadedLiters;
     const newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters;
     if (originalQuantity !== newQuantity) {
       changes.push({
@@ -271,7 +278,10 @@ export function TransactionEditModal({
         console.log('🔄 Processing inventory adjustments for transaction:', transaction.id);
         
         // Get original and new quantities
-        const originalQuantity = transaction.oilSuppliedLiters || 
+        const originalQuantity = transaction.deliveredLiters || 
+                               transaction.loadedLiters || 
+                               transaction.quantity || 
+                               transaction.oilSuppliedLiters || 
                                transaction.actualDeliveredLiters || 
                                transaction.totalLoadedLiters || 0;
         
@@ -496,7 +506,10 @@ export function TransactionEditModal({
                   <Label className="text-xs text-gray-500">Current Quantity</Label>
                   <p className="font-medium">
                     {(() => {
-                                      const quantity = transaction.oilSuppliedLiters || 
+                      const quantity = transaction.deliveredLiters || 
+                                     transaction.loadedLiters || 
+                                     transaction.quantity || 
+                                     transaction.oilSuppliedLiters || 
                                      transaction.actualDeliveredLiters || 
                                      transaction.totalLoadedLiters ||
                                      0;
@@ -508,6 +521,12 @@ export function TransactionEditModal({
                   <Label className="text-xs text-gray-500">Status</Label>
                   <p className="font-medium text-green-600">{transaction.status || 'Completed'}</p>
                 </div>
+                {(transaction.deliveryOrderNo || transaction.deliveryOrderId) && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Delivery Order</Label>
+                    <p className="font-medium">{transaction.deliveryOrderNo || transaction.deliveryOrderId}</p>
+                  </div>
+                )}
               </div>
               
               <Separator />

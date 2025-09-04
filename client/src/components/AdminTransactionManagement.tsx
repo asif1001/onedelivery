@@ -616,7 +616,7 @@ export function AdminTransactionManagement() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Transaction ID</Label>
-                      <p className="font-medium">{selectedTransaction.transactionId || selectedTransaction.deliveryOrderNo || selectedTransaction.id}</p>
+                      <p className="font-medium">{selectedTransaction.transactionId || selectedTransaction.deliveryOrderNo || selectedTransaction.deliveryOrderId || selectedTransaction.id}</p>
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Type</Label>
@@ -637,7 +637,10 @@ export function AdminTransactionManagement() {
                       <p className="font-medium">
                         {(() => {
                           
-                          const quantity = selectedTransaction.oilSuppliedLiters || 
+                          const quantity = selectedTransaction.deliveredLiters || 
+                                         selectedTransaction.loadedLiters || 
+                                         selectedTransaction.quantity || 
+                                         selectedTransaction.oilSuppliedLiters || 
                                          selectedTransaction.actualDeliveredLiters || 
                                          selectedTransaction.totalLoadedLiters ||
                                          0;
@@ -654,10 +657,10 @@ export function AdminTransactionManagement() {
                       <Label className="text-sm font-medium text-gray-600">Branch</Label>
                       <p className="font-medium">{selectedTransaction.branchName || 'N/A'}</p>
                     </div>
-                    {selectedTransaction.deliveryOrderNo && (
+                    {(selectedTransaction.deliveryOrderNo || selectedTransaction.deliveryOrderId) && (
                       <div>
                         <Label className="text-sm font-medium text-gray-600">Delivery Order</Label>
-                        <p className="font-medium">{selectedTransaction.deliveryOrderNo}</p>
+                        <p className="font-medium">{selectedTransaction.deliveryOrderNo || selectedTransaction.deliveryOrderId}</p>
                       </div>
                     )}
                     <div>
@@ -679,7 +682,7 @@ export function AdminTransactionManagement() {
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Session ID</Label>
                       <p className="font-medium text-xs text-gray-500">
-                        {selectedTransaction.id || 'N/A'}
+                        {selectedTransaction.loadSessionId || selectedTransaction.id || 'N/A'}
                       </p>
                     </div>
                   </div>
