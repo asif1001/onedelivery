@@ -1498,16 +1498,49 @@ export const createDriverAccount = async (driverData: any) => {
 // Update driver data (for admin)
 export const updateDriverData = async (uid: string, updateData: any) => {
   try {
+    // Check if email is being updated
+    const isEmailUpdate = updateData.email;
+    let originalEmail = '';
+    
+    if (isEmailUpdate) {
+      // Get current email before updating
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      originalEmail = userDoc.data()?.email || '';
+      
+      // First update Firebase Auth email via backend API
+      try {
+        const response = await fetch('/api/admin/update-user-email', {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            uid: uid,
+            newEmail: updateData.email,
+            oldEmail: originalEmail
+          }),
+        });
+        
+        const result = await response.json();
+        
+        if (!result.success) {
+          throw new Error(result.message || 'Failed to update email in Firebase Auth');
+        }
+        
+        console.log('✅ Firebase Auth email updated successfully');
+      } catch (authError: any) {
+        console.error('Firebase Auth email update failed:', authError);
+        throw new Error(`Failed to update login email: ${authError.message}`);
+      }
+    }
+    
     // Update Firestore document
     await updateDoc(doc(db, 'users', uid), {
       ...updateData,
       updatedAt: new Date()
     });
     
-    // If email is being updated, we need to update Firebase Auth as well
-    // Note: This would require Firebase Admin SDK on backend for security
-    // For now, we'll just update Firestore
-    
+    console.log('✅ User data updated in both Firebase Auth and Firestore');
     return true;
   } catch (error: any) {
     console.error('Error updating driver data:', error);

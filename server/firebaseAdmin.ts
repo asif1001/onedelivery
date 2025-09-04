@@ -68,6 +68,24 @@ export function getFirebaseAdminApp() {
   }
 }
 
+export async function updateUserEmailInFirebaseAuth(uid: string, newEmail: string): Promise<boolean> {
+  try {
+    const app = getFirebaseAdminApp();
+    if (!app) {
+      console.warn('Firebase Admin not available - cannot update email in Auth');
+      return false;
+    }
+
+    const auth = getAuth(app);
+    await auth.updateUser(uid, { email: newEmail });
+    console.log('✅ User email updated in Firebase Auth:', uid, 'to', newEmail);
+    return true;
+  } catch (error) {
+    console.error('Failed to update user email in Firebase Auth:', error);
+    return false;
+  }
+}
+
 export async function deleteUserFromFirebaseAuth(uid: string): Promise<boolean> {
   try {
     const app = getFirebaseAdminApp();

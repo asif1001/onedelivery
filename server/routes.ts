@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { deleteUserFromFirebaseAuth } from "./firebaseAdmin";
+import { deleteUserFromFirebaseAuth, updateUserEmailInFirebaseAuth } from "./firebaseAdmin";
 
 export function registerRoutes(app: Express): Server {
   
@@ -93,6 +93,57 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ 
         success: false,
         message: 'Server error during user deletion',
+        error: (error as any).message 
+      });
+    }
+  });
+
+  // Firebase Auth user email update endpoint
+  app.patch('/api/admin/update-user-email', async (req, res) => {
+    try {
+      const { uid, newEmail, oldEmail } = req.body;
+      
+      if (!uid || !newEmail) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'User UID and new email are required' 
+        });
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(newEmail)) {
+        return res.status(400).json({ 
+          success: false,
+          message: 'Invalid email format' 
+        });
+      }
+
+      console.log(`📧 Server: Updating user email from ${oldEmail} to ${newEmail} for UID: ${uid}`);
+      
+      const authUpdated = await updateUserEmailInFirebaseAuth(uid, newEmail);
+      
+      if (authUpdated) {
+        console.log(`✅ Server: Email updated in Firebase Auth successfully`);
+        res.json({ 
+          success: true,
+          message: 'Email updated in Firebase Authentication',
+          authUpdated: true
+        });
+      } else {
+        console.log(`⚠️ Server: Could not update email in Firebase Auth (Admin SDK not configured)`);
+        res.json({ 
+          success: false,
+          message: 'Firebase Auth email update requires Admin SDK configuration',
+          authUpdated: false,
+          requirement: 'Please configure Firebase Admin SDK environment variables'
+        });
+      }
+    } catch (error) {
+      console.error('Server: Error in update-user-email endpoint:', error);
+      res.status(500).json({ 
+        success: false,
+        message: 'Server error during email update',
         error: (error as any).message 
       });
     }
