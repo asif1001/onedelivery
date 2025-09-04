@@ -44,7 +44,8 @@ import {
   BarChart3Icon,
   UserIcon,
   CameraIcon,
-  DollarSignIcon
+  DollarSignIcon,
+  SearchIcon
 
 } from "lucide-react";
 import { 
@@ -86,7 +87,7 @@ import {
   updateDrumCapacity,
   deleteDrumCapacity
 } from "@/lib/firebase";
-import { collection, query, orderBy, limit, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy, limit, getDocs, doc, getDoc, setDoc, where } from "firebase/firestore";
 import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
 import { TransactionViewer } from "@/components/TransactionViewer";
 import { TransactionEditModal } from "@/components/TransactionEditModal";
@@ -358,6 +359,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     endDate: ''
   });
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
+  
+  // Transaction search states
+  const [searchTransactions, setSearchTransactions] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [searchFilters, setSearchFilters] = useState({
+    transactionId: '',
+    startDate: '',
+    endDate: '',
+    type: '',
+    branchId: '',
+    driverName: ''
+  });
 
   const { toast } = useToast();
   const { logout } = useAuth();
@@ -591,13 +605,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       setStorageUsage(storageData);
       setTransactions(transactionsData);
       
-      // Load recent transactions (last 20)
-      const sortedTransactions = (transactionsData || []).sort((a: any, b: any) => {
-        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || a.createdAt);
-        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || b.createdAt);
-        return dateB.getTime() - dateA.getTime();
-      });
-      setRecentTransactions(sortedTransactions.slice(0, 20));
+      // Don't auto-load recent transactions - they will be loaded only when searched
       
       // Load logs (from various sources - deliveries, complaints, tasks, transactions)
       await loadLogs(deliveriesData, complaintsData, tasksData, transactionsData, driversData, branchesData, oilTypesData, drumCapacitiesData);
@@ -611,6 +619,109 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Search transactions with filters
+  const searchTransactionsWithFilters = async () => {
+    try {
+      setIsSearching(true);
+      
+      // Build Firestore query based on filters
+      let transactionQuery = collection(db, 'transactions');
+      const constraints = [];
+      
+      // Add date range filter if provided
+      if (searchFilters.startDate) {
+        constraints.push(where('timestamp', '>=', new Date(searchFilters.startDate)));
+      }
+      if (searchFilters.endDate) {
+        const endDate = new Date(searchFilters.endDate);
+        endDate.setHours(23, 59, 59, 999); // End of day
+        constraints.push(where('timestamp', '<=', endDate));
+      }
+      
+      // Add type filter if provided
+      if (searchFilters.type) {
+        constraints.push(where('type', '==', searchFilters.type));
+      }
+      
+      // Add branch filter if provided
+      if (searchFilters.branchId) {
+        constraints.push(where('branchId', '==', searchFilters.branchId));
+      }
+      
+      // Add ordering and limit
+      constraints.push(orderBy('timestamp', 'desc'));
+      constraints.push(limit(100)); // Limit to prevent excessive reads
+      
+      const q = query(transactionQuery, ...constraints);
+      const querySnapshot = await getDocs(q);
+      
+      let results = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      
+      // Apply client-side filters for fields that can't be queried efficiently
+      if (searchFilters.transactionId) {
+        results = results.filter(t => 
+          t.id?.toLowerCase().includes(searchFilters.transactionId.toLowerCase()) ||
+          t.deliveryOrderNo?.toLowerCase().includes(searchFilters.transactionId.toLowerCase())
+        );
+      }
+      
+      if (searchFilters.driverName) {
+        results = results.filter(t => 
+          t.driverName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
+          t.reporterName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
+          t.reportedByName?.toLowerCase().includes(searchFilters.driverName.toLowerCase())
+        );
+      }
+      
+      // Enrich with branch and oil type names
+      const enrichedResults = results.map(transaction => {
+        const branch = branches.find(b => b.id === transaction.branchId);
+        const oilType = oilTypes.find(ot => ot.id === transaction.oilTypeId);
+        
+        return {
+          ...transaction,
+          branchName: branch?.name || transaction.branchName || 'Unknown Branch',
+          oilTypeName: oilType?.name || transaction.oilTypeName || 'Unknown Oil Type'
+        };
+      });
+      
+      setSearchTransactions(enrichedResults);
+      setHasSearched(true);
+      
+      toast({
+        title: "Search Complete",
+        description: `Found ${enrichedResults.length} transaction(s)`,
+      });
+      
+    } catch (error) {
+      console.error('Error searching transactions:', error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search transactions. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Reset search
+  const resetSearch = () => {
+    setSearchTransactions([]);
+    setHasSearched(false);
+    setSearchFilters({
+      transactionId: '',
+      startDate: '',
+      endDate: '',
+      type: '',
+      branchId: '',
+      driverName: ''
+    });
   };
 
   // Load logs from various sources
@@ -2618,19 +2729,136 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-lg font-semibold">Recent Transactions</h3>
-                    <p className="text-sm text-gray-600">Last 20 system transactions</p>
+                    <h3 className="text-lg font-semibold">Transaction Search</h3>
+                    <p className="text-sm text-gray-600">Search transactions by ID, date range, type, or branch</p>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    Total: {recentTransactions.length} transactions
-                  </div>
+                  {hasSearched && (
+                    <div className="text-sm text-gray-500">
+                      Found: {searchTransactions.length} transaction(s)
+                    </div>
+                  )}
                 </div>
-                
+
+                {/* Search Form */}
                 <Card>
                   <CardContent className="p-6">
-                    {recentTransactions.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Transaction ID</label>
+                        <input
+                          type="text"
+                          className="w-full p-2 border rounded-md"
+                          placeholder="Enter transaction ID or order number"
+                          value={searchFilters.transactionId}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, transactionId: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Start Date</label>
+                        <input
+                          type="date"
+                          className="w-full p-2 border rounded-md"
+                          value={searchFilters.startDate}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">End Date</label>
+                        <input
+                          type="date"
+                          className="w-full p-2 border rounded-md"
+                          value={searchFilters.endDate}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Transaction Type</label>
+                        <select
+                          className="w-full p-2 border rounded-md"
+                          value={searchFilters.type}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, type: e.target.value }))}
+                        >
+                          <option value="">All Types</option>
+                          <option value="loading">Loading</option>
+                          <option value="supply">Supply</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Branch</label>
+                        <select
+                          className="w-full p-2 border rounded-md"
+                          value={searchFilters.branchId}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, branchId: e.target.value }))}
+                        >
+                          <option value="">All Branches</option>
+                          {branches.map(branch => (
+                            <option key={branch.id} value={branch.id}>{branch.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Driver Name</label>
+                        <input
+                          type="text"
+                          className="w-full p-2 border rounded-md"
+                          placeholder="Enter driver name"
+                          value={searchFilters.driverName}
+                          onChange={(e) => setSearchFilters(prev => ({ ...prev, driverName: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={searchTransactionsWithFilters}
+                        disabled={isSearching}
+                        className="flex items-center gap-2"
+                      >
+                        {isSearching ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <SearchIcon className="h-4 w-4" />
+                            Search Transactions
+                          </>
+                        )}
+                      </Button>
+                      
+                      {hasSearched && (
+                        <Button
+                          variant="outline"
+                          onClick={resetSearch}
+                          className="flex items-center gap-2"
+                        >
+                          <XIcon className="h-4 w-4" />
+                          Reset
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                {/* Search Results */}
+                <Card>
+                  <CardContent className="p-6">
+                    {!hasSearched ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <SearchIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                        <h4 className="text-lg font-medium mb-2">Search for Transactions</h4>
+                        <p>Use the search form above to find specific transactions by ID, date range, type, or branch.</p>
+                        <p className="text-sm mt-2">This helps reduce Firebase reads by only loading transactions when needed.</p>
+                      </div>
+                    ) : searchTransactions.length > 0 ? (
                       <div className="space-y-4">
-                        {recentTransactions.map((transaction, index) => (
+                        {searchTransactions.map((transaction, index) => (
                           <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
@@ -2727,8 +2955,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                       </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
-                        <ClockIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                        <p>No recent transactions</p>
+                        <SearchIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>No transactions found</p>
+                        <p className="text-sm mt-1">Try adjusting your search criteria and search again.</p>
                       </div>
                     )}
                   </CardContent>
