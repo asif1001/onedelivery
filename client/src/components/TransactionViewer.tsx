@@ -760,6 +760,55 @@ export function TransactionViewer({ onClose }: TransactionViewerProps) {
                 </div>
               )}
 
+              {/* Edit History */}
+              {(selectedTransaction.hasBeenEdited || selectedTransaction.lastEditedBy) && (
+                <div className="space-y-2">
+                  <Label className="font-semibold">Edit History</Label>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                    <div className="space-y-1 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+                          Edited
+                        </Badge>
+                        {selectedTransaction.editCount && (
+                          <span className="text-xs text-gray-600">
+                            {selectedTransaction.editCount} time{selectedTransaction.editCount !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                      </div>
+                      
+                      {selectedTransaction.lastEditedByName && (
+                        <div>
+                          <span className="font-medium">Last edited by:</span> {selectedTransaction.lastEditedByName}
+                        </div>
+                      )}
+                      
+                      {selectedTransaction.lastEditedAt && (
+                        <div>
+                          <span className="font-medium">Last edit date:</span> {
+                            selectedTransaction.lastEditedAt?.toDate 
+                              ? selectedTransaction.lastEditedAt.toDate().toLocaleDateString() + ' at ' + selectedTransaction.lastEditedAt.toDate().toLocaleTimeString()
+                              : new Date(selectedTransaction.lastEditedAt).toLocaleDateString() + ' at ' + new Date(selectedTransaction.lastEditedAt).toLocaleTimeString()
+                          }
+                        </div>
+                      )}
+                      
+                      {selectedTransaction.editReason && (
+                        <div>
+                          <span className="font-medium">Reason for edit:</span> {selectedTransaction.editReason}
+                        </div>
+                      )}
+                      
+                      {selectedTransaction.inventoryAdjusted && (
+                        <div className="flex items-center space-x-1 text-blue-600">
+                          <span className="font-medium">✓ Inventory levels were automatically adjusted</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Photos */}
               {selectedTransaction.photos && Object.keys(selectedTransaction.photos).length > 0 && (
                 <div className="space-y-2">

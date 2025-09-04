@@ -285,7 +285,15 @@ export function TransactionEditModal({
                                transaction.actualDeliveredLiters || 
                                transaction.totalLoadedLiters || 0;
         
-        const newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+        // Calculate the new quantity based on meter readings for supply transactions
+        let newQuantity = 0;
+        if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+          newQuantity = editData.endMeterReading - editData.startMeterReading;
+        } else if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+          newQuantity = editData.totalLoadedLiters;
+        } else {
+          newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+        }
         
         if (originalQuantity !== newQuantity) {
           const quantityDifference = newQuantity - originalQuantity;
@@ -320,6 +328,20 @@ export function TransactionEditModal({
       
       // 2. Prepare update data with additional edit tracking fields - only include defined values
       const { reason, adjustInventory, manualInventoryAdjustment, ...updateFields } = editData;
+      
+      // Calculate quantity fields from meter readings for supply transactions
+      if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+        const calculatedQuantity = editData.endMeterReading - editData.startMeterReading;
+        updateFields.oilSuppliedLiters = calculatedQuantity;
+        updateFields.deliveredLiters = calculatedQuantity;
+        updateFields.quantity = calculatedQuantity;
+      }
+      
+      // For loading transactions, use the totalLoadedLiters as the main quantity
+      if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+        updateFields.loadedLiters = editData.totalLoadedLiters;
+        updateFields.quantity = editData.totalLoadedLiters;
+      }
       
       // Filter out undefined values to prevent Firebase updateDoc errors
       const cleanUpdateFields = Object.fromEntries(
