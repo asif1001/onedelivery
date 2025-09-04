@@ -290,6 +290,15 @@ export function TransactionEditModal({
     }
   };
 
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    
+    const d = date.toDate ? date.toDate() : new Date(date);
+    if (!d || isNaN(d.getTime())) return 'N/A';
+    
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
   if (!transaction) return null;
 
   const changes = getChangedFields();
@@ -314,17 +323,27 @@ export function TransactionEditModal({
           {/* Original Transaction Info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium">Original Transaction Details</CardTitle>
+              <CardTitle className="text-sm font-medium">Current Transaction Details</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
+                  <Label className="text-xs text-gray-500">Transaction ID</Label>
+                  <p className="font-medium">{transaction.transactionId || transaction.deliveryOrderNo || transaction.id}</p>
+                </div>
+                <div>
                   <Label className="text-xs text-gray-500">Type</Label>
-                  <p className="font-medium">{transaction.type}</p>
+                  <p className={`font-medium ${
+                    transaction.type === 'loading' ? 'text-blue-600' : 'text-orange-600'
+                  }`}>{transaction.type}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Driver</Label>
                   <p className="font-medium">{transaction.driverName}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Date</Label>
+                  <p className="font-medium">{formatDate(transaction.timestamp || transaction.createdAt)}</p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Oil Type</Label>
@@ -334,7 +353,85 @@ export function TransactionEditModal({
                   <Label className="text-xs text-gray-500">Branch</Label>
                   <p className="font-medium">{transaction.branchName || 'N/A'}</p>
                 </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Current Quantity</Label>
+                  <p className="font-medium">
+                    {(transaction.oilSuppliedLiters || 
+                     transaction.actualDeliveredLiters || 
+                     transaction.totalLoadedLiters || 
+                     transaction.loadedLiters ||
+                     transaction.deliveredLiters ||
+                     transaction.quantity || 0) > 0 ? 
+                     `${(transaction.oilSuppliedLiters || 
+                       transaction.actualDeliveredLiters || 
+                       transaction.totalLoadedLiters ||
+                       transaction.loadedLiters ||
+                       transaction.deliveredLiters ||
+                       transaction.quantity || 0).toLocaleString()}L` : 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Status</Label>
+                  <p className="font-medium text-green-600">{transaction.status || 'Completed'}</p>
+                </div>
               </div>
+              
+              <Separator />
+              
+              {/* Current Meter Readings */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <Label className="text-xs text-gray-500">Current Start Meter</Label>
+                  <p className="font-medium">{transaction.startMeterReading || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Current End Meter</Label>
+                  <p className="font-medium">{transaction.endMeterReading || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Load Meter Reading</Label>
+                  <p className="font-medium">{transaction.loadMeterReading || 'N/A'}</p>
+                </div>
+              </div>
+
+              {/* Photos if available */}
+              {transaction.photos && Object.keys(transaction.photos).length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-xs text-gray-500 block mb-2">Transaction Photos</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {Object.entries(transaction.photos).slice(0, 4).map(([photoType, photoUrl]: [string, any]) => 
+                        photoUrl && (
+                          <div key={photoType} className="text-center">
+                            <div className="relative group cursor-pointer"
+                                 onClick={() => window.open(photoUrl, '_blank')}>
+                              <img 
+                                src={photoUrl} 
+                                alt={photoType} 
+                                className="w-full h-12 object-cover rounded border hover:opacity-90 transition-opacity"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
+                                <EyeIcon className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1 truncate">
+                              {photoType.replace(/([A-Z])/g, ' $1').trim()}
+                            </p>
+                          </div>
+                        )
+                      )}
+                      {Object.keys(transaction.photos).length > 4 && (
+                        <div className="text-center">
+                          <div className="w-full h-12 bg-gray-100 rounded border flex items-center justify-center">
+                            <span className="text-xs text-gray-500">+{Object.keys(transaction.photos).length - 4} more</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 

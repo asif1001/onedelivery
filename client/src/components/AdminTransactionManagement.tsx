@@ -592,77 +592,135 @@ export function AdminTransactionManagement() {
 
           {selectedTransaction && (
             <div className="space-y-6">
+              {/* Header Section */}
+              <div className="flex items-center justify-between border-b pb-3 mb-4">
+                <div>
+                  <h3 className="text-lg font-semibold">
+                    {selectedTransaction.type === 'loading' ? 'Oil Loading Transaction' : 'Oil Supply Transaction'}
+                  </h3>
+                  <div className="text-sm text-gray-500 mt-1">
+                    <strong>Date & Time:</strong> {formatDate(selectedTransaction.timestamp || selectedTransaction.createdAt)}
+                  </div>
+                </div>
+                <Badge variant={selectedTransaction.type === 'loading' ? 'default' : 'secondary'} className="text-lg px-3 py-1">
+                  {selectedTransaction.type === 'loading' ? 'Loading' : 'Supply'}
+                </Badge>
+              </div>
+
               {/* Basic Info */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Transaction Information</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-sm text-gray-500">Transaction ID</Label>
-                      <p className="font-medium">{selectedTransaction.transactionId || selectedTransaction.id}</p>
+                      <Label className="text-sm font-medium text-gray-600">Transaction ID</Label>
+                      <p className="font-medium">{selectedTransaction.transactionId || selectedTransaction.deliveryOrderNo || selectedTransaction.id}</p>
                     </div>
                     <div>
-                      <Label className="text-sm text-gray-500">Type</Label>
-                      <p className="font-medium">{selectedTransaction.type}</p>
+                      <Label className="text-sm font-medium text-gray-600">Type</Label>
+                      <p className={`font-medium ${
+                        selectedTransaction.type === 'loading' 
+                          ? 'text-blue-600' 
+                          : 'text-orange-600'
+                      }`}>
+                        {selectedTransaction.type === 'loading' ? 'Oil Loading' : 'Oil Supply'}
+                      </p>
                     </div>
                     <div>
-                      <Label className="text-sm text-gray-500">Driver</Label>
-                      <p className="font-medium">{selectedTransaction.driverName}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-gray-500">Date</Label>
-                      <p className="font-medium">{formatDate(selectedTransaction.timestamp || selectedTransaction.createdAt)}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label className="text-sm text-gray-500">Branch</Label>
-                      <p className="font-medium">{selectedTransaction.branchName || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-gray-500">Oil Type</Label>
+                      <Label className="text-sm font-medium text-gray-600">Oil Type</Label>
                       <p className="font-medium">{selectedTransaction.oilTypeName || 'N/A'}</p>
                     </div>
                     <div>
-                      <Label className="text-sm text-gray-500">Status</Label>
-                      <p className="font-medium">{selectedTransaction.status || 'Completed'}</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {selectedTransaction.startMeterReading !== undefined && (
-                      <div>
-                        <Label className="text-sm text-gray-500">Start Meter</Label>
-                        <p className="font-medium">{selectedTransaction.startMeterReading}L</p>
-                      </div>
-                    )}
-                    {selectedTransaction.endMeterReading !== undefined && (
-                      <div>
-                        <Label className="text-sm text-gray-500">End Meter</Label>
-                        <p className="font-medium">{selectedTransaction.endMeterReading}L</p>
-                      </div>
-                    )}
-                    <div>
-                      <Label className="text-sm text-gray-500">Quantity</Label>
+                      <Label className="text-sm font-medium text-gray-600">Quantity</Label>
                       <p className="font-medium">
                         {(selectedTransaction.oilSuppliedLiters || 
                          selectedTransaction.actualDeliveredLiters || 
-                         selectedTransaction.totalLoadedLiters || 0) > 0 ? 
-                         `${selectedTransaction.oilSuppliedLiters || 
+                         selectedTransaction.totalLoadedLiters || 
+                         selectedTransaction.loadedLiters ||
+                         selectedTransaction.deliveredLiters ||
+                         selectedTransaction.quantity || 0) > 0 ? 
+                         `${(selectedTransaction.oilSuppliedLiters || 
                            selectedTransaction.actualDeliveredLiters || 
-                           selectedTransaction.totalLoadedLiters}L` : 'N/A'}
+                           selectedTransaction.totalLoadedLiters ||
+                           selectedTransaction.loadedLiters ||
+                           selectedTransaction.deliveredLiters ||
+                           selectedTransaction.quantity || 0).toLocaleString()}L` : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Driver</Label>
+                      <p className="font-medium">{selectedTransaction.driverName || 'Unknown Driver'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Branch</Label>
+                      <p className="font-medium">{selectedTransaction.branchName || 'N/A'}</p>
+                    </div>
+                    {selectedTransaction.deliveryOrderId && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Delivery Order</Label>
+                        <p className="font-medium">{selectedTransaction.deliveryOrderId}</p>
+                      </div>
+                    )}
+                    {(selectedTransaction.startMeterReading !== undefined || selectedTransaction.endMeterReading !== undefined) && (
+                      <>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">Start Meter</Label>
+                          <p className="font-medium">{selectedTransaction.startMeterReading || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">End Meter</Label>
+                          <p className="font-medium">{selectedTransaction.endMeterReading || 'N/A'}</p>
+                        </div>
+                      </>
+                    )}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Status</Label>
+                      <p className="font-medium text-green-600">{selectedTransaction.status || 'Completed'}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Session ID</Label>
+                      <p className="font-medium text-xs text-gray-500">
+                        {selectedTransaction.loadSessionId || selectedTransaction.id || 'N/A'}
                       </p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Photos Section */}
+              {selectedTransaction.photos && Object.keys(selectedTransaction.photos).length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Photos</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-2">
+                      {Object.entries(selectedTransaction.photos).map(([photoType, photoUrl]: [string, any]) => 
+                        photoUrl && (
+                          <div key={photoType} className="text-center">
+                            <div className="relative group cursor-pointer"
+                                 onClick={() => window.open(photoUrl, '_blank')}>
+                              <img 
+                                src={photoUrl} 
+                                alt={photoType} 
+                                className="w-full h-20 object-cover rounded border hover:opacity-90 transition-opacity"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
+                                <EyeIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 capitalize">
+                              {photoType.replace(/([A-Z])/g, ' $1').trim()}
+                            </p>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Edit History */}
               <Card>
