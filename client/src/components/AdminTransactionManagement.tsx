@@ -108,6 +108,19 @@ export function AdminTransactionManagement() {
     applyFilters();
   }, [filters, transactions]);
 
+  useEffect(() => {
+    // Auto-search when filters change (except on initial load)
+    if (filters.searchTerm.trim() || filters.branchId !== 'all' || filters.oilTypeId !== 'all' || 
+        filters.driverUid !== 'all' || filters.transactionType !== 'all' || filters.dateFrom || 
+        filters.dateTo || filters.onlyEdited) {
+      const timeoutId = setTimeout(() => {
+        loadTransactions();
+      }, 500); // Debounce search
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [filters]);
+
   const loadReferenceLists = async () => {
     try {
       const [branchesData, oilTypesData, usersData] = await Promise.all([
@@ -161,7 +174,10 @@ export function AdminTransactionManagement() {
         t.oilTypeName?.toLowerCase().includes(term) ||
         t.transactionId?.toLowerCase().includes(term) ||
         t.deliveryOrderNo?.toLowerCase().includes(term) ||
-        t.id.toLowerCase().includes(term)
+        t.id.toLowerCase().includes(term) ||
+        // Also search in partial transaction ID patterns
+        (t.transactionId && term.includes(t.transactionId.toLowerCase())) ||
+        (t.deliveryOrderNo && term.includes(t.deliveryOrderNo.toLowerCase()))
       );
     }
 
@@ -282,12 +298,14 @@ export function AdminTransactionManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Edit Transaction</h1>
-          <p className="text-gray-600">Search and edit oil delivery transactions</p>
+          <p className="text-gray-600">Search and edit oil delivery transactions - results update automatically as you type</p>
         </div>
-        <Button onClick={handleSearch} disabled={loading} data-testid="button-search">
-          <SearchIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Search Transactions
-        </Button>
+        {loading && (
+          <div className="flex items-center text-blue-600">
+            <RefreshCwIcon className="h-4 w-4 mr-2 animate-spin" />
+            <span className="text-sm">Searching...</span>
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -394,14 +412,6 @@ export function AdminTransactionManagement() {
             </div>
 
             <div className="flex items-end space-x-2">
-              <Button 
-                onClick={handleSearch}
-                disabled={loading}
-                data-testid="button-search-filters"
-              >
-                <SearchIcon className="h-4 w-4 mr-2" />
-                Search
-              </Button>
               <Button 
                 variant="outline" 
                 onClick={resetFilters}
