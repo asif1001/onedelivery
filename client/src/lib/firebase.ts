@@ -3699,3 +3699,171 @@ export const getFirestoreUsage = async () => {
     throw error;
   }
 };
+
+// Transaction Editing Functions
+
+export const updateTransaction = async (updateData: any) => {
+  try {
+    const transactionRef = doc(db, 'transactions', updateData.id);
+    
+    // Remove the id field from update data
+    const { id, ...dataToUpdate } = updateData;
+    
+    // Add update timestamp
+    const updatedData = {
+      ...dataToUpdate,
+      updatedAt: new Date(),
+      lastEditedAt: new Date()
+    };
+    
+    await updateDoc(transactionRef, updatedData);
+    console.log('Transaction updated successfully:', updateData.id);
+    return true;
+  } catch (error) {
+    console.error('Error updating transaction:', error);
+    throw error;
+  }
+};
+
+export const createTransactionEditHistory = async (editHistoryData: any) => {
+  try {
+    const editHistoryRef = doc(collection(db, 'transactionEditHistory'));
+    const editHistoryWithId = {
+      ...editHistoryData,
+      id: editHistoryRef.id,
+      createdAt: new Date()
+    };
+    
+    await setDoc(editHistoryRef, editHistoryWithId);
+    console.log('Transaction edit history created:', editHistoryWithId);
+    return editHistoryWithId;
+  } catch (error) {
+    console.error('Error creating transaction edit history:', error);
+    throw error;
+  }
+};
+
+export const getTransactionEditHistory = async (transactionId: string) => {
+  try {
+    const editHistoryQuery = query(
+      collection(db, 'transactionEditHistory'),
+      where('transactionId', '==', transactionId),
+      orderBy('editedAt', 'desc')
+    );
+    
+    const snapshot = await getDocs(editHistoryQuery);
+    const editHistory = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    
+    return editHistory;
+  } catch (error) {
+    console.error('Error fetching transaction edit history:', error);
+    throw error;
+  }
+};
+
+export const calculateInventoryImpact = async (impactData: {
+  transactionId: string;
+  originalQuantity: number;
+  newQuantity: number;
+  branchId?: string;
+  oilTypeId?: string;
+  transactionType: string;
+}) => {
+  try {
+    const { originalQuantity, newQuantity, branchId, oilTypeId, transactionType } = impactData;
+    const quantityDifference = newQuantity - originalQuantity;
+    
+    const impact = {
+      quantityDifference,
+      hasWarnings: false,
+      warnings: [] as string[],
+      branchImpact: null as any,
+      affectedTanks: [] as any[]
+    };
+    
+    // If no quantity change, no impact
+    if (quantityDifference === 0) {
+      return impact;
+    }
+    
+    // For branch transactions, check branch tank levels
+    if (branchId && oilTypeId) {
+      try {
+        const branchDoc = await getDoc(doc(db, 'branches', branchId));
+        if (branchDoc.exists()) {
+          const branchData = branchDoc.data();
+          const oilTanks = branchData.oilTanks || [];
+          
+          // Find relevant tank
+          const relevantTank = oilTanks.find((tank: any) => tank.oilTypeId === oilTypeId);
+          
+          if (relevantTank) {
+            const currentLevel = relevantTank.currentLevel || 0;
+            const capacity = relevantTank.capacity || 0;
+            
+            let newLevel = currentLevel;
+            
+            // Calculate impact based on transaction type
+            if (transactionType === 'supply') {
+              // Supply increases branch tank level
+              newLevel = currentLevel + quantityDifference;
+              
+              if (newLevel > capacity) {
+                impact.hasWarnings = true;
+                impact.warnings.push(`Tank will exceed capacity by ${(newLevel - capacity).toFixed(2)}L`);
+              }
+              if (newLevel < 0) {
+                impact.hasWarnings = true;
+                impact.warnings.push(`Tank level will go negative by ${Math.abs(newLevel).toFixed(2)}L`);
+              }
+            } else if (transactionType === 'loading') {
+              // Loading decreases source tank level
+              newLevel = currentLevel - quantityDifference;
+              
+              if (newLevel < 0) {
+                impact.hasWarnings = true;
+                impact.warnings.push(`Source tank will go negative by ${Math.abs(newLevel).toFixed(2)}L`);
+              }
+            }
+            
+            impact.branchImpact = {
+              branchName: branchData.name,
+              tankName: relevantTank.name,
+              currentLevel,
+              newLevel,
+              capacity,
+              percentChange: capacity > 0 ? ((newLevel - currentLevel) / capacity * 100).toFixed(1) : '0'
+            };
+            
+            impact.affectedTanks.push(relevantTank);
+          } else {
+            impact.hasWarnings = true;
+            impact.warnings.push(`No tank found for selected oil type in branch`);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking branch tank levels:', error);
+        impact.hasWarnings = true;
+        impact.warnings.push('Unable to verify branch tank levels');
+      }
+    }
+    
+    return impact;
+  } catch (error) {
+    console.error('Error calculating inventory impact:', error);
+    throw error;
+  }
+};
+
+export const getCurrentUser = async () => {
+  try {
+    const auth = getAuth();
+    return auth.currentUser;
+  } catch (error) {
+    console.error('Error getting current user:', error);
+    throw error;
+  }
+};

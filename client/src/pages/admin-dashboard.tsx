@@ -89,6 +89,7 @@ import {
 import { collection, query, orderBy, limit, getDocs, doc, getDoc, setDoc } from "firebase/firestore";
 import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
 import { TransactionViewer } from "@/components/TransactionViewer";
+import { AdminTransactionManagement } from "@/components/AdminTransactionManagement";
 import EnhancedTaskModal from "@/components/EnhancedTaskModal";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
 import { FirebaseUsageCalculator } from "@/components/FirebaseUsageCalculator";
@@ -1983,6 +1984,17 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     Recent Transactions
                   </button>
                   <button
+                    onClick={() => setActiveTab('transaction-management')}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      activeTab === 'transaction-management' 
+                        ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
+                    }`}
+                  >
+                    <EditIcon className="mr-3 h-5 w-5" />
+                    Transaction Management
+                  </button>
+                  <button
                     onClick={() => setActiveTab('logs-update')}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'logs-update' 
@@ -2133,7 +2145,18 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     }`}
                     data-testid="mobile-menu-transactions"
                   >
-                    📄 Transactions
+                    📄 Recent Transactions
+                  </button>
+                  <button
+                    onClick={() => { setActiveTab('transaction-management'); setIsMobileMenuOpen(false); }}
+                    className={`w-full text-left px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'transaction-management' 
+                        ? 'bg-orange-100 text-orange-900' 
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
+                    }`}
+                    data-testid="mobile-menu-transaction-management"
+                  >
+                    ✏️ Transaction Management
                   </button>
                   <button
                     onClick={() => { setActiveTab('logs-update'); setIsMobileMenuOpen(false); }}
@@ -2610,6 +2633,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             )}
 
             
+            {/* Transaction Management Content */}
+            {activeTab === 'transaction-management' && (
+              <AdminTransactionManagement />
+            )}
+
             {/* Recent Transactions Content */}
             {activeTab === 'recent-transactions' && (
               <div className="space-y-6">
