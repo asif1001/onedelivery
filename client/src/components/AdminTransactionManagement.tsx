@@ -101,31 +101,44 @@ export function AdminTransactionManagement() {
   });
 
   useEffect(() => {
-    loadAllData();
+    loadReferenceLists();
   }, []);
 
   useEffect(() => {
     applyFilters();
   }, [filters, transactions]);
 
-  const loadAllData = async () => {
+  const loadReferenceLists = async () => {
     try {
-      setLoading(true);
-      
-      const [transactionsData, branchesData, oilTypesData, usersData] = await Promise.all([
-        getAllTransactions(),
+      const [branchesData, oilTypesData, usersData] = await Promise.all([
         getBranches(),
         getOilTypes(),
         getAllUsers()
       ]);
 
-      setTransactions(transactionsData || []);
       setBranches(branchesData || []);
       setOilTypes(oilTypesData || []);
       setUsers(usersData || []);
       
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading reference data:', error);
+      toast({
+        title: "Loading Failed",
+        description: "Failed to load reference data",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const loadTransactions = async () => {
+    try {
+      setLoading(true);
+      
+      const transactionsData = await getAllTransactions();
+      setTransactions(transactionsData || []);
+      
+    } catch (error) {
+      console.error('Error loading transactions:', error);
       toast({
         title: "Loading Failed",
         description: "Failed to load transaction data",
@@ -253,18 +266,27 @@ export function AdminTransactionManagement() {
       dateTo: '',
       onlyEdited: false
     });
+    setTransactions([]);
+  };
+
+  const handleSearch = () => {
+    if (filters.searchTerm.trim() || filters.branchId !== 'all' || filters.oilTypeId !== 'all' || 
+        filters.driverUid !== 'all' || filters.transactionType !== 'all' || filters.dateFrom || 
+        filters.dateTo || filters.onlyEdited) {
+      loadTransactions();
+    }
   };
 
   return (
     <div className="p-6 space-y-6" data-testid="admin-transaction-management">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Transaction Management</h1>
-          <p className="text-gray-600">Edit and manage oil delivery transactions</p>
+          <h1 className="text-2xl font-bold">Edit Transaction</h1>
+          <p className="text-gray-600">Search and edit oil delivery transactions</p>
         </div>
-        <Button onClick={loadAllData} disabled={loading} data-testid="button-refresh">
-          <RefreshCwIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          Refresh
+        <Button onClick={handleSearch} disabled={loading} data-testid="button-search">
+          <SearchIcon className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Search Transactions
         </Button>
       </div>
 
@@ -373,6 +395,14 @@ export function AdminTransactionManagement() {
 
             <div className="flex items-end space-x-2">
               <Button 
+                onClick={handleSearch}
+                disabled={loading}
+                data-testid="button-search-filters"
+              >
+                <SearchIcon className="h-4 w-4 mr-2" />
+                Search
+              </Button>
+              <Button 
                 variant="outline" 
                 onClick={resetFilters}
                 data-testid="button-reset-filters"
@@ -407,6 +437,14 @@ export function AdminTransactionManagement() {
             <RefreshCwIcon className="h-8 w-8 animate-spin mx-auto mb-2" />
             <p>Loading transactions...</p>
           </div>
+        ) : transactions.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <SearchIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500 mb-2">Use the search filters above to find transactions</p>
+              <p className="text-sm text-gray-400">Enter search terms or apply filters, then click "Search" to load transactions</p>
+            </CardContent>
+          </Card>
         ) : filteredTransactions.length === 0 ? (
           <Card>
             <CardContent className="text-center py-8">
@@ -518,7 +556,7 @@ export function AdminTransactionManagement() {
           setSelectedTransaction(null);
         }}
         onTransactionUpdated={() => {
-          loadAllData();
+          loadTransactions();
           setEditModalOpen(false);
           setSelectedTransaction(null);
         }}
@@ -604,9 +642,12 @@ export function AdminTransactionManagement() {
                     <div>
                       <Label className="text-sm text-gray-500">Quantity</Label>
                       <p className="font-medium">
-                        {selectedTransaction.oilSuppliedLiters || 
+                        {(selectedTransaction.oilSuppliedLiters || 
                          selectedTransaction.actualDeliveredLiters || 
-                         selectedTransaction.totalLoadedLiters || 'N/A'}L
+                         selectedTransaction.totalLoadedLiters || 0) > 0 ? 
+                         `${selectedTransaction.oilSuppliedLiters || 
+                           selectedTransaction.actualDeliveredLiters || 
+                           selectedTransaction.totalLoadedLiters}L` : 'N/A'}
                       </p>
                     </div>
                   </div>

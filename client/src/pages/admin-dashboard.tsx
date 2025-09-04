@@ -1992,7 +1992,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     }`}
                   >
                     <EditIcon className="mr-3 h-5 w-5" />
-                    Transaction Management
+                    Edit Transaction
                   </button>
                   <button
                     onClick={() => setActiveTab('logs-update')}
@@ -2156,7 +2156,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     }`}
                     data-testid="mobile-menu-transaction-management"
                   >
-                    ✏️ Transaction Management
+                    ✏️ Edit Transaction
                   </button>
                   <button
                     onClick={() => { setActiveTab('logs-update'); setIsMobileMenuOpen(false); }}
