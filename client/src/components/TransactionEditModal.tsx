@@ -206,7 +206,16 @@ export function TransactionEditModal({
     }
     
     const originalQuantity = transaction.deliveredLiters || transaction.loadedLiters || transaction.quantity || transaction.oilSuppliedLiters || transaction.totalLoadedLiters;
-    const newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters;
+    
+    // Calculate the new quantity the same way as in handleSave
+    let newQuantity = 0;
+    if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+      newQuantity = editData.endMeterReading - editData.startMeterReading;
+    } else if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+      newQuantity = editData.totalLoadedLiters;
+    } else {
+      newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+    }
     if (originalQuantity !== newQuantity) {
       changes.push({
         field: transaction.type === 'loading' ? 'Total Loaded Liters' : 'Oil Supplied Liters',
