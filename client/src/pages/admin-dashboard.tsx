@@ -358,6 +358,17 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     startDate: '',
     endDate: ''
   });
+  
+  // Logs search states
+  const [searchLogs, setSearchLogs] = useState<any[]>([]);
+  const [isSearchingLogs, setIsSearchingLogs] = useState(false);
+  const [hasSearchedLogs, setHasSearchedLogs] = useState(false);
+  const [logsSearchFilters, setLogsSearchFilters] = useState({
+    startDate: '',
+    endDate: '',
+    type: '',
+    searchText: ''
+  });
   const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
   
   // Transaction search states
@@ -607,8 +618,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       
       // Don't auto-load recent transactions - they will be loaded only when searched
       
-      // Load logs (from various sources - deliveries, complaints, tasks, transactions)
-      await loadLogs(deliveriesData, complaintsData, tasksData, transactionsData, driversData, branchesData, oilTypesData, drumCapacitiesData);
+      // Don't auto-load logs - they will be loaded only when searched
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast({
@@ -967,6 +977,171 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     } catch (error) {
       console.error('Error loading logs:', error);
     }
+  };
+
+  // Search logs with filters
+  const searchLogsWithFilters = async () => {
+    try {
+      setIsSearchingLogs(true);
+      
+      // Since logs come from multiple sources, we need to fetch and filter them
+      const allLogs: any[] = [];
+      const startDate = logsSearchFilters.startDate ? new Date(logsSearchFilters.startDate) : null;
+      const endDate = logsSearchFilters.endDate ? new Date(logsSearchFilters.endDate) : null;
+      
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999); // End of day
+      }
+      
+      // Helper functions
+      const getDriverName = (driverUid: string) => {
+        const driver = drivers.find(d => d.uid === driverUid || d.id === driverUid);
+        return driver ? (driver.displayName || driver.email) : 'Unknown Driver';
+      };
+      
+      const getBranchName = (branchId: string) => {
+        const branch = branches.find(b => b.id === branchId);
+        return branch ? branch.name : 'Unknown Branch';
+      };
+      
+      const getOilTypeName = (oilTypeId: string) => {
+        const oilType = oilTypes.find((ot: any) => ot.id === oilTypeId);
+        return oilType ? oilType.name : 'Unknown Oil Type';
+      };
+      
+      // Search tank update logs from Firebase with date filtering
+      if (!logsSearchFilters.type || logsSearchFilters.type === 'tank') {
+        try {
+          const tankLogsQuery = collection(db, 'tankUpdateLogs');
+          let constraints = [orderBy('updatedAt', 'desc'), limit(100)];
+          
+          if (startDate) {
+            constraints.unshift(where('updatedAt', '>=', startDate));
+          }
+          if (endDate) {
+            constraints.unshift(where('updatedAt', '<=', endDate));
+          }
+          
+          const q = query(tankLogsQuery, ...constraints);
+          const tankLogsSnapshot = await getDocs(q);
+          const tankUpdateLogs = tankLogsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          
+          // Process tank update logs
+          tankUpdateLogs.forEach((log: any) => {
+            if (log.updatedAt) {
+              const logTimestamp = log.updatedAt.toDate ? log.updatedAt.toDate() : new Date(log.updatedAt);
+              allLogs.push({
+                id: `tank_${log.id}`,
+                timestamp: logTimestamp,
+                type: 'tank',
+                title: 'Tank Level Update',
+                description: `Tank updated: ${log.beforeLevel || 'Unknown'}L → ${log.afterLevel || 'Unknown'}L (${log.changeType || 'manual'})`,
+                user: log.updatedBy || 'System',
+                location: getBranchName(log.branchId),
+                tank: `${getOilTypeName(log.oilTypeId)} Tank`,
+                status: 'completed',
+                photos: [],
+                documents: []
+              });
+            }
+          });
+        } catch (error) {
+          console.error('Error searching tank logs:', error);
+        }
+      }
+      
+      // Search other log types from existing data (filtered by date)
+      const logTypes = ['delivery', 'complaint', 'task', 'transaction'];
+      
+      for (const type of logTypes) {
+        if (logsSearchFilters.type && logsSearchFilters.type !== type) continue;
+        
+        let sourceData = [];
+        switch (type) {
+          case 'delivery':
+            sourceData = deliveries || [];
+            break;
+          case 'complaint':
+            sourceData = complaints || [];
+            break;
+          case 'task':
+            sourceData = tasks || [];
+            break;
+          case 'transaction':
+            sourceData = transactions || [];
+            break;
+        }
+        
+        sourceData.forEach((item: any) => {
+          const itemTimestamp = item.timestamp?.toDate ? item.timestamp.toDate() : 
+                               item.createdAt?.toDate ? item.createdAt.toDate() : 
+                               new Date(item.timestamp || item.createdAt || item.actualDeliveryEndTime);
+          
+          // Apply date filtering
+          if (startDate && itemTimestamp < startDate) return;
+          if (endDate && itemTimestamp > endDate) return;
+          
+          allLogs.push({
+            id: `${type}_${item.id}`,
+            timestamp: itemTimestamp,
+            type: type,
+            title: item.title || item.description || `${type.charAt(0).toUpperCase() + type.slice(1)} Record`,
+            description: item.description || item.feedback || `${type} activity`,
+            user: getDriverName(item.driverUid || item.driverName || item.reporterName || item.assignedTo || 'unknown'),
+            location: getBranchName(item.branchId || item.branchName),
+            tank: item.oilTypeId ? `${getOilTypeName(item.oilTypeId)} Tank` : 'N/A',
+            status: item.status || 'completed',
+            photos: Object.keys(item.photos || {}).length,
+            documents: (item.documents || []).length
+          });
+        });
+      }
+      
+      // Apply text search if provided
+      let filteredLogs = allLogs;
+      if (logsSearchFilters.searchText) {
+        const searchTerm = logsSearchFilters.searchText.toLowerCase();
+        filteredLogs = allLogs.filter(log => 
+          log.title.toLowerCase().includes(searchTerm) ||
+          log.description.toLowerCase().includes(searchTerm) ||
+          log.user.toLowerCase().includes(searchTerm) ||
+          log.location.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      // Sort by timestamp (newest first)
+      filteredLogs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      
+      setSearchLogs(filteredLogs);
+      setHasSearchedLogs(true);
+      
+      toast({
+        title: "Search Complete",
+        description: `Found ${filteredLogs.length} log entries`,
+      });
+      
+    } catch (error) {
+      console.error('Error searching logs:', error);
+      toast({
+        title: "Search Error",
+        description: "Failed to search logs. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearchingLogs(false);
+    }
+  };
+
+  // Reset logs search
+  const resetLogsSearch = () => {
+    setSearchLogs([]);
+    setHasSearchedLogs(false);
+    setLogsSearchFilters({
+      startDate: '',
+      endDate: '',
+      type: '',
+      searchText: ''
+    });
   };
 
   // Filter logs based on date criteria only
@@ -2970,68 +3145,148 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-lg font-semibold">System Logs</h3>
-                    <p className="text-sm text-gray-600">Comprehensive activity logs from last 30 days</p>
+                    <h3 className="text-lg font-semibold">System Logs Search</h3>
+                    <p className="text-sm text-gray-600">Search system logs by date range, type, or keyword</p>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={downloadLogsCSV}
-                      variant="outline"
-                      disabled={filteredLogs.length === 0}
-                    >
-                      <DownloadIcon className="h-4 w-4 mr-2" />
-                      Download CSV
-                    </Button>
-                  </div>
+                  {hasSearchedLogs && (
+                    <div className="flex gap-2">
+                      <div className="text-sm text-gray-500 flex items-center">
+                        Found: {searchLogs.length} log entries
+                      </div>
+                      <Button
+                        onClick={() => {
+                          const headers = ['Date & Time', 'Type', 'Title', 'Description', 'User', 'Location', 'Tank', 'Status'];
+                          const csvData = searchLogs.map(log => [
+                            log.timestamp.toLocaleString(),
+                            log.type.toUpperCase(),
+                            log.title,
+                            log.description,
+                            log.user,
+                            log.location,
+                            log.tank,
+                            log.status
+                          ]);
+                          const csvContent = [headers, ...csvData]
+                            .map(row => row.map(cell => `"${cell}"`).join(','))
+                            .join('\n');
+                          const blob = new Blob([csvContent], { type: 'text/csv' });
+                          const url = window.URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = `system_logs_search_${new Date().toISOString().split('T')[0]}.csv`;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                          window.URL.revokeObjectURL(url);
+                        }}
+                        variant="outline"
+                        disabled={searchLogs.length === 0}
+                      >
+                        <DownloadIcon className="h-4 w-4 mr-2" />
+                        Download CSV
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {/* Filter Controls */}
+                {/* Logs Search Form */}
                 <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">Filter Logs</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                       <div>
-                        <Label htmlFor="filter-start-date">Start Date</Label>
-                        <Input
-                          id="filter-start-date"
+                        <label className="block text-sm font-medium mb-2">Start Date</label>
+                        <input
                           type="date"
-                          value={logFilter.startDate}
-                          onChange={(e) => setLogFilter(prev => ({ ...prev, startDate: e.target.value }))}
+                          className="w-full p-2 border rounded-md"
+                          value={logsSearchFilters.startDate}
+                          onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, startDate: e.target.value }))}
                         />
                       </div>
+                      
                       <div>
-                        <Label htmlFor="filter-end-date">End Date</Label>
-                        <Input
-                          id="filter-end-date"
+                        <label className="block text-sm font-medium mb-2">End Date</label>
+                        <input
                           type="date"
-                          value={logFilter.endDate}
-                          onChange={(e) => setLogFilter(prev => ({ ...prev, endDate: e.target.value }))}
+                          className="w-full p-2 border rounded-md"
+                          value={logsSearchFilters.endDate}
+                          onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Log Type</label>
+                        <select
+                          className="w-full p-2 border rounded-md"
+                          value={logsSearchFilters.type}
+                          onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, type: e.target.value }))}
+                        >
+                          <option value="">All Types</option>
+                          <option value="tank">Tank Updates</option>
+                          <option value="delivery">Deliveries</option>
+                          <option value="complaint">Complaints</option>
+                          <option value="task">Tasks</option>
+                          <option value="transaction">Transactions</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Search Text</label>
+                        <input
+                          type="text"
+                          className="w-full p-2 border rounded-md"
+                          placeholder="Search in title, description, user..."
+                          value={logsSearchFilters.searchText}
+                          onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, searchText: e.target.value }))}
                         />
                       </div>
                     </div>
-                    <div className="mt-4 flex gap-2">
+                    
+                    <div className="flex gap-3">
                       <Button
-                        onClick={() => setLogFilter({ startDate: '', endDate: '' })}
-                        variant="outline"
-                        size="sm"
+                        onClick={searchLogsWithFilters}
+                        disabled={isSearchingLogs}
+                        className="flex items-center gap-2"
                       >
-                        Clear Filters
+                        {isSearchingLogs ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Searching...
+                          </>
+                        ) : (
+                          <>
+                            <SearchIcon className="h-4 w-4" />
+                            Search Logs
+                          </>
+                        )}
                       </Button>
-                      <div className="text-sm text-gray-600 flex items-center">
-                        Showing {filteredLogs.length} of {logs.length} logs
-                      </div>
+                      
+                      {hasSearchedLogs && (
+                        <Button
+                          variant="outline"
+                          onClick={resetLogsSearch}
+                          className="flex items-center gap-2"
+                        >
+                          <XIcon className="h-4 w-4" />
+                          Reset
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Logs Display */}
+                {/* Search Results */}
                 <Card>
                   <CardContent className="p-6">
-                    {filteredLogs.length > 0 ? (
+                    {!hasSearchedLogs ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <SearchIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                        <h4 className="text-lg font-medium mb-2">Search for System Logs</h4>
+                        <p>Use the search form above to find specific logs by date range, type, or keyword.</p>
+                        <p className="text-sm mt-2">This helps reduce Firebase reads by only loading logs when needed.</p>
+                      </div>
+                    ) : searchLogs.length > 0 ? (
                       <div className="space-y-4">
-                        {filteredLogs.map((log) => (
+                        {searchLogs.map((log) => (
                           <div key={log.id} className="border rounded-lg p-4 hover:bg-gray-50">
                             <div className="flex items-start justify-between">
                               <div className="flex-1">
@@ -3040,6 +3295,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                     log.type === 'delivery' ? 'bg-green-100 text-green-800' :
                                     log.type === 'transaction' ? 'bg-blue-100 text-blue-800' :
                                     log.type === 'complaint' ? 'bg-red-100 text-red-800' :
+                                    log.type === 'tank' ? 'bg-purple-100 text-purple-800' :
+                                    log.type === 'task' ? 'bg-orange-100 text-orange-800' :
                                     'bg-gray-100 text-gray-800'
                                   }`}>
                                     {log.type.toUpperCase()}
@@ -3060,11 +3317,11 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                   <span>👤 {log.user}</span>
                                   <span>📍 {log.location}</span>
                                   <span>🛢️ {log.tank}</span>
-                                  {log.photos && log.photos.length > 0 && (
-                                    <span>📷 {log.photos.length} photo(s)</span>
+                                  {log.photos && log.photos > 0 && (
+                                    <span>📷 {log.photos} photo(s)</span>
                                   )}
-                                  {log.documents && log.documents.length > 0 && (
-                                    <span>📄 {log.documents.length} document(s)</span>
+                                  {log.documents && log.documents > 0 && (
+                                    <span>📄 {log.documents} document(s)</span>
                                   )}
                                 </div>
                               </div>
@@ -3074,8 +3331,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                       </div>
                     ) : (
                       <div className="text-center py-8 text-gray-500">
-                        <ClockIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                        <p>No logs found matching the filter criteria</p>
+                        <SearchIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                        <p>No logs found</p>
+                        <p className="text-sm mt-1">Try adjusting your search criteria and search again.</p>
                       </div>
                     )}
                   </CardContent>
