@@ -107,11 +107,38 @@ export function TransactionEditModal({
   const loadFormData = () => {
     if (!transaction) return;
     
+    console.log('Loading form data from transaction:', transaction);
+    
+    // Try multiple field names for each value
+    const startMeter = transaction.startMeterReading ?? 
+                      transaction.meterBefore ?? 
+                      transaction.actualDeliveryStartFuel;
+                      
+    const endMeter = transaction.endMeterReading ?? 
+                    transaction.meterAfter ?? 
+                    transaction.actualDeliveryEndFuel;
+                    
+    const oilSupplied = transaction.oilSuppliedLiters ?? 
+                       transaction.actualDeliveredLiters ??
+                       transaction.quantity ??
+                       transaction.meterReading;
+                       
+    const totalLoaded = transaction.totalLoadedLiters ??
+                       transaction.loadMeterReading ??
+                       transaction.fuelLoadedLiters;
+    
+    console.log('Form values being set:', {
+      startMeter,
+      endMeter,
+      oilSupplied,
+      totalLoaded
+    });
+    
     setEditData({
-      startMeterReading: transaction.startMeterReading,
-      endMeterReading: transaction.endMeterReading,
-      oilSuppliedLiters: transaction.oilSuppliedLiters || transaction.actualDeliveredLiters,
-      totalLoadedLiters: transaction.totalLoadedLiters,
+      startMeterReading: startMeter,
+      endMeterReading: endMeter,
+      oilSuppliedLiters: oilSupplied,
+      totalLoadedLiters: totalLoaded,
       oilTypeId: transaction.oilTypeId,
       branchId: transaction.branchId,
       reason: '',
@@ -356,12 +383,17 @@ export function TransactionEditModal({
                 <div>
                   <Label className="text-xs text-gray-500">Current Quantity</Label>
                   <p className="font-medium">
-                    {(transaction.oilSuppliedLiters || 
-                     transaction.actualDeliveredLiters || 
-                     transaction.totalLoadedLiters || 0) > 0 ? 
-                     `${(transaction.oilSuppliedLiters || 
-                       transaction.actualDeliveredLiters || 
-                       transaction.totalLoadedLiters || 0).toLocaleString()}L` : 'N/A'}
+                    {(() => {
+                      console.log('Edit modal transaction data:', transaction);
+                      const quantity = transaction.oilSuppliedLiters || 
+                                     transaction.actualDeliveredLiters || 
+                                     transaction.totalLoadedLiters ||
+                                     transaction.quantity ||
+                                     transaction.meterReading ||
+                                     transaction.loadMeterReading ||
+                                     0;
+                      return quantity > 0 ? `${quantity.toLocaleString()}L` : 'N/A';
+                    })()}
                   </p>
                 </div>
                 <div>
@@ -376,15 +408,30 @@ export function TransactionEditModal({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                 <div>
                   <Label className="text-xs text-gray-500">Current Start Meter</Label>
-                  <p className="font-medium">{transaction.startMeterReading || 'N/A'}</p>
+                  <p className="font-medium">
+                    {transaction.startMeterReading ?? 
+                     transaction.meterBefore ?? 
+                     transaction.actualDeliveryStartFuel ?? 
+                     'N/A'}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Current End Meter</Label>
-                  <p className="font-medium">{transaction.endMeterReading || 'N/A'}</p>
+                  <p className="font-medium">
+                    {transaction.endMeterReading ?? 
+                     transaction.meterAfter ?? 
+                     transaction.actualDeliveryEndFuel ?? 
+                     'N/A'}
+                  </p>
                 </div>
                 <div>
                   <Label className="text-xs text-gray-500">Load Meter Reading</Label>
-                  <p className="font-medium">{transaction.loadMeterReading || 'N/A'}</p>
+                  <p className="font-medium">
+                    {transaction.loadMeterReading ?? 
+                     transaction.meterReading ?? 
+                     transaction.fuelLoadedLiters ?? 
+                     'N/A'}
+                  </p>
                 </div>
               </div>
 

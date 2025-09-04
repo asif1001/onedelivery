@@ -635,12 +635,29 @@ export function AdminTransactionManagement() {
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Quantity</Label>
                       <p className="font-medium">
-                        {(selectedTransaction.oilSuppliedLiters || 
-                         selectedTransaction.actualDeliveredLiters || 
-                         selectedTransaction.totalLoadedLiters || 0) > 0 ? 
-                         `${(selectedTransaction.oilSuppliedLiters || 
-                           selectedTransaction.actualDeliveredLiters || 
-                           selectedTransaction.totalLoadedLiters || 0).toLocaleString()}L` : 'N/A'}
+                        {(() => {
+                          // Debug: log the transaction to see all available fields
+                          console.log('Transaction data for quantity:', selectedTransaction);
+                          
+                          const quantity = selectedTransaction.oilSuppliedLiters || 
+                                         selectedTransaction.actualDeliveredLiters || 
+                                         selectedTransaction.totalLoadedLiters ||
+                                         selectedTransaction.quantity ||
+                                         selectedTransaction.meterReading ||
+                                         selectedTransaction.loadMeterReading ||
+                                         selectedTransaction.endMeterReading - selectedTransaction.startMeterReading ||
+                                         0;
+                          
+                          return quantity > 0 ? `${quantity.toLocaleString()}L` : 
+                                 `Debug: ${JSON.stringify({
+                                   oilSuppliedLiters: selectedTransaction.oilSuppliedLiters,
+                                   actualDeliveredLiters: selectedTransaction.actualDeliveredLiters,
+                                   totalLoadedLiters: selectedTransaction.totalLoadedLiters,
+                                   quantity: selectedTransaction.quantity,
+                                   meterReading: selectedTransaction.meterReading,
+                                   loadMeterReading: selectedTransaction.loadMeterReading
+                                 })}`;
+                        })()}
                       </p>
                     </div>
                     <div>
@@ -657,18 +674,24 @@ export function AdminTransactionManagement() {
                         <p className="font-medium">{selectedTransaction.deliveryOrderNo}</p>
                       </div>
                     )}
-                    {(selectedTransaction.startMeterReading !== undefined || selectedTransaction.endMeterReading !== undefined) && (
-                      <>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">Start Meter</Label>
-                          <p className="font-medium">{selectedTransaction.startMeterReading || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <Label className="text-sm font-medium text-gray-600">End Meter</Label>
-                          <p className="font-medium">{selectedTransaction.endMeterReading || 'N/A'}</p>
-                        </div>
-                      </>
-                    )}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Start Meter</Label>
+                      <p className="font-medium">
+                        {selectedTransaction.startMeterReading ?? 
+                         selectedTransaction.meterBefore ?? 
+                         selectedTransaction.actualDeliveryStartFuel ?? 
+                         'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">End Meter</Label>
+                      <p className="font-medium">
+                        {selectedTransaction.endMeterReading ?? 
+                         selectedTransaction.meterAfter ?? 
+                         selectedTransaction.actualDeliveryEndFuel ?? 
+                         'N/A'}
+                      </p>
+                    </div>
                     <div>
                       <Label className="text-sm font-medium text-gray-600">Status</Label>
                       <p className="font-medium text-green-600">{selectedTransaction.status || 'Completed'}</p>
