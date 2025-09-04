@@ -951,27 +951,38 @@ export default function ComplaintManagement() {
             </Card>
           </div>
           
-          {/* Summary by Priority */}
+          {/* Summary by Priority - Active Complaints Only */}
           <Card>
             <CardHeader>
-              <CardTitle>Priority Breakdown</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Priority Breakdown</span>
+                <span className="text-sm font-normal text-gray-500">Open & In Progress Only</span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
-                  <p className="text-lg font-bold text-red-600">{complaints.filter(c => c.priority === 'critical').length}</p>
+                  <p className="text-lg font-bold text-red-600">
+                    {complaints.filter(c => c.priority === 'critical' && (c.status === 'open' || c.status === 'in-progress')).length}
+                  </p>
                   <p className="text-sm text-gray-600">Critical</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-orange-600">{complaints.filter(c => c.priority === 'high').length}</p>
+                  <p className="text-lg font-bold text-orange-600">
+                    {complaints.filter(c => c.priority === 'high' && (c.status === 'open' || c.status === 'in-progress')).length}
+                  </p>
                   <p className="text-sm text-gray-600">High</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-yellow-600">{complaints.filter(c => c.priority === 'medium').length}</p>
+                  <p className="text-lg font-bold text-yellow-600">
+                    {complaints.filter(c => c.priority === 'medium' && (c.status === 'open' || c.status === 'in-progress')).length}
+                  </p>
                   <p className="text-sm text-gray-600">Medium</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-green-600">{complaints.filter(c => c.priority === 'low').length}</p>
+                  <p className="text-lg font-bold text-green-600">
+                    {complaints.filter(c => c.priority === 'low' && (c.status === 'open' || c.status === 'in-progress')).length}
+                  </p>
                   <p className="text-sm text-gray-600">Low</p>
                 </div>
               </div>
