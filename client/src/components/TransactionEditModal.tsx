@@ -318,10 +318,16 @@ export function TransactionEditModal({
         }
       }
       
-      // 2. Prepare update data with additional edit tracking fields
+      // 2. Prepare update data with additional edit tracking fields - only include defined values
       const { reason, adjustInventory, manualInventoryAdjustment, ...updateFields } = editData;
+      
+      // Filter out undefined values to prevent Firebase updateDoc errors
+      const cleanUpdateFields = Object.fromEntries(
+        Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+      );
+      
       const updateData = {
-        ...updateFields,
+        ...cleanUpdateFields,
         id: transaction.id,
         lastEditedBy: currentUser.uid,
         lastEditedByName: currentUser.displayName || currentUser.email || 'Admin',
