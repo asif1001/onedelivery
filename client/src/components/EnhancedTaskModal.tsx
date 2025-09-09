@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,9 @@ import {
   Loader2Icon,
   DownloadIcon,
   ImageIcon,
-  FileIcon
+  FileIcon,
+  EyeIcon,
+  TrashIcon
 } from "lucide-react";
 
 interface TaskComment {
@@ -71,10 +73,12 @@ interface EnhancedTaskModalProps {
   onStatusUpdate: (taskId: string, newStatus: string) => Promise<void>;
   onAddComment: (taskId: string, comment: string) => Promise<void>;
   onUploadDocument: (taskId: string, files: FileList) => Promise<void>;
+  onDeleteDocument?: (taskId: string, documentId: string) => Promise<void>;
   user: any;
   isUpdating?: boolean;
   isAddingComment?: boolean;
   isUploading?: boolean;
+  onPhotoClick?: (url: string, label: string) => void;
 }
 
 function EnhancedTaskModal({
@@ -84,18 +88,36 @@ function EnhancedTaskModal({
   onStatusUpdate,
   onAddComment,
   onUploadDocument,
+  onDeleteDocument,
   user,
   isUpdating = false,
   isAddingComment = false,
-  isUploading = false
+  isUploading = false,
+  onPhotoClick
 }: EnhancedTaskModalProps) {
   const [newComment, setNewComment] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<'pending' | 'in-progress' | 'completed'>(task?.status || 'pending');
+
+  // Sync selectedStatus with task prop changes
+  useEffect(() => {
+    if (task?.status) {
+      setSelectedStatus(task.status as 'pending' | 'in-progress' | 'completed');
+      setNewComment('');
+      setSelectedFiles(null);
+    }
+  }, [task?.id, task?.status]);
 
   if (!task) return null;
 
-  const handleStatusChange = async (newStatus: string) => {
-    await onStatusUpdate(task.id, newStatus);
+  const handleStatusChange = (newStatus: string) => {
+    setSelectedStatus(newStatus as 'pending' | 'in-progress' | 'completed');
+  };
+
+  const handleSubmitStatusChange = async () => {
+    if (selectedStatus !== task.status) {
+      await onStatusUpdate(task.id, selectedStatus);
+    }
   };
 
   const handleAddComment = async () => {
@@ -173,13 +195,46 @@ function EnhancedTaskModal({
     document.body.removeChild(link);
   };
 
+  const handleViewDocument = (doc: TaskDocument) => {
+    if (onPhotoClick) {
+      onPhotoClick(doc.url, doc.name);
+    } else {
+      window.open(doc.url, '_blank');
+    }
+  };
+
+  const handleDownloadDocument = (doc: TaskDocument) => {
+    downloadFile(doc.url, doc.name);
+  };
+
+  const handleDeleteDocument = async (doc: TaskDocument) => {
+    if (!onDeleteDocument) return;
+    
+    try {
+      await onDeleteDocument(task.id, doc.id);
+    } catch (error) {
+      console.error('Error deleting document:', error);
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    const type = fileType.toLowerCase();
+    if (type.includes('image')) {
+      return <ImageIcon className="h-4 w-4 text-green-500" />;
+    } else if (type.includes('pdf')) {
+      return <FileTextIcon className="h-4 w-4 text-red-500" />;
+    } else {
+      return <FileTextIcon className="h-4 w-4 text-blue-500" />;
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-7xl max-h-[95vh] w-[95vw] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileTextIcon className="h-5 w-5" />
-            {task.title}
+            Task #{new Date(task.createdAt).getFullYear()}-{String(task.id).padStart(5, '0')}
           </DialogTitle>
           <DialogDescription>
             Task details, comments history, and document management
@@ -310,23 +365,64 @@ function EnhancedTaskModal({
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label className="text-sm font-medium">Update Status</Label>
-                  <Select
-                    value={task.status}
+                  <Label className="text-sm font-medium mb-3 block">Update Status</Label>
+                  <RadioGroup
+                    value={selectedStatus}
                     onValueChange={handleStatusChange}
                     disabled={isUpdating}
+                    className="space-y-2"
                   >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {isUpdating && (
-                    <p className="text-xs text-blue-600 mt-1">Updating status...</p>
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="pending" id="status-pending" />
+                      <Label htmlFor="status-pending" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">Pending</div>
+                          <div className="text-xs text-gray-500">Not started yet</div>
+                        </div>
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="in-progress" id="status-in-progress" />
+                      <Label htmlFor="status-in-progress" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">In Progress</div>
+                          <div className="text-xs text-gray-500">Currently working</div>
+                        </div>
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="completed" id="status-completed" />
+                      <Label htmlFor="status-completed" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">Completed</div>
+                          <div className="text-xs text-gray-500">Task finished</div>
+                        </div>
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                  {selectedStatus !== task.status && (
+                    <div className="mt-3">
+                      <Button 
+                        onClick={handleSubmitStatusChange}
+                        disabled={isUpdating}
+                        size="sm"
+                        className="w-full"
+                      >
+                        {isUpdating ? (
+                          <>
+                            <Loader2Icon className="h-4 w-4 mr-2 animate-spin" />
+                            Updating...
+                          </>
+                        ) : (
+                          'Update Status'
+                        )}
+                      </Button>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -381,26 +477,59 @@ function EnhancedTaskModal({
               </CardHeader>
               <CardContent className="space-y-3">
                 {task.documents && task.documents.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
                     {task.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                        <div className="flex items-center gap-2">
-                          <FileTextIcon className="h-4 w-4 text-blue-500" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{doc.name}</p>
-                            <p className="text-xs text-gray-500">
-                              {doc.uploadedBy} • {formatDate(doc.uploadedAt)}
-                            </p>
+                      <div key={doc.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border">
+                        <div className="mt-1">
+                          {getFileIcon(doc.type)}
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-medium break-words" title={doc.name}>{doc.name}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            <span>{doc.uploadedBy}</span>
+                            <span>•</span>
+                            <span>{formatDate(doc.uploadedAt)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <span>{formatFileSize(doc.size)}</span>
+                            <span>•</span>
+                            <span className="break-all">{doc.type}</span>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadFile(doc.url, doc.name)}
-                          className="text-blue-500 hover:text-blue-700"
-                        >
-                          <DownloadIcon className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewDocument(doc)}
+                            className="h-8 w-8 p-0"
+                            title={doc.type.includes('image') || doc.type.includes('pdf') ? 'View document' : 'Open document'}
+                            data-testid={`button-view-document-${doc.id}`}
+                          >
+                            <EyeIcon className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="h-8 w-8 p-0"
+                            title="Download document"
+                            data-testid={`button-download-document-${doc.id}`}
+                          >
+                            <DownloadIcon className="h-3 w-3" />
+                          </Button>
+                          {onDeleteDocument && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteDocument(doc)}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Delete document"
+                              data-testid={`button-delete-document-${doc.id}`}
+                            >
+                              <TrashIcon className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
