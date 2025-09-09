@@ -99,6 +99,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Switch } from "@/components/ui/switch";
 import { Link } from "wouter";
 import { OilDeliveryLogo } from "@/components/ui/logo";
+import { AppUser } from "@shared/schema";
 
 // Task interface
 interface Task {
@@ -145,17 +146,7 @@ interface CreateTask {
   assignedTo?: string;
 }
 
-// Basic types for the components that don't exist yet
-interface User {
-  uid: string;
-  email: string | null;
-  role: string;
-  displayName: string | null;
-  active?: boolean;
-  empNo?: string;
-  driverLicenceNo?: string;
-  licenceExpiryDate?: Date;
-}
+// Using AppUser from shared schema instead of local User interface
 
 interface Delivery {
   id: string;
@@ -269,14 +260,23 @@ import TaskList from "@/components/task-list";
 import SettingsPanel from "@/components/settings-panel";
 
 interface AdminDashboardProps {
-  user: User;
+  user: AppUser;
 }
+
+// Helper function to get user display name
+const getUserDisplayName = (user: AppUser | null | undefined): string => {
+  if (!user) return 'Unknown User';
+  if (user.firstName && user.lastName) {
+    return `${user.firstName} ${user.lastName}`;
+  }
+  return user.email || 'Unknown User';
+};
 
 export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [complaints, setComplaints] = useState<Complaint[]>([]);
-  const [drivers, setDrivers] = useState<User[]>([]);
+  const [drivers, setDrivers] = useState<AppUser[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
   const [oilTypes, setOilTypes] = useState<OilType[]>([]);
   const [drumCapacities, setDrumCapacities] = useState<DrumCapacity[]>([]);
@@ -490,7 +490,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         type: 'comment',
         content: comment,
         timestamp: new Date(),
-        user: user?.displayName || 'Admin'
+        user: getUserDisplayName(user) || 'Admin'
       };
 
       // Update task logs
@@ -539,7 +539,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         size: file.size,
         type: file.type,
         uploadedAt: new Date(),
-        uploadedBy: user?.displayName || 'Admin'
+        uploadedBy: getUserDisplayName(user) || 'Admin'
       };
 
       // Update task documents
@@ -555,7 +555,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         type: 'document',
         content: `Document uploaded: ${file.name}`,
         timestamp: new Date(),
-        user: user?.displayName || 'Admin',
+        user: getUserDisplayName(user) || 'Admin',
         documentId: document.id
       };
 
@@ -606,13 +606,13 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         getAllTransactions().catch(() => [])
       ]);
 
-      setDeliveries(deliveriesData);
-      setComplaints(complaintsData || []);
-      setDrivers(driversData || []);
-      setBranches(branchesData || []);
-      setOilTypes(oilTypesData || []);
-      setDrumCapacities(drumCapacitiesData || []);
-      setTasks(tasksData || []);
+      setDeliveries(deliveriesData as Delivery[]);
+      setComplaints((complaintsData || []) as Complaint[]);
+      setDrivers((driversData || []) as AppUser[]);
+      setBranches((branchesData || []) as Branch[]);
+      setOilTypes((oilTypesData || []) as OilType[]);
+      setDrumCapacities((drumCapacitiesData || []) as DrumCapacity[]);
+      setTasks((tasksData || []) as Task[]);
       setStorageUsage(storageData);
       setTransactions(transactionsData);
       
@@ -676,27 +676,27 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       if (searchFilters.transactionId) {
         results = results.filter(t => 
           t.id?.toLowerCase().includes(searchFilters.transactionId.toLowerCase()) ||
-          t.deliveryOrderNo?.toLowerCase().includes(searchFilters.transactionId.toLowerCase())
+          (t as any).deliveryOrderNo?.toLowerCase().includes(searchFilters.transactionId.toLowerCase())
         );
       }
       
       if (searchFilters.driverName) {
         results = results.filter(t => 
-          t.driverName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
-          t.reporterName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
-          t.reportedByName?.toLowerCase().includes(searchFilters.driverName.toLowerCase())
+          (t as any).driverName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
+          (t as any).reporterName?.toLowerCase().includes(searchFilters.driverName.toLowerCase()) ||
+          (t as any).reportedByName?.toLowerCase().includes(searchFilters.driverName.toLowerCase())
         );
       }
       
       // Enrich with branch and oil type names
       const enrichedResults = results.map(transaction => {
-        const branch = branches.find(b => b.id === transaction.branchId);
-        const oilType = oilTypes.find(ot => ot.id === transaction.oilTypeId);
+        const branch = branches.find(b => b.id === (transaction as any).branchId);
+        const oilType = oilTypes.find(ot => ot.id === (transaction as any).oilTypeId);
         
         return {
           ...transaction,
-          branchName: branch?.name || transaction.branchName || 'Unknown Branch',
-          oilTypeName: oilType?.name || transaction.oilTypeName || 'Unknown Oil Type'
+          branchName: branch?.name || (transaction as any).branchName || 'Unknown Branch',
+          oilTypeName: oilType?.name || (transaction as any).oilTypeName || 'Unknown Oil Type'
         };
       });
       
@@ -743,8 +743,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       // Helper function to get driver name
       const getDriverName = (driverUid: string) => {
-        const driver = driversData.find(d => d.uid === driverUid || d.id === driverUid);
-        return driver ? (driver.displayName || driver.email) : 'Unknown Driver';
+        const driver = driversData.find(d => d.id === driverUid);
+        return driver ? (getUserDisplayName(driver)) : 'Unknown Driver';
       };
 
       // Helper function to get branch name
@@ -917,7 +917,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             allLogs.push({
               id: `user_created_${user.uid || user.id}`,
               type: 'user_management',
-              title: `User Created - ${user.displayName || user.email}`,
+              title: `User Created - ${getUserDisplayName(user) || user.email}`,
               description: `New ${user.role} user account created`,
               timestamp: userDate,
               user: 'Admin',
@@ -995,8 +995,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       
       // Helper functions
       const getDriverName = (driverUid: string) => {
-        const driver = drivers.find(d => d.uid === driverUid || d.id === driverUid);
-        return driver ? (driver.displayName || driver.email) : 'Unknown Driver';
+        const driver = drivers.find(d => d.id === driverUid);
+        return driver ? (getUserDisplayName(driver)) : 'Unknown Driver';
       };
       
       const getBranchName = (branchId: string) => {
@@ -1013,14 +1013,16 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       if (!logsSearchFilters.type || logsSearchFilters.type === 'tank') {
         try {
           const tankLogsQuery = collection(db, 'tankUpdateLogs');
-          let constraints = [orderBy('updatedAt', 'desc'), limit(100)];
+          let constraints = [];
           
           if (startDate) {
-            constraints.unshift(where('updatedAt', '>=', startDate));
+            constraints.push(where('updatedAt', '>=', startDate));
           }
           if (endDate) {
-            constraints.unshift(where('updatedAt', '<=', endDate));
+            constraints.push(where('updatedAt', '<=', endDate));
           }
+          
+          constraints.push(orderBy('updatedAt', 'desc'), limit(100));
           
           const q = query(tankLogsQuery, ...constraints);
           const tankLogsSnapshot = await getDocs(q);
@@ -1315,8 +1317,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     .filter(d => d.status === 'completed')
     .reduce((total, d) => total + (d.loadedOilLiters || 0), 0);
 
-  // Driver stats
-  const activeDrivers = drivers.filter(d => d.active !== false).length;
+  // Driver stats  
+  const activeDrivers = drivers.filter(d => (d as any).active !== false).length;
   const totalDrivers = drivers.length;
 
   // Complaint stats
@@ -1350,7 +1352,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
   };
 
-  const handleUpdateDriver = async (id: string, driver: Partial<User>) => {
+  const handleUpdateDriver = async (id: string, driver: Partial<AppUser>) => {
     try {
       console.log('📝 Updating user:', id, driver);
       await updateDriver(id, driver);
@@ -1593,7 +1595,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const handleUpdateDrumCapacity = async (id: string, capacityData: Partial<DrumCapacity>) => {
     try {
-      await updateDrumCapacity(id, capacityData);
+      await updateDrumCapacity(id, capacityData as any);
       await loadData();
       toast({
         title: "Success",
@@ -1654,7 +1656,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       await addTaskComment(taskId, {
         text: commentText,
-        author: user.displayName || user.email || 'Admin'
+        author: getUserDisplayName(user) || user.email || 'Admin'
       });
       await loadData(); // Reload to get updated comments
       toast({
@@ -1685,7 +1687,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           url: `tasks/${taskId}/${Date.now()}_${file.name}`,
           type: file.type,
           size: file.size,
-          uploadedBy: user.displayName || user.email || 'Admin'
+          uploadedBy: getUserDisplayName(user) || user.email || 'Admin'
         };
         
         await addTaskDocument(taskId, documentData);
@@ -1735,7 +1737,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       await addComplaintComment(complaintId, {
         text: commentText,
-        author: user.displayName || user.email || 'Admin'
+        author: getUserDisplayName(user) || user.email || 'Admin'
       });
       await loadData(); // Reload to get updated comments
       toast({
@@ -1766,7 +1768,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           url: `complaints/${complaintId}/${Date.now()}_${file.name}`,
           type: file.type,
           size: file.size,
-          uploadedBy: user.displayName || user.email || 'Admin'
+          uploadedBy: getUserDisplayName(user) || user.email || 'Admin'
         };
         
         await addComplaintDocument(complaintId, documentData);
@@ -1806,12 +1808,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       console.log('Available drivers:', drivers);
       
       // Enhanced task data with user display names
-      const assignedDriver = task.assignedTo ? drivers.find(d => d.uid === task.assignedTo) : null;
+      const assignedDriver = task.assignedTo ? drivers.find(d => d.id === task.assignedTo) : null;
       const enhancedTask = {
         ...task,
-        createdBy: user.uid,
-        createdByName: user.displayName || user.email || 'Admin',
-        assignedToName: assignedDriver ? (assignedDriver.displayName || assignedDriver.email || 'Unknown User') : ''
+        createdBy: user.id,
+        createdByName: getUserDisplayName(user) || 'Admin',
+        assignedToName: assignedDriver ? getUserDisplayName(assignedDriver) : ''
       };
       
       console.log('Enhanced task data:', enhancedTask);
@@ -1918,8 +1920,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
     // Helper function to get driver name from UID
     const getDriverName = (driverUid: string) => {
-      const driver = drivers.find(d => d.uid === driverUid || d.id === driverUid);
-      return driver ? (driver.displayName || driver.email) : driverUid || 'Unknown Driver';
+      const driver = drivers.find(d => d.id === driverUid);
+      return driver ? (getUserDisplayName(driver)) : driverUid || 'Unknown Driver';
     };
 
     // Helper function to format date properly
@@ -2169,7 +2171,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               </div>
               
               <div className={`text-right hidden sm:block`}>
-                <p className={`text-sm font-medium ${themeClasses.text}`}>{user.displayName}</p>
+                <p className={`text-sm font-medium ${themeClasses.text}`}>{getUserDisplayName(user)}</p>
                 <p className={`text-xs ${themeClasses.secondaryText}`}>{user.email}</p>
               </div>
               <Button
@@ -2769,10 +2771,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             {/* Users Content */}
             {activeTab === 'drivers' && (
               <AdminUsers
-                drivers={drivers}
-                branches={branches}
+                drivers={drivers as any}
+                branches={branches as any}
                 onAddDriver={handleAddDriver}
-                onUpdateDriver={handleUpdateDriver}
+                onUpdateDriver={handleUpdateDriver as any}
                 onDeleteDriver={handleDeleteDriver}
                 onToggleDriverStatus={handleToggleDriverStatus}
               />
@@ -2781,10 +2783,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             {/* Branches Content */}
             {activeTab === 'branches' && (
               <AdminBranches
-                branches={branches}
-                oilTypes={oilTypes}
+                branches={branches as any}
+                oilTypes={oilTypes as any}
                 onAddBranch={handleAddBranch}
-                onUpdateBranch={handleUpdateBranch}
+                onUpdateBranch={handleUpdateBranch as any}
                 onDeleteBranch={handleDeleteBranch}
                 onToggleBranchStatus={handleToggleBranchStatus}
               />
@@ -2793,7 +2795,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
             {/* Oil Types Content */}
             {activeTab === 'oil-types' && (
               <AdminOilTypes
-                oilTypes={oilTypes}
+                oilTypes={oilTypes as any}
                 onAddOilType={handleAddOilType}
                 onUpdateOilType={handleUpdateOilType}
                 onDeleteOilType={handleDeleteOilType}
@@ -3095,8 +3097,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                 if (transaction.reportedByName) return transaction.reportedByName;
                                 
                                 // Look up by UID/ID in drivers list
-                                const driver = drivers.find(d => d.uid === transaction.driverUid || d.id === transaction.driverUid);
-                                if (driver) return driver.displayName || driver.email;
+                                const driver = drivers.find(d => d.id === transaction.driverUid);
+                                if (driver) return getUserDisplayName(driver);
                                 
                                 return transaction.driverUid ? `Driver (ID: ${transaction.driverUid.slice(-4)})` : 'Unknown Driver';
                               })()}</div>
@@ -4183,7 +4185,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <p className="font-medium">
                     {(() => {
                       const oilType = oilTypes.find(o => o.id === selectedTransaction.oilTypeId);
-                      return oilType ? `${oilType.name} - ${oilType.viscosity}` : selectedTransaction.oilTypeName || 'Unknown Oil Type';
+                      return oilType ? `${oilType.name}` : selectedTransaction.oilTypeName || 'Unknown Oil Type';
                     })()}
                   </p>
                 </div>
@@ -4197,8 +4199,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   <label className="text-sm font-medium text-gray-600">Driver</label>
                   <p className="font-medium">
                     {(() => {
-                      const driver = drivers.find(d => d.uid === selectedTransaction.driverUid || d.id === selectedTransaction.driverUid);
-                      return driver ? (driver.displayName || driver.email) : selectedTransaction.driverName || selectedTransaction.driverUid || 'Unknown Driver';
+                      const driver = drivers.find(d => d.id === selectedTransaction.driverUid);
+                      return driver ? (getUserDisplayName(driver)) : selectedTransaction.driverName || selectedTransaction.driverUid || 'Unknown Driver';
                     })()}
                   </p>
                 </div>
@@ -4387,7 +4389,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <Label htmlFor="task-status">Status</Label>
                 <Select 
                   value={editingTask.status} 
-                  onValueChange={(value) => setEditingTask({...editingTask, status: value})}
+                  onValueChange={(value) => setEditingTask({...editingTask, status: value as 'pending' | 'in-progress' | 'completed'})}
                 >
                   <SelectTrigger>
                     <SelectValue />
