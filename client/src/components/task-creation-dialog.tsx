@@ -275,8 +275,8 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
                 </SelectTrigger>
                 <SelectContent>
                   {allUsers && allUsers.length > 0 ? (
-                    allUsers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
+                    allUsers.map((user, index) => (
+                      <SelectItem key={user.id || index} value={user.id || ''}>
                         <div className="flex items-center justify-between w-full">
                           <span>{getUserDisplayName(user)}</span>
                           <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
@@ -286,7 +286,7 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
+                    <SelectItem key="no-users" value="" disabled>
                       No users available
                     </SelectItem>
                   )}
