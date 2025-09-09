@@ -175,8 +175,8 @@ export default function WarehouseDashboard() {
   const [dataFetchingMode, setDataFetchingMode] = useState<'cached' | 'realtime'>('cached');
   const [tankActivityData, setTankActivityData] = useState<Map<string, {manualUpdateDisplay: string, supplyUpdateDisplay: string}>>(new Map());
   
-  // Get user's assigned branches for filtering
-  const userBranchIds = user?.branchIds || [];
+  // Get user's assigned branches for filtering  
+  const userBranchIds = (user as any)?.branchIds || [];
   const isRestrictedUser = user?.role === 'warehouse' && userBranchIds.length > 0;
   
   // Theme state
@@ -2664,8 +2664,8 @@ export default function WarehouseDashboard() {
                       const oilTypesArray = Array.from(branch.oilTypes.values());
                       
                       let updatedOilTypes = 0;
-                      let oldestUpdate = null;
-                      let newestUpdate = null;
+                      let oldestUpdate: Date | null = null;
+                      let newestUpdate: Date | null = null;
                       
                       oilTypesArray.forEach((oilType: any) => {
                         let lastUpdateDate = null;
@@ -3489,8 +3489,8 @@ export default function WarehouseDashboard() {
                           
                           // Track update status for each oil type
                           let updatedOilTypes = 0;
-                          let oldestUpdate = null;
-                          let newestUpdate = null;
+                          let oldestUpdate: Date | null = null;
+                          let newestUpdate: Date | null = null;
                           
                           oilTypesArray.forEach((oilType: any) => {
                             let lastUpdateDate = null;
@@ -4055,7 +4055,7 @@ export default function WarehouseDashboard() {
                                 variant="outline" 
                                 size="sm" 
                                 className="mt-2"
-                                onClick={() => setTransactionFilters({ type: '', branch: '', oilType: '', driver: '' })}
+                                onClick={() => setTransactionFilters({ type: '', branch: '', oilType: '', driver: '', dateRange: '' })}
                               >
                                 Clear Filters
                               </Button>
