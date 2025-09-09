@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -519,53 +519,62 @@ function EnhancedComplaintModal({
               </CardHeader>
               <CardContent className="space-y-3">
                 <div>
-                  <Label className="text-sm font-medium">Update Status</Label>
-                  <Select
+                  <Label className="text-sm font-medium mb-3 block">Update Status</Label>
+                  <RadioGroup
                     value={selectedStatus}
                     onValueChange={handleStatusChange}
                     disabled={isUpdating}
+                    className="space-y-2"
                   >
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                          Open
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="open" id="status-open" />
+                      <Label htmlFor="status-open" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">Open</div>
+                          <div className="text-xs text-gray-500">New complaint</div>
                         </div>
-                      </SelectItem>
-                      <SelectItem value="in-progress">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          In Progress
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="in-progress" id="status-in-progress" />
+                      <Label htmlFor="status-in-progress" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">In Progress</div>
+                          <div className="text-xs text-gray-500">Being investigated</div>
                         </div>
-                      </SelectItem>
-                      <SelectItem value="resolved">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          Resolved
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="resolved" id="status-resolved" />
+                      <Label htmlFor="status-resolved" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">Resolved</div>
+                          <div className="text-xs text-gray-500">Issue fixed</div>
                         </div>
-                      </SelectItem>
-                      <SelectItem value="closed">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                          Closed
+                      </Label>
+                    </div>
+                    
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      <RadioGroupItem value="closed" id="status-closed" />
+                      <Label htmlFor="status-closed" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                        <div>
+                          <div className="font-medium">Closed</div>
+                          <div className="text-xs text-gray-500">Completed/archived</div>
                         </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                      </Label>
+                    </div>
+                  </RadioGroup>
                   {selectedStatus !== complaint.status && (
-                    <p className="text-xs text-orange-600 mt-1">Status will be updated when you submit</p>
+                    <p className="text-xs text-orange-600 mt-2 font-medium">Status will be updated when you submit</p>
                   )}
                 </div>
 
-                <div className="pt-2 text-xs text-gray-600">
-                  <p><strong>Open:</strong> New complaint</p>
-                  <p><strong>In Progress:</strong> Being investigated</p>
-                  <p><strong>Resolved:</strong> Issue fixed</p>
-                  <p><strong>Closed:</strong> Completed/archived</p>
-                </div>
               </CardContent>
             </Card>
 
