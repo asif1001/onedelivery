@@ -37,7 +37,11 @@ import {
   X,
   XIcon,
   Upload,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Search,
+  RefreshCw,
+  User,
+  Clock
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel, getAllUsers } from "@/lib/firebase";
@@ -4232,7 +4236,7 @@ export default function WarehouseDashboard() {
                     <div className="space-y-3">
                       <div className="text-sm text-gray-600 mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
                         <div className="flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          <CheckCircleIcon className="h-4 w-4 text-green-600" />
                           Found {searchLogs.length} log entries
                           {logsSearchFilters.startDate && logsSearchFilters.endDate && (
                             <span> from {logsSearchFilters.startDate} to {logsSearchFilters.endDate}</span>
