@@ -21,7 +21,8 @@ import {
   updateComplaintStatus,
   addComplaintComment,
   addComplaintDocument,
-  uploadDocumentToFirebaseStorage
+  uploadDocumentToFirebaseStorage,
+  deleteComplaintDocument
 } from "@/lib/firebase";
 import { 
   CameraIcon, 
@@ -218,6 +219,24 @@ export default function ComplaintManagement() {
       });
     } finally {
       setIsUploadingDocument(false);
+    }
+  };
+
+  const handleDeleteComplaintDocument = async (complaintId: string, documentId: string) => {
+    try {
+      await deleteComplaintDocument(complaintId, documentId);
+      await loadData();
+      toast({
+        title: "Success",
+        description: "Document deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting complaint document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete document",
+        variant: "destructive"
+      });
     }
   };
 
@@ -1414,6 +1433,7 @@ export default function ComplaintManagement() {
         onStatusUpdate={handleComplaintStatusUpdate}
         onAddComment={handleAddComplaintComment}
         onUploadDocument={handleUploadComplaintDocument}
+        onDeleteDocument={handleDeleteComplaintDocument}
         user={userData}
         isUpdating={isUpdatingStatus}
         isAddingComment={isAddingComment}

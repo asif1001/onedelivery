@@ -1030,6 +1030,44 @@ export const uploadDocumentToFirebaseStorage = async (file: File, folder: string
   }
 };
 
+// Delete complaint document
+export const deleteComplaintDocument = async (complaintId: string, documentId: string) => {
+  try {
+    const complaintRef = doc(db, 'complaints', complaintId);
+    const complaintSnap = await getDoc(complaintRef);
+    
+    if (!complaintSnap.exists()) {
+      throw new Error('Complaint not found');
+    }
+    
+    const currentComplaint = complaintSnap.data();
+    const updatedDocuments = (currentComplaint.documents || []).filter((doc: any) => doc.id !== documentId);
+    
+    // Add deletion log to comments
+    const deletionLog = {
+      id: Date.now().toString(),
+      text: `Document deleted: ${currentComplaint.documents?.find((doc: any) => doc.id === documentId)?.name || 'Unknown'}`,
+      author: 'System',
+      timestamp: new Date(),
+      type: 'document_delete'
+    };
+    
+    const updatedComments = [...(currentComplaint.comments || []), deletionLog];
+    
+    await updateDoc(complaintRef, {
+      documents: updatedDocuments,
+      comments: updatedComments,
+      lastUpdated: new Date(),
+      updatedBy: 'system'
+    });
+    
+    return deletionLog;
+  } catch (error) {
+    console.error('Error deleting complaint document:', error);
+    throw error;
+  }
+};
+
 // Function to get photo statistics in a date range
 export const getPhotoStatistics = async (startDate: string, endDate: string): Promise<{ photoCount: number, transactionCount: number }> => {
   try {

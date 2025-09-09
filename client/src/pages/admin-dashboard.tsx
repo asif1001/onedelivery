@@ -77,6 +77,7 @@ import {
   updateComplaintStatus,
   addComplaintDocument,
   uploadDocumentToFirebaseStorage,
+  deleteComplaintDocument,
   db,
   updateBranchNameCascading,
   updateOilTypeNameCascading,
@@ -1794,6 +1795,24 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       });
     } finally {
       setIsUploadingDocument(false);
+    }
+  };
+
+  const handleDeleteComplaintDocument = async (complaintId: string, documentId: string) => {
+    try {
+      await deleteComplaintDocument(complaintId, documentId);
+      await loadData();
+      toast({
+        title: "Success",
+        description: "Document deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting complaint document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete document",
+        variant: "destructive"
+      });
     }
   };
 
@@ -4637,6 +4656,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         onStatusUpdate={handleComplaintStatusUpdate}
         onAddComment={handleAddComplaintComment}
         onUploadDocument={handleUploadComplaintDocument}
+        onDeleteDocument={handleDeleteComplaintDocument}
         user={user}
         isUpdating={isUpdatingStatus}
         isAddingComment={isAddingComment}
