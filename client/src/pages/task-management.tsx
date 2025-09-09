@@ -13,7 +13,8 @@ import {
   getAllUsers,
   updateTaskStatus,
   addTaskComment,
-  addTaskDocument
+  addTaskDocument,
+  deleteTaskDocument
 } from "@/lib/firebase";
 import TaskCreationDialog from "@/components/task-creation-dialog";
 import TaskList from "@/components/task-list";
@@ -245,6 +246,26 @@ export default function TaskManagement() {
       });
     } finally {
       setIsUploadingDocument(false);
+    }
+  };
+
+  const handleDeleteTaskDocument = async (taskId: string, documentId: string) => {
+    try {
+      // Call Firebase function to delete document
+      await deleteTaskDocument(taskId, documentId);
+      
+      await loadData();
+      toast({
+        title: "Success",
+        description: "Document deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting task document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete document",
+        variant: "destructive"
+      });
     }
   };
 
@@ -512,10 +533,15 @@ export default function TaskManagement() {
         onStatusUpdate={handleTaskStatusUpdate}
         onAddComment={handleAddTaskComment}
         onUploadDocument={handleUploadTaskDocument}
+        onDeleteDocument={handleDeleteTaskDocument}
         user={userData}
         isUpdating={isUpdatingStatus}
         isAddingComment={isAddingComment}
         isUploading={isUploadingDocument}
+        onPhotoClick={(url, label) => {
+          // Handle photo click - could show in larger modal
+          window.open(url, '_blank');
+        }}
       />
     </div>
   );

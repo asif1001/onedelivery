@@ -584,6 +584,47 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
   };
 
+  const handleTaskDocumentDelete = async (taskId: string, documentId: string) => {
+    try {
+      // Remove document from task documents
+      const currentDocs = taskDocuments[taskId] || [];
+      const deletedDoc = currentDocs.find(doc => doc.id === documentId);
+      const updatedDocs = currentDocs.filter(doc => doc.id !== documentId);
+      
+      setTaskDocuments(prev => ({
+        ...prev,
+        [taskId]: updatedDocs
+      }));
+
+      // Add to task log
+      const logEntry = {
+        id: Date.now().toString(),
+        type: 'document_delete',
+        content: `Document deleted: ${deletedDoc?.name || 'Unknown'}`,
+        timestamp: new Date(),
+        user: getUserDisplayName(user) || 'Admin'
+      };
+
+      const currentLogs = taskLogs[taskId] || [];
+      setTaskLogs(prev => ({
+        ...prev,
+        [taskId]: [...currentLogs, logEntry]
+      }));
+
+      toast({
+        title: "Success",
+        description: "Document deleted successfully"
+      });
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete document",
+        variant: "destructive"
+      });
+    }
+  };
+
   const loadData = async () => {
     try {
       setLoading(true);
@@ -4641,11 +4682,16 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         onClose={() => setShowEnhancedTaskModal(false)}
         onStatusUpdate={handleTaskStatusUpdate}
         onAddComment={handleAddTaskComment}
-        onUploadDocument={handleUploadTaskDocument}
+        onUploadDocument={handleTaskDocumentUpload}
+        onDeleteDocument={handleTaskDocumentDelete}
         user={user}
         isUpdating={isUpdatingStatus}
         isAddingComment={isAddingComment}
         isUploading={isUploadingDocument}
+        onPhotoClick={(url, label) => {
+          // Handle photo click - could show in larger modal
+          window.open(url, '_blank');
+        }}
       />
 
       {/* Enhanced Complaint Management Modal */}

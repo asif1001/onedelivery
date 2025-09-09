@@ -3595,6 +3595,52 @@ export const addTaskDocument = async (taskId: string, documentData: any) => {
   }
 };
 
+export const deleteTaskDocument = async (taskId: string, documentId: string) => {
+  try {
+    const taskRef = doc(db, 'tasks', taskId);
+    const taskSnap = await getDoc(taskRef);
+    
+    if (!taskSnap.exists()) {
+      throw new Error('Task not found');
+    }
+    
+    const currentTask = taskSnap.data();
+    const currentDocuments = currentTask.documents || [];
+    
+    // Find the document to delete to get its name for logging
+    const documentToDelete = currentDocuments.find((doc: any) => doc.id === documentId);
+    
+    if (!documentToDelete) {
+      throw new Error('Document not found');
+    }
+    
+    // Remove the document from the array
+    const updatedDocuments = currentDocuments.filter((doc: any) => doc.id !== documentId);
+    
+    // Add document deletion log
+    const deletionLog = {
+      id: Date.now().toString(),
+      text: `Document "${documentToDelete.name}" deleted`,
+      author: 'System', // This could be passed as a parameter if needed
+      timestamp: new Date(),
+      type: 'document_delete'
+    };
+    
+    const updatedComments = [...(currentTask.comments || []), deletionLog];
+    
+    await updateDoc(taskRef, {
+      documents: updatedDocuments,
+      comments: updatedComments,
+      lastUpdated: new Date()
+    });
+    
+    return { deletedDocument: documentToDelete, log: deletionLog };
+  } catch (error) {
+    console.error('Error deleting task document:', error);
+    throw error;
+  }
+};
+
 // Enhanced Complaint Management with Comments and Documents
 export const addComplaintComment = async (complaintId: string, commentData: any) => {
   try {
