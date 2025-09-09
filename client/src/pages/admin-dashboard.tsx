@@ -1802,13 +1802,19 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const handleAddTask = async (task: CreateTask) => {
     try {
+      console.log('Creating task with data:', task);
+      console.log('Available drivers:', drivers);
+      
       // Enhanced task data with user display names
+      const assignedDriver = task.assignedTo ? drivers.find(d => d.uid === task.assignedTo) : null;
       const enhancedTask = {
         ...task,
         createdBy: user.uid,
         createdByName: user.displayName || user.email || 'Admin',
-        assignedToName: task.assignedTo ? (drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.displayName || drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.email || 'Unknown User') : ''
+        assignedToName: assignedDriver ? (assignedDriver.displayName || assignedDriver.email || 'Unknown User') : ''
       };
+      
+      console.log('Enhanced task data:', enhancedTask);
       await saveTask(enhancedTask);
       await loadData();
       toast({
@@ -1817,6 +1823,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       });
     } catch (error) {
       console.error('Error creating task:', error);
+      console.error('Error details:', error);
       toast({
         title: "Error",
         description: "Failed to create task",

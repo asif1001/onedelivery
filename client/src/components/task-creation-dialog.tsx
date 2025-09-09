@@ -202,8 +202,8 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
                 </SelectTrigger>
                 <SelectContent>
                   {drivers.map((driver) => (
-                    <SelectItem key={driver.id} value={driver.id}>
-                      {driver.firstName && driver.lastName ? `${driver.firstName} ${driver.lastName}` : driver.email} ({driver.email})
+                    <SelectItem key={driver.uid} value={driver.uid}>
+                      {driver.firstName && driver.lastName ? `${driver.firstName} ${driver.lastName}` : driver.displayName || driver.email} ({driver.email})
                     </SelectItem>
                   ))}
                 </SelectContent>
