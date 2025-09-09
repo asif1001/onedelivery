@@ -36,7 +36,7 @@ export function PhotoCaptureButton({
       </Button>
       
       <Dialog open={showCamera} onOpenChange={setShowCamera}>
-        <DialogContent className="max-w-lg" aria-describedby="camera-dialog-description">
+        <DialogContent className="max-w-2xl" aria-describedby="camera-dialog-description">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription id="camera-dialog-description">
