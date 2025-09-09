@@ -127,14 +127,28 @@ export default function ComplaintManagement() {
   const handleComplaintStatusUpdate = async (complaintId: string, newStatus: string) => {
     setIsUpdatingStatus(true);
     try {
+      console.log('🔄 Starting status update for complaint:', complaintId, 'to status:', newStatus);
       await updateComplaintStatus(complaintId, newStatus, userData);
+      console.log('✅ Status updated in Firebase, reloading data...');
+      
+      // Reload data to get updated complaint
       await loadData();
+      console.log('✅ Data reloaded successfully');
+      
+      // Update the selected complaint with new status if modal is open
+      if (selectedComplaint && selectedComplaint.id === complaintId) {
+        const updatedComplaint = complaints.find(c => c.id === complaintId);
+        if (updatedComplaint) {
+          setSelectedComplaint(updatedComplaint);
+        }
+      }
+      
       toast({
         title: "Success",
         description: `Complaint status updated to ${newStatus.replace('-', ' ')}`
       });
     } catch (error) {
-      console.error('Error updating complaint status:', error);
+      console.error('❌ Error updating complaint status:', error);
       toast({
         title: "Error",
         description: "Failed to update complaint status",

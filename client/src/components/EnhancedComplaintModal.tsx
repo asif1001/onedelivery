@@ -126,29 +126,44 @@ function EnhancedComplaintModal({
 
   const handleSubmitChanges = async () => {
     try {
+      let hasUpdates = false;
+      
       // Update status if changed
       if (selectedStatus !== complaint.status) {
+        console.log('🔄 Updating status from', complaint.status, 'to', selectedStatus);
         await onStatusUpdate(complaint.id, selectedStatus as string);
+        hasUpdates = true;
       }
       
       // Add comment if provided
       if (newComment.trim()) {
+        console.log('💬 Adding comment:', newComment.trim());
         await onAddComment(complaint.id, newComment.trim());
         setNewComment('');
+        hasUpdates = true;
       }
       
       // Upload files if selected
       if (selectedFiles && selectedFiles.length > 0) {
+        console.log('📁 Uploading files:', selectedFiles.length);
         await onUploadDocument(complaint.id, selectedFiles);
         setSelectedFiles(null);
+        hasUpdates = true;
       }
       
-      setHasChanges(false);
-      
-      // Close modal after successful submission
-      onClose();
+      if (hasUpdates) {
+        console.log('✅ Updates completed successfully');
+        setHasChanges(false);
+        
+        // Small delay to ensure Firebase has propagated changes
+        setTimeout(() => {
+          onClose();
+        }, 500);
+      } else {
+        onClose();
+      }
     } catch (error) {
-      console.error('Error submitting changes:', error);
+      console.error('❌ Error submitting changes:', error);
     }
   };
 
