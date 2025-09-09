@@ -107,7 +107,7 @@ function EnhancedComplaintModal({
   if (!complaint) return null;
 
   const handleStatusChange = (newStatus: string) => {
-    setSelectedStatus(newStatus);
+    setSelectedStatus(newStatus as 'open' | 'in-progress' | 'resolved' | 'closed');
     setHasChanges(newStatus !== complaint.status || newComment.trim() !== '' || selectedFiles !== null);
   };
 

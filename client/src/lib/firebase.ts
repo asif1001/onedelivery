@@ -993,6 +993,43 @@ export const uploadComplaintPhoto = async (file: File, userId: string): Promise<
   }
 };
 
+// Upload any type of document/file to Firebase Storage
+export const uploadDocumentToFirebaseStorage = async (file: File, folder: string = 'documents'): Promise<string> => {
+  try {
+    console.log('📄 Starting document upload to folder:', folder);
+    console.log('📄 File details:', { name: file.name, size: file.size, type: file.type });
+    
+    // Generate unique filename with timestamp and preserve original extension
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const fileExtension = file.name.split('.').pop() || 'unknown';
+    const baseFileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
+    const filename = `${timestamp}-${Math.random().toString(36).substr(2, 9)}-${baseFileName}.${fileExtension}`;
+    const filePath = `${folder}/${filename}`;
+    
+    console.log('📁 Upload path:', filePath);
+    
+    // Create storage reference
+    const storageRef = ref(storage, filePath);
+    
+    // Upload file directly without compression (since it's not necessarily an image)
+    console.log('⬆️ Uploading document to Firebase Storage...');
+    const snapshot = await uploadBytes(storageRef, file);
+    
+    // Get download URL
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log('✅ Document uploaded successfully:', downloadURL);
+    
+    return downloadURL;
+  } catch (error: any) {
+    console.error('❌ Error uploading document to Firebase Storage:', error);
+    // Return a more specific error message
+    if (error.code === 'storage/unauthorized') {
+      throw new Error('Storage permission denied. Please check Firebase rules.');
+    }
+    throw new Error(`Upload failed: ${error.message || 'Unknown error'}`);
+  }
+};
+
 // Function to get photo statistics in a date range
 export const getPhotoStatistics = async (startDate: string, endDate: string): Promise<{ photoCount: number, transactionCount: number }> => {
   try {
