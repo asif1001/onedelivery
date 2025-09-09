@@ -112,6 +112,20 @@ interface Transaction {
   oilTypeId?: string;
   notes?: string;
   photos?: Record<string, string>;
+  loadSessionId?: string;
+  deliveryOrderId?: string;
+  sessionId?: string;
+  numberOfDrums?: number;
+  supplyType?: string;
+  deliveryOrderNo?: string;
+  orderNumber?: string;
+  orderNo?: string;
+  branchTankBefore?: number;
+  startMeterReading?: number;
+  endMeterReading?: number;
+  totalLitersSupplied?: number;
+  drumCapacity?: number;
+  branchTankAfter?: number;
 }
 
 interface OilTank {
@@ -2668,16 +2682,20 @@ export default function WarehouseDashboard() {
                       let newestUpdate: Date | null = null;
                       
                       oilTypesArray.forEach((oilType: any) => {
-                        let lastUpdateDate = null;
+                        let lastUpdateDate: Date | null = null;
                         
                         if (oilType.manualUpdate?.updatedAt) {
                           const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                          lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                          if (!lastUpdateDate || manualDate > lastUpdateDate) {
+                            lastUpdateDate = manualDate;
+                          }
                         }
                         
                         if (oilType.supplyLoading?.createdAt) {
                           const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                          lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
+                          if (!lastUpdateDate || supplyDate > lastUpdateDate) {
+                            lastUpdateDate = supplyDate;
+                          }
                         }
                         
                         if (lastUpdateDate) {
@@ -3493,18 +3511,22 @@ export default function WarehouseDashboard() {
                           let newestUpdate: Date | null = null;
                           
                           oilTypesArray.forEach((oilType: any) => {
-                            let lastUpdateDate = null;
+                            let lastUpdateDate: Date | null = null;
                             
                             // Check manual update
                             if (oilType.manualUpdate?.updatedAt) {
                               const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                              lastUpdateDate = lastUpdateDate ? (manualDate > lastUpdateDate ? manualDate : lastUpdateDate) : manualDate;
+                              if (!lastUpdateDate || manualDate > lastUpdateDate) {
+                                lastUpdateDate = manualDate;
+                              }
                             }
                             
                             // Check supply activity
                             if (oilType.supplyLoading?.createdAt) {
                               const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                              lastUpdateDate = lastUpdateDate ? (supplyDate > lastUpdateDate ? supplyDate : lastUpdateDate) : supplyDate;
+                              if (!lastUpdateDate || supplyDate > lastUpdateDate) {
+                                lastUpdateDate = supplyDate;
+                              }
                             }
                             
                             if (lastUpdateDate) {
