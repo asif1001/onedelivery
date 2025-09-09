@@ -110,11 +110,6 @@ function EnhancedComplaintModal({
   // Sync selectedStatus with complaint prop changes - only when complaint changes, not status
   useEffect(() => {
     if (complaint?.status) {
-      console.log('💫 Syncing complaint status:', { 
-        complaintId: complaint.id, 
-        complaintStatus: complaint.status, 
-        currentSelectedStatus: selectedStatus 
-      });
       setSelectedStatus(complaint.status as 'open' | 'in-progress' | 'resolved' | 'closed');
       setHasChanges(false);
       setNewComment('');
@@ -125,11 +120,7 @@ function EnhancedComplaintModal({
   if (!complaint) return null;
 
   const handleStatusChange = (newStatus: string) => {
-    console.log('🔄 Status change attempted:', { 
-      currentStatus: complaint.status, 
-      newStatus, 
-      selectedStatus 
-    });
+    console.log('🔄 Status change:', newStatus, '(was:', complaint.status + ')');
     setSelectedStatus(newStatus as 'open' | 'in-progress' | 'resolved' | 'closed');
     setHasChanges(newStatus !== complaint.status || newComment.trim() !== '' || selectedFiles !== null);
   };
