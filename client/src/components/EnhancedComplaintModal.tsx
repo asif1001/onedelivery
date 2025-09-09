@@ -107,19 +107,29 @@ function EnhancedComplaintModal({
   const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>(complaint?.status || 'open');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Sync selectedStatus with complaint prop changes
+  // Sync selectedStatus with complaint prop changes - only when complaint changes, not status
   useEffect(() => {
     if (complaint?.status) {
+      console.log('💫 Syncing complaint status:', { 
+        complaintId: complaint.id, 
+        complaintStatus: complaint.status, 
+        currentSelectedStatus: selectedStatus 
+      });
       setSelectedStatus(complaint.status as 'open' | 'in-progress' | 'resolved' | 'closed');
       setHasChanges(false);
       setNewComment('');
       setSelectedFiles(null);
     }
-  }, [complaint?.id, complaint?.status]);
+  }, [complaint?.id]); // Remove complaint?.status to prevent resetting when user changes status
 
   if (!complaint) return null;
 
   const handleStatusChange = (newStatus: string) => {
+    console.log('🔄 Status change attempted:', { 
+      currentStatus: complaint.status, 
+      newStatus, 
+      selectedStatus 
+    });
     setSelectedStatus(newStatus as 'open' | 'in-progress' | 'resolved' | 'closed');
     setHasChanges(newStatus !== complaint.status || newComment.trim() !== '' || selectedFiles !== null);
   };
