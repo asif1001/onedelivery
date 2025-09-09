@@ -188,7 +188,7 @@ function EnhancedComplaintModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto z-[999]">
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
             <div>

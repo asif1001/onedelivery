@@ -4365,7 +4365,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Transaction Viewer Modal */}
       {isTransactionViewerOpen && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4">
+        <div className="fixed inset-0 z-[999] bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4">
           <div className="w-full max-w-7xl max-h-[95vh] sm:max-h-[90vh] overflow-auto bg-white rounded-lg p-3 sm:p-6">
             <TransactionViewer onClose={() => setIsTransactionViewerOpen(false)} />
           </div>
