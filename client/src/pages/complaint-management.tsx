@@ -585,9 +585,6 @@ export default function ComplaintManagement() {
       photos: []
     });
     setCapturedPhotos([]);
-    setSelectedLocation('');
-    setCustomLocation('');
-    setShowCustomLocation(false);
     stopCamera();
   };
 
@@ -748,47 +745,14 @@ export default function ComplaintManagement() {
                   </div>
                 </div>
 
-                {/* Location Selection */}
+                {/* Location */}
                 <div>
-                  <Label>Location</Label>
-                  <Select 
-                    value={showCustomLocation ? 'custom' : selectedLocation} 
-                    onValueChange={(value) => {
-                      if (value === 'custom') {
-                        setShowCustomLocation(true);
-                        setSelectedLocation('');
-                      } else {
-                        setShowCustomLocation(false);
-                        setSelectedLocation(value);
-                        setFormData(prev => ({ ...prev, location: value }));
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select location or enter custom" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branches.map(branch => (
-                        <SelectItem key={branch.id} value={branch.name}>
-                          {branch.name}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value="custom">Enter Custom Location</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {showCustomLocation && (
-                    <div className="mt-2">
-                      <Input
-                        value={customLocation}
-                        onChange={(e) => {
-                          setCustomLocation(e.target.value);
-                          setFormData(prev => ({ ...prev, location: e.target.value }));
-                        }}
-                        placeholder="Enter custom location"
-                      />
-                    </div>
-                  )}
+                  <Label>Location (Optional)</Label>
+                  <Input
+                    value={formData.location}
+                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                    placeholder="Enter location (e.g., Branch name, customer site, etc.)"
+                  />
                 </div>
 
                 <div className="flex justify-end space-x-2">
@@ -914,7 +878,7 @@ export default function ComplaintManagement() {
                     <p className="text-sm text-gray-600">Open</p>
                     <p className="text-2xl font-bold text-red-600">{complaints.filter(c => c.status === 'open').length}</p>
                   </div>
-                  <ClockIcon className="h-8 w-8 text-red-500 opacity-75" />
+                  <XCircleIcon className="h-8 w-8 text-red-500 opacity-75" />
                 </div>
               </CardContent>
             </Card>
@@ -926,7 +890,7 @@ export default function ComplaintManagement() {
                     <p className="text-sm text-gray-600">In Progress</p>
                     <p className="text-2xl font-bold text-yellow-600">{complaints.filter(c => c.status === 'in-progress').length}</p>
                   </div>
-                  <MessageSquareIcon className="h-8 w-8 text-yellow-500 opacity-75" />
+                  <XCircleIcon className="h-8 w-8 text-yellow-500 opacity-75" />
                 </div>
               </CardContent>
             </Card>
