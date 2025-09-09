@@ -178,7 +178,7 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
           Add Task
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] z-[999]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Create New Task</DialogTitle>
