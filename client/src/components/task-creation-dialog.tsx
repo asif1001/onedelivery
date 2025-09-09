@@ -148,7 +148,7 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
     if (user.firstName && user.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
-    return user.displayName || user.email;
+    return user.email || 'Unknown User';
   };
 
   const getRoleDisplay = (role: string) => {
@@ -275,11 +275,11 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
                 </SelectTrigger>
                 <SelectContent>
                   {allUsers.map((user) => (
-                    <SelectItem key={user.uid} value={user.uid}>
+                    <SelectItem key={user.id} value={user.id}>
                       <div className="flex items-center justify-between w-full">
                         <span>{getUserDisplayName(user)}</span>
                         <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
-                          {getRoleDisplay(user.role)}
+                          {getRoleDisplay(user.role || 'user')}
                         </span>
                       </div>
                     </SelectItem>
