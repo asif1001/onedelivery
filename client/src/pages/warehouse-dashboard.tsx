@@ -202,6 +202,19 @@ export default function WarehouseDashboard() {
   // Date range export states
   const [showTransactionDateFilter, setShowTransactionDateFilter] = useState(false);
   const [transactionStartDate, setTransactionStartDate] = useState('');
+  
+  // Search-based logs states
+  const [searchLogs, setSearchLogs] = useState<UpdateLog[]>([]);
+  const [isSearchingLogs, setIsSearchingLogs] = useState(false);
+  const [hasSearchedLogs, setHasSearchedLogs] = useState(false);
+  const [logsSearchFilters, setLogsSearchFilters] = useState({
+    startDate: '',
+    endDate: '',
+    branch: '',
+    oilType: '',
+    user: '',
+    searchText: ''
+  });
   const [transactionEndDate, setTransactionEndDate] = useState('');
   
   // Date range search states
@@ -437,25 +450,7 @@ export default function WarehouseDashboard() {
           console.log('👥 Got drivers:', driversData.length);
           setDrivers(driversData);
           
-          // Load update logs (filtered for warehouse users)
-          const allLogs = await getDocs(query(
-            collection(db, 'tankUpdateLogs'),
-            orderBy('updatedAt', 'desc'),
-            limit(50)
-          )).then(snapshot => 
-            snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as UpdateLog))
-          ).catch(() => []);
-          
-          const filteredLogs = isRestrictedUser 
-            ? allLogs.filter(log => {
-                // Filter by branch name since logs might not have branchId
-                const logBranchName = log.branchName;
-                const userBranchNames = filteredBranches.map(b => b.name);
-                return userBranchNames.includes(logBranchName);
-              })
-            : allLogs;
-          
-          setUpdateLogs(filteredLogs.slice(0, 10));
+          // Don't auto-load logs anymore - they will be loaded only when searched
           
         } catch (error) {
           console.error('Background load error:', error);
@@ -1715,6 +1710,141 @@ export default function WarehouseDashboard() {
       }
       
       return true;
+    });
+  };
+
+  // Search logs with comprehensive filters
+  const searchLogsWithFilters = async () => {
+    try {
+      setIsSearchingLogs(true);
+      console.log('🔍 Searching warehouse logs with filters:', logsSearchFilters);
+      
+      const startDate = logsSearchFilters.startDate ? new Date(logsSearchFilters.startDate) : null;
+      const endDate = logsSearchFilters.endDate ? new Date(logsSearchFilters.endDate) : null;
+      
+      if (endDate) {
+        endDate.setHours(23, 59, 59, 999); // End of day
+      }
+      
+      // Build Firestore query constraints
+      let constraints = [orderBy('updatedAt', 'desc'), limit(200)];
+      
+      // Add date filtering at the query level for efficiency
+      if (startDate) {
+        constraints.unshift(where('updatedAt', '>=', startDate));
+      }
+      if (endDate) {
+        constraints.unshift(where('updatedAt', '<=', endDate));
+      }
+      
+      // Fetch logs from Firebase
+      const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
+      const q = query(tankUpdateLogsRef, ...constraints);
+      const snapshot = await getDocs(q);
+      
+      let allLogs = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as UpdateLog));
+      
+      console.log(`📋 Fetched ${allLogs.length} logs from Firebase`);
+      
+      // Apply user branch filtering for restricted warehouse users
+      if (isRestrictedUser && userBranchIds.length > 0) {
+        const userBranchNames = branches
+          .filter(b => userBranchIds.includes(b.id))
+          .map(b => b.name);
+        
+        allLogs = allLogs.filter(log => 
+          userBranchNames.includes(log.branchName)
+        );
+        
+        console.log(`🔒 Filtered to ${allLogs.length} logs for assigned branches:`, userBranchNames);
+      }
+      
+      // Apply additional filters
+      let filteredLogs = allLogs;
+      
+      // Branch filter
+      if (logsSearchFilters.branch) {
+        const selectedBranch = branches.find(b => b.id === logsSearchFilters.branch);
+        if (selectedBranch) {
+          filteredLogs = filteredLogs.filter(log => 
+            log.branchName === selectedBranch.name
+          );
+        }
+      }
+      
+      // Oil type filter  
+      if (logsSearchFilters.oilType) {
+        const selectedOilType = oilTypes.find(ot => ot.id === logsSearchFilters.oilType);
+        if (selectedOilType) {
+          filteredLogs = filteredLogs.filter(log => 
+            log.oilTypeName === selectedOilType.name
+          );
+        }
+      }
+      
+      // User filter (updated by)
+      if (logsSearchFilters.user) {
+        const searchTerm = logsSearchFilters.user.toLowerCase();
+        filteredLogs = filteredLogs.filter(log =>
+          log.updatedBy?.toLowerCase().includes(searchTerm)
+        );
+      }
+      
+      // Text search in notes/reason
+      if (logsSearchFilters.searchText) {
+        const searchTerm = logsSearchFilters.searchText.toLowerCase();
+        filteredLogs = filteredLogs.filter(log =>
+          (log.notes?.toLowerCase().includes(searchTerm)) ||
+          (log.reason?.toLowerCase().includes(searchTerm)) ||
+          (log.branchName?.toLowerCase().includes(searchTerm)) ||
+          (log.oilTypeName?.toLowerCase().includes(searchTerm)) ||
+          (log.updatedBy?.toLowerCase().includes(searchTerm))
+        );
+      }
+      
+      // Sort by most recent first
+      filteredLogs.sort((a, b) => {
+        const dateA = a.updatedAt?.toDate ? a.updatedAt.toDate() : new Date(a.updatedAt || 0);
+        const dateB = b.updatedAt?.toDate ? b.updatedAt.toDate() : new Date(b.updatedAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
+      
+      setSearchLogs(filteredLogs);
+      setHasSearchedLogs(true);
+      
+      toast({
+        title: "Search Complete",
+        description: `Found ${filteredLogs.length} log entries`,
+      });
+      
+      console.log(`✅ Log search completed: ${filteredLogs.length} results`);
+      
+    } catch (error) {
+      console.error('❌ Error searching logs:', error);
+      toast({
+        title: "Search Error", 
+        description: "Failed to search logs. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearchingLogs(false);
+    }
+  };
+
+  // Reset logs search
+  const resetLogsSearch = () => {
+    setSearchLogs([]);
+    setHasSearchedLogs(false);
+    setLogsSearchFilters({
+      startDate: '',
+      endDate: '',
+      branch: '',
+      oilType: '',
+      user: '',
+      searchText: ''
     });
   };
 
