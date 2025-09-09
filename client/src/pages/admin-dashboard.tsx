@@ -3723,6 +3723,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Task Management</h2>
               <p className={`text-sm lg:text-base ${themeClasses.secondaryText}`}>Manage tasks, track progress, and handle assignments</p>
             </div>
+            <div>
+              <TaskCreationDialog onAdd={handleAddTask} drivers={drivers} />
+            </div>
           </div>
 
           {/* Task Stats Cards */}
