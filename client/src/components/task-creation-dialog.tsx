@@ -274,7 +274,7 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
                   <SelectValue placeholder="Select user to assign task" />
                 </SelectTrigger>
                 <SelectContent>
-                  {allUsers.map((user) => (
+                  {(allUsers || []).map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       <div className="flex items-center justify-between w-full">
                         <span>{getUserDisplayName(user)}</span>
