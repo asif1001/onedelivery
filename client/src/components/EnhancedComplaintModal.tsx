@@ -407,44 +407,35 @@ function EnhancedComplaintModal({
                   </div>
                 </div>
 
-                {/* Original Photo(s) */}
-                {(complaint.photos && complaint.photos.length > 0) && (
-                  <div>
-                    <Label className="text-gray-700 font-medium">Complaint Photo Evidence</Label>
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      {/* Handle photos array */}
-                      {complaint.photos && Array.isArray(complaint.photos) && complaint.photos.map((photoUrl: string, index: number) => (
-                        <div key={index} className="relative group cursor-pointer"
-                             onClick={() => onPhotoClick && onPhotoClick(photoUrl, `Complaint Photo ${index + 1}`)}>
-                          <img 
-                            src={photoUrl} 
-                            alt={`Complaint evidence ${index + 1}`} 
-                            className="w-full h-40 object-cover rounded-lg border hover:opacity-90 transition-opacity"
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
-                            <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                {/* Complaint Photo Evidence - prioritize watermarked photos */}
+                {(() => {
+                  // Prioritize watermarked photos over regular photos to avoid duplicates
+                  const photosToShow = (complaint.watermarkedPhotos && complaint.watermarkedPhotos.length > 0) 
+                    ? complaint.watermarkedPhotos 
+                    : complaint.photos || [];
+                  
+                  return photosToShow && photosToShow.length > 0 && (
+                    <div>
+                      <Label className="text-gray-700 font-medium">Complaint Photo Evidence</Label>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        {photosToShow.map((photoUrl: string, index: number) => (
+                          <div key={`photo-${index}`} className="relative group cursor-pointer"
+                               onClick={() => onPhotoClick && onPhotoClick(photoUrl, `Complaint Photo ${index + 1}`)}>
+                            <img 
+                              src={photoUrl} 
+                              alt={`Complaint evidence ${index + 1}`} 
+                              className="w-full h-40 object-cover rounded-lg border hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
+                              <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                      
-                      {/* Handle watermarked photos array */}
-                      {complaint.watermarkedPhotos && Array.isArray(complaint.watermarkedPhotos) && complaint.watermarkedPhotos.map((photoUrl: string, index: number) => (
-                        <div key={index} className="relative group cursor-pointer"
-                             onClick={() => onPhotoClick && onPhotoClick(photoUrl, `Complaint Photo ${index + 1}`)}>
-                          <img 
-                            src={photoUrl} 
-                            alt={`Complaint evidence ${index + 1}`} 
-                            className="w-full h-40 object-cover rounded-lg border hover:opacity-90 transition-opacity"
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
-                            <ImageIcon className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 text-center">Click photos to view full size</p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2 text-center">Click photos to view full size</p>
-                  </div>
-                )}
+                  );
+                })()}
               </CardContent>
             </Card>
 
