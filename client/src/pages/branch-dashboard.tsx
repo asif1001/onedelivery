@@ -39,7 +39,8 @@ import {
   UserIcon,
   FileTextIcon,
   CheckCircleIcon,
-  DownloadIcon
+  DownloadIcon,
+  FileIcon
 } from "lucide-react";
 import { 
   getActiveBranchesOnly,
@@ -2890,7 +2891,7 @@ export default function BranchDashboard() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center">
-                      <FileIcon className="h-4 w-4 mr-2 text-blue-600" />
+                      <FileTextIcon className="h-4 w-4 mr-2 text-blue-600" />
                       Original Complaint Details
                     </CardTitle>
                   </CardHeader>
