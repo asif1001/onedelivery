@@ -2359,7 +2359,6 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                   {activeTab === 'oil-types' && 'Oil Types'}
                   {activeTab === 'recent-transactions' && 'Transactions'}
                   {activeTab === 'logs-update' && 'Logs'}
-                  {activeTab === 'tasks' && 'Tasks'}
                   {activeTab === 'complaints' && 'Complaints'}
                   {activeTab === 'warehouse' && 'Warehouse'}
                   {activeTab === 'settings' && 'Settings'}
