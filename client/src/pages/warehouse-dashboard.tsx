@@ -68,6 +68,7 @@ interface Branch {
   location?: string;
   contactPerson?: string;
   active?: boolean;
+  oilTanks?: OilTank[];
 }
 
 interface OilType {
@@ -75,6 +76,7 @@ interface OilType {
   name: string;
   category?: string;
   active?: boolean;
+  viscosity?: string;
 }
 
 interface TransactionDebugRow {
@@ -101,6 +103,10 @@ interface Transaction {
   branchName: string;
   branchId: string;
   driverName?: string;
+  driverDisplayName?: string;
+  driverUid?: string;
+  loadedLiters?: number;
+  deliveredLiters?: number;
   createdAt: any;
   timestamp?: any;
   oilTypeId?: string;
@@ -122,6 +128,7 @@ interface OilTank {
 
 interface UpdateLog {
   id: string;
+  tankId?: string;
   branchName: string;
   oilTypeName: string;
   oldLevel: number;
