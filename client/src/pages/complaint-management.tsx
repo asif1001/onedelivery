@@ -14,6 +14,7 @@ import {
   getAllComplaints, 
   getActiveBranchesOnly,
   getAllOilTypes,
+  saveTask,
   getAllUsers,
   saveComplaint,
   updateComplaint,
@@ -31,17 +32,22 @@ import {
   PlusIcon,
   ArrowLeftIcon,
   EyeIcon,
+  ClockIcon,
+  MessageSquareIcon,
   UserIcon,
   CalendarIcon,
   MapPinIcon,
+  DropletIcon,
   ImageIcon,
   EditIcon,
   SaveIcon,
   XIcon,
   DownloadIcon,
+  LogOutIcon,
   FileTextIcon
 } from "lucide-react";
 import { Link } from "wouter";
+import { OilDeliveryLogo } from "@/components/ui/logo";
 import EnhancedComplaintModal from "@/components/EnhancedComplaintModal";
 
 interface Complaint {
@@ -86,31 +92,34 @@ export default function ComplaintManagement() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
-  
-  // Unified modal states
   const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
   const [showComplaintModal, setShowComplaintModal] = useState(false);
-  const [showEnhancedComplaintModal, setShowEnhancedComplaintModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<{url: string, label: string} | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
   
-  // Loading states
+  // Enhanced complaint modal states
+  const [selectedComplaintForDetails, setSelectedComplaintForDetails] = useState<Complaint | null>(null);
+  const [showEnhancedComplaintModal, setShowEnhancedComplaintModal] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isAddingComment, setIsAddingComment] = useState(false);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
-  
-  // Form states
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<Partial<Complaint>>({});
-  const [resolution, setResolution] = useState('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
   const { userData } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      const { auth } = await import('@/lib/firebase');
+      await auth.signOut();
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
 
   const [formData, setFormData] = useState<CreateComplaint>({
     title: '',
@@ -123,32 +132,24 @@ export default function ComplaintManagement() {
     photos: []
   });
 
+  const [selectedLocation, setSelectedLocation] = useState('');
+  const [customLocation, setCustomLocation] = useState('');
+  const [showCustomLocation, setShowCustomLocation] = useState(false);
+
+  const [resolution, setResolution] = useState('');
+  
   // Enhanced complaint management functions
   const handleComplaintStatusUpdate = async (complaintId: string, newStatus: string) => {
     setIsUpdatingStatus(true);
     try {
-      console.log('🔄 Starting status update for complaint:', complaintId, 'to status:', newStatus);
       await updateComplaintStatus(complaintId, newStatus, userData);
-      console.log('✅ Status updated in Firebase, reloading data...');
-      
-      // Reload data to get updated complaint
       await loadData();
-      console.log('✅ Data reloaded successfully');
-      
-      // Update the selected complaint with new status if modal is open
-      if (selectedComplaint && selectedComplaint.id === complaintId) {
-        const updatedComplaint = complaints.find(c => c.id === complaintId);
-        if (updatedComplaint) {
-          setSelectedComplaint(updatedComplaint);
-        }
-      }
-      
       toast({
         title: "Success",
         description: `Complaint status updated to ${newStatus.replace('-', ' ')}`
       });
     } catch (error) {
-      console.error('❌ Error updating complaint status:', error);
+      console.error('Error updating complaint status:', error);
       toast({
         title: "Error",
         description: "Failed to update complaint status",
@@ -240,9 +241,12 @@ export default function ComplaintManagement() {
   };
 
   const openComplaintDetails = (complaint: Complaint) => {
-    setSelectedComplaint(complaint);
+    setSelectedComplaintForDetails(complaint);
     setShowEnhancedComplaintModal(true);
   };
+  const [assignedTo, setAssignedTo] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Complaint>>({});
 
   useEffect(() => {
     loadData();
@@ -435,9 +439,24 @@ export default function ComplaintManagement() {
       // Create complaint in Firebase
       const savedComplaint = await saveComplaint(complaintData);
 
+      // Create associated task in task manager
+      const taskData = {
+        title: `Complaint: ${formData.title}`,
+        description: `Priority: ${formData.priority.toUpperCase()} - ${formData.description}`,
+        priority: formData.priority,
+        dueDate: new Date(Date.now() + (formData.priority === 'critical' ? 2 : formData.priority === 'high' ? 4 : 7) * 24 * 60 * 60 * 1000),
+        assignedTo: '', // Can be assigned later
+        assignedToName: '', // No one assigned yet
+        createdBy: userData?.uid || '',
+        createdByName: userData?.displayName || userData?.email || 'Complaint System',
+        status: 'pending' as const
+      };
+
+      await saveTask(taskData);
+
       toast({
         title: "Complaint Submitted",
-        description: "Complaint has been submitted successfully"
+        description: "Complaint has been submitted and added to task manager"
       });
 
       setShowCreateModal(false);
@@ -599,6 +618,9 @@ export default function ComplaintManagement() {
       photos: []
     });
     setCapturedPhotos([]);
+    setSelectedLocation('');
+    setCustomLocation('');
+    setShowCustomLocation(false);
     stopCamera();
   };
 
@@ -759,14 +781,47 @@ export default function ComplaintManagement() {
                   </div>
                 </div>
 
-                {/* Location */}
+                {/* Location Selection */}
                 <div>
-                  <Label>Location (Optional)</Label>
-                  <Input
-                    value={formData.location}
-                    onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                    placeholder="Enter location (e.g., Branch name, customer site, etc.)"
-                  />
+                  <Label>Location</Label>
+                  <Select 
+                    value={showCustomLocation ? 'custom' : selectedLocation} 
+                    onValueChange={(value) => {
+                      if (value === 'custom') {
+                        setShowCustomLocation(true);
+                        setSelectedLocation('');
+                      } else {
+                        setShowCustomLocation(false);
+                        setSelectedLocation(value);
+                        setFormData(prev => ({ ...prev, location: value }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select location or enter custom" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map(branch => (
+                        <SelectItem key={branch.id} value={branch.name}>
+                          {branch.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">Enter Custom Location</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {showCustomLocation && (
+                    <div className="mt-2">
+                      <Input
+                        value={customLocation}
+                        onChange={(e) => {
+                          setCustomLocation(e.target.value);
+                          setFormData(prev => ({ ...prev, location: e.target.value }));
+                        }}
+                        placeholder="Enter custom location"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex justify-end space-x-2">
@@ -892,7 +947,7 @@ export default function ComplaintManagement() {
                     <p className="text-sm text-gray-600">Open</p>
                     <p className="text-2xl font-bold text-red-600">{complaints.filter(c => c.status === 'open').length}</p>
                   </div>
-                  <XCircleIcon className="h-8 w-8 text-red-500 opacity-75" />
+                  <ClockIcon className="h-8 w-8 text-red-500 opacity-75" />
                 </div>
               </CardContent>
             </Card>
@@ -904,7 +959,7 @@ export default function ComplaintManagement() {
                     <p className="text-sm text-gray-600">In Progress</p>
                     <p className="text-2xl font-bold text-yellow-600">{complaints.filter(c => c.status === 'in-progress').length}</p>
                   </div>
-                  <XCircleIcon className="h-8 w-8 text-yellow-500 opacity-75" />
+                  <MessageSquareIcon className="h-8 w-8 text-yellow-500 opacity-75" />
                 </div>
               </CardContent>
             </Card>
@@ -1225,6 +1280,21 @@ export default function ComplaintManagement() {
                     <div className="space-y-4 pt-4 border-t">
                       <h4 className="font-medium">Resolve Complaint</h4>
                       
+                      <div>
+                        <Label>Assign To</Label>
+                        <Select value={assignedTo} onValueChange={setAssignedTo}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select user" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {users.filter(user => user.role === 'admin' || user.role === 'manager').map(user => (
+                              <SelectItem key={user.uid} value={user.uid}>
+                                {user.displayName || user.email}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       <div>
                         <Label htmlFor="resolution">Resolution</Label>
@@ -1354,11 +1424,11 @@ export default function ComplaintManagement() {
 
       {/* Enhanced Complaint Modal */}
       <EnhancedComplaintModal
-        complaint={selectedComplaint}
+        complaint={selectedComplaintForDetails}
         isOpen={showEnhancedComplaintModal}
         onClose={() => {
           setShowEnhancedComplaintModal(false);
-          setSelectedComplaint(null);
+          setSelectedComplaintForDetails(null);
         }}
         onStatusUpdate={handleComplaintStatusUpdate}
         onAddComment={handleAddComplaintComment}

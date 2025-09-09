@@ -274,24 +274,16 @@ export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDial
                   <SelectValue placeholder="Select user to assign task" />
                 </SelectTrigger>
                 <SelectContent>
-                  {allUsers && allUsers.length > 0 ? (
-                    allUsers
-                      .filter(user => user.id && user.id.trim() !== '')
-                      .map((user, index) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          <div className="flex items-center justify-between w-full">
-                            <span>{getUserDisplayName(user)}</span>
-                            <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
-                              {getRoleDisplay(user.role || 'user')}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))
-                  ) : (
-                    <SelectItem key="no-users" value="no-users-available" disabled>
-                      No users available
+                  {allUsers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{getUserDisplayName(user)}</span>
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
+                          {getRoleDisplay(user.role || 'user')}
+                        </span>
+                      </div>
                     </SelectItem>
-                  )}
+                  ))}
                 </SelectContent>
               </Select>
             </div>

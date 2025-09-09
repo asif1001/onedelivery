@@ -107,7 +107,7 @@ function EnhancedComplaintModal({
   const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>(complaint?.status || 'open');
   const [hasChanges, setHasChanges] = useState(false);
 
-  // Sync selectedStatus with complaint prop changes - only when complaint changes, not status
+  // Sync selectedStatus with complaint prop changes
   useEffect(() => {
     if (complaint?.status) {
       setSelectedStatus(complaint.status as 'open' | 'in-progress' | 'resolved' | 'closed');
@@ -115,7 +115,7 @@ function EnhancedComplaintModal({
       setNewComment('');
       setSelectedFiles(null);
     }
-  }, [complaint?.id]); // Remove complaint?.status to prevent resetting when user changes status
+  }, [complaint?.id, complaint?.status]);
 
   if (!complaint) return null;
 
@@ -126,44 +126,29 @@ function EnhancedComplaintModal({
 
   const handleSubmitChanges = async () => {
     try {
-      let hasUpdates = false;
-      
       // Update status if changed
       if (selectedStatus !== complaint.status) {
-        console.log('🔄 Updating status from', complaint.status, 'to', selectedStatus);
         await onStatusUpdate(complaint.id, selectedStatus as string);
-        hasUpdates = true;
       }
       
       // Add comment if provided
       if (newComment.trim()) {
-        console.log('💬 Adding comment:', newComment.trim());
         await onAddComment(complaint.id, newComment.trim());
         setNewComment('');
-        hasUpdates = true;
       }
       
       // Upload files if selected
       if (selectedFiles && selectedFiles.length > 0) {
-        console.log('📁 Uploading files:', selectedFiles.length);
         await onUploadDocument(complaint.id, selectedFiles);
         setSelectedFiles(null);
-        hasUpdates = true;
       }
       
-      if (hasUpdates) {
-        console.log('✅ Updates completed successfully');
-        setHasChanges(false);
-        
-        // Small delay to ensure Firebase has propagated changes
-        setTimeout(() => {
-          onClose();
-        }, 500);
-      } else {
-        onClose();
-      }
+      setHasChanges(false);
+      
+      // Close modal after successful submission
+      onClose();
     } catch (error) {
-      console.error('❌ Error submitting changes:', error);
+      console.error('Error submitting changes:', error);
     }
   };
 
@@ -540,14 +525,34 @@ function EnhancedComplaintModal({
                     onValueChange={handleStatusChange}
                     disabled={isUpdating}
                   >
-                    <SelectTrigger className="mt-1 w-full">
-                      <SelectValue placeholder="Select status" />
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
                     </SelectTrigger>
-                    <SelectContent className="w-full">
-                      <SelectItem value="open">Open</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
-                      <SelectItem value="resolved">Resolved</SelectItem>
-                      <SelectItem value="closed">Closed</SelectItem>
+                    <SelectContent>
+                      <SelectItem value="open">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                          Open
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="in-progress">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          In Progress
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="resolved">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          Resolved
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="closed">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+                          Closed
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                   {selectedStatus !== complaint.status && (

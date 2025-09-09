@@ -63,7 +63,6 @@ interface User {
 export default function TaskManagement() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [drivers, setDrivers] = useState<User[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
@@ -86,16 +85,14 @@ export default function TaskManagement() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [tasksData, usersData] = await Promise.all([
+      const [tasksData, driversData] = await Promise.all([
         getAllTasks(),
         getAllUsers()
       ]);
       
       setTasks(tasksData as Task[]);
-      // Store all users for task assignment
-      setAllUsers(usersData as User[]);
       // Filter only drivers from all users
-      setDrivers((usersData as User[]).filter(user => user.role === 'driver'));
+      setDrivers((driversData as User[]).filter(user => user.role === 'driver'));
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -117,9 +114,9 @@ export default function TaskManagement() {
       // Enhanced task data with user display names
       const enhancedTask = {
         ...task,
-        createdBy: userData?.id || '',
-        createdByName: userData?.displayName || userData?.email || 'Task Manager',
-        assignedToName: task.assignedTo ? (allUsers.find(d => d.id === task.assignedTo)?.displayName || allUsers.find(d => d.id === task.assignedTo)?.email || 'Unknown User') : ''
+        createdBy: user.uid,
+        createdByName: user.displayName || user.email || 'Task Manager',
+        assignedToName: task.assignedTo ? (drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.displayName || drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.email || 'Unknown User') : ''
       };
       await saveTask(enhancedTask);
       await loadData();
@@ -366,7 +363,7 @@ export default function TaskManagement() {
             <h2 className="text-2xl font-bold text-gray-900">Task Management</h2>
             <p className="text-gray-600">Create and manage operational tasks</p>
           </div>
-          <TaskCreationDialog onAdd={handleAddTask} allUsers={allUsers} />
+          <TaskCreationDialog onAdd={handleAddTask} drivers={drivers} />
         </div>
 
         {/* Stats Grid */}
@@ -442,7 +439,7 @@ export default function TaskManagement() {
                   onUpdate={handleUpdateTask}
                   onDelete={handleDeleteTask}
                   onViewDetails={openTaskDetails}
-                  drivers={drivers as any}
+                  drivers={drivers}
                 />
               </TabsContent>
               
@@ -452,7 +449,7 @@ export default function TaskManagement() {
                   onUpdate={handleUpdateTask}
                   onDelete={handleDeleteTask}
                   onViewDetails={openTaskDetails}
-                  drivers={drivers as any}
+                  drivers={drivers}
                 />
               </TabsContent>
               
@@ -467,7 +464,7 @@ export default function TaskManagement() {
                     onUpdate={handleUpdateTask}
                     onDelete={handleDeleteTask}
                     onViewDetails={openTaskDetails}
-                    drivers={drivers as any}
+                    drivers={drivers}
                   />
                 </div>
               </TabsContent>
@@ -485,7 +482,7 @@ export default function TaskManagement() {
                     onUpdate={handleUpdateTask}
                     onDelete={handleDeleteTask}
                     onViewDetails={openTaskDetails}
-                    drivers={drivers as any}
+                    drivers={drivers}
                   />
                 </div>
               </TabsContent>
@@ -496,7 +493,7 @@ export default function TaskManagement() {
                   onUpdate={handleUpdateTask}
                   onDelete={handleDeleteTask}
                   onViewDetails={openTaskDetails}
-                  drivers={drivers as any}
+                  drivers={drivers}
                 />
               </TabsContent>
             </Tabs>
