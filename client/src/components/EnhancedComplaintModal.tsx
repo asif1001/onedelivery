@@ -513,13 +513,38 @@ function EnhancedComplaintModal({
                 {complaint.documents && complaint.documents.length > 0 ? (
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {complaint.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                        <FileTextIcon className="h-4 w-4 text-blue-500" />
+                      <div key={doc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                        {getFileIcon(doc.type)}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.name}</p>
+                          <p className="text-sm font-medium truncate" title={doc.name}>{doc.name}</p>
                           <p className="text-xs text-gray-500">
                             {doc.uploadedBy} • {formatDate(doc.uploadedAt)}
                           </p>
+                          <p className="text-xs text-gray-400">
+                            {(doc.size / 1024).toFixed(1)} KB • {doc.type}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleViewDocument(doc)}
+                            className="h-8 w-8 p-0"
+                            title={doc.type.includes('image') || doc.type.includes('pdf') ? 'View document' : 'Open document'}
+                            data-testid={`button-view-document-${doc.id}`}
+                          >
+                            <EyeIcon className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleDownloadDocument(doc)}
+                            className="h-8 w-8 p-0"
+                            title="Download document"
+                            data-testid={`button-download-document-${doc.id}`}
+                          >
+                            <DownloadIcon className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
                     ))}
