@@ -18,7 +18,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   Loader2Icon,
-  MapPinIcon
+  MapPinIcon,
+  DownloadIcon,
+  EyeIcon,
+  ExternalLinkIcon
 } from "lucide-react";
 
 interface ComplaintComment {
@@ -183,6 +186,54 @@ function EnhancedComplaintModal({
       case 'status_change': return <AlertTriangleIcon className="h-4 w-4 text-orange-500" />;
       case 'document_upload': return <FileTextIcon className="h-4 w-4 text-green-500" />;
       default: return <MessageCircleIcon className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  // Document download and view functions
+  const handleDownloadDocument = async (doc: ComplaintDocument) => {
+    try {
+      // For Firebase Storage URLs, we can directly download
+      const response = await fetch(doc.url);
+      const blob = await response.blob();
+      
+      // Create download link
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = doc.name;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Cleanup
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Error downloading document:', error);
+      // Fallback: open in new tab
+      window.open(doc.url, '_blank');
+    }
+  };
+
+  const handleViewDocument = (doc: ComplaintDocument) => {
+    const fileType = doc.type.toLowerCase();
+    
+    // For images, PDFs, and text files that can be viewed in browser
+    if (fileType.includes('image') || fileType.includes('pdf') || fileType.includes('text')) {
+      window.open(doc.url, '_blank');
+    } else {
+      // For other file types, download them
+      handleDownloadDocument(doc);
+    }
+  };
+
+  const getFileIcon = (fileType: string) => {
+    const type = fileType.toLowerCase();
+    if (type.includes('image')) {
+      return <ImageIcon className="h-4 w-4 text-green-500" />;
+    } else if (type.includes('pdf')) {
+      return <FileTextIcon className="h-4 w-4 text-red-500" />;
+    } else {
+      return <FileTextIcon className="h-4 w-4 text-blue-500" />;
     }
   };
 
