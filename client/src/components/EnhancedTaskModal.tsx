@@ -175,7 +175,7 @@ function EnhancedTaskModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[95vh] w-[95vw] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileTextIcon className="h-5 w-5" />
@@ -186,9 +186,9 @@ function EnhancedTaskModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Main Task Details */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="xl:col-span-2 space-y-4">
             {/* Task Info */}
             <Card>
               <CardHeader>
