@@ -120,7 +120,6 @@ function EnhancedComplaintModal({
   if (!complaint) return null;
 
   const handleStatusChange = (newStatus: string) => {
-    console.log('🔄 Status change:', newStatus, '(was:', complaint.status + ')');
     setSelectedStatus(newStatus as 'open' | 'in-progress' | 'resolved' | 'closed');
     setHasChanges(newStatus !== complaint.status || newComment.trim() !== '' || selectedFiles !== null);
   };
@@ -525,39 +524,15 @@ function EnhancedComplaintModal({
                     value={selectedStatus}
                     onValueChange={handleStatusChange}
                     disabled={isUpdating}
-                    onOpenChange={(open) => console.log('📋 Dropdown opened:', open)}
                   >
-                    <SelectTrigger 
-                      className="mt-1"
-                      onClick={() => console.log('🖱️ Dropdown trigger clicked')}
-                    >
-                      <SelectValue />
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select status" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="open">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                          Open
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="in-progress">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          In Progress
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="resolved">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          Resolved
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="closed">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
-                          Closed
-                        </div>
-                      </SelectItem>
+                    <SelectContent className="w-full">
+                      <SelectItem value="open">Open</SelectItem>
+                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="resolved">Resolved</SelectItem>
+                      <SelectItem value="closed">Closed</SelectItem>
                     </SelectContent>
                   </Select>
                   {selectedStatus !== complaint.status && (
