@@ -610,7 +610,7 @@ export default function WarehouseDashboard() {
       const allTransactions = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as Transaction[];
 
       // Filter by date range in JavaScript since Firestore queries can be complex
       const filteredTransactions = allTransactions.filter(transaction => {
@@ -632,7 +632,7 @@ export default function WarehouseDashboard() {
       });
 
       console.log('📦 Found transactions:', filteredTransactions.length);
-      setSearchedTransactions(filteredTransactions);
+      setSearchedTransactions(filteredTransactions as Transaction[]);
       setShowSearchResults(true);
       setActiveTransactionTab('search'); // Switch to search results tab
       
@@ -691,7 +691,7 @@ export default function WarehouseDashboard() {
       const allTransactions = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
-      }));
+      })) as Transaction[];
 
       // Filter by date range
       const filteredTransactions = allTransactions.filter(transaction => {
@@ -806,7 +806,7 @@ export default function WarehouseDashboard() {
         const driverName = transaction.driverName || transaction.driverDisplayName || 'Unknown Driver';
         
         // Escape commas and quotes in CSV data
-        const escapeCSV = (field) => {
+        const escapeCSV = (field: any): string => {
           if (typeof field === 'string' && (field.includes(',') || field.includes('"'))) {
             return `"${field.replace(/"/g, '""')}"`;
           }
@@ -2619,8 +2619,8 @@ export default function WarehouseDashboard() {
                     
                     const oilType = branch.oilTypes.get(txn.oilTypeName)!;
                     oilType.supplyLoading = {
-                      createdAt: txn.timestamp?.toDate ? txn.timestamp.toDate().toISOString() : txn.timestamp,
-                      driverName: txn.driverName
+                      createdAt: txn.timestamp?.toDate ? txn.timestamp.toDate().toISOString() : (txn.timestamp || ''),
+                      driverName: txn.driverName || ''
                     };
                   });
 
