@@ -399,7 +399,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       const settingsDoc = await getDoc(doc(db, 'systemSettings', 'general'));
       if (settingsDoc.exists()) {
-        setSystemSettings(settingsDoc.data());
+        setSystemSettings(settingsDoc.data() as any);
       }
     } catch (error) {
       console.error('Error loading system settings:', error);
@@ -3449,7 +3449,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                             {Object.entries(firestoreUsage.firestore?.collections || {}).map(([collection, count]) => (
                               <div key={collection} className="flex justify-between">
                                 <span className="text-sm capitalize">{collection}:</span>
-                                <span className="font-medium">{count}</span>
+                                <span className="font-medium">{count as any}</span>
                               </div>
                             ))}
                             <div className="flex justify-between border-t pt-2">
@@ -4790,7 +4790,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Enhanced Complaint Management Modal */}
       <EnhancedComplaintModal
-        complaint={selectedComplaintForDetails}
+        complaint={selectedComplaintForDetails as any}
         isOpen={showEnhancedComplaintModal}
         onClose={() => setShowEnhancedComplaintModal(false)}
         onStatusUpdate={handleComplaintStatusUpdate}
