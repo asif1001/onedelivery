@@ -4060,174 +4060,273 @@ export default function WarehouseDashboard() {
             </Card>
           </TabsContent>
 
-          {/* Update Logs Tab */}
+          {/* Tank Update Logs Search Tab */}
           <TabsContent value="logs" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5 text-purple-600" />
-                    Tank Update Logs
+                    <Search className="h-5 w-5 text-purple-600" />
+                    Search Tank Update Logs
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowLogDateFilter(!showLogDateFilter)}
-                      className="flex items-center gap-2"
-                    >
-                      <Calendar className="h-4 w-4" />
-                      {showLogDateFilter ? 'Hide' : 'Date Range'}
-                    </Button>
-                  </div>
+                  {hasSearchedLogs && (
+                    <Badge variant="secondary" className="text-sm">
+                      {searchLogs.length} results
+                    </Badge>
+                  )}
                 </CardTitle>
                 <CardDescription>
-                  Tank level updates with filtering options ({getFilteredLogs().length} of {updateLogs.length} shown)
+                  Search tank level update logs with date range and filters. Logs are loaded only when searched to optimize performance.
                 </CardDescription>
-                
-                {/* Date Range Filter for Logs */}
-                {showLogDateFilter && (
-                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                      <div className="flex items-center space-x-2">
-                        <label className="text-sm font-medium">From:</label>
-                        <input
-                          type="date"
-                          value={logStartDate}
-                          onChange={(e) => setLogStartDate(e.target.value)}
-                          className="border rounded px-3 py-1 text-sm"
-                        />
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <label className="text-sm font-medium">To:</label>
-                        <input
-                          type="date"
-                          value={logEndDate}
-                          onChange={(e) => setLogEndDate(e.target.value)}
-                          className="border rounded px-3 py-1 text-sm"
-                        />
-                      </div>
-                      <Button 
-                        onClick={() => downloadLogData(logStartDate, logEndDate)}
-                        className="bg-green-600 hover:bg-green-700 text-white text-sm"
-                        disabled={!logStartDate || !logEndDate}
-                      >
-                        <DownloadIcon className="h-4 w-4 mr-2" />
-                        Download Inventory Report CSV
-                      </Button>
-                    </div>
-                  </div>
-                )}
               </CardHeader>
               <CardContent>
-                {/* Log Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6 p-4 bg-gray-50 rounded-lg border">
-                  <div>
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Branch</label>
-                    <select 
-                      className="w-full text-sm border rounded px-3 py-1.5 bg-white"
-                      value={logFilters.branch}
-                      onChange={(e) => setLogFilters(prev => ({ ...prev, branch: e.target.value }))}
-                    >
-                      <option value="">All Branches</option>
-                      {branches.map((branch) => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
-                      ))}
-                    </select>
+                {/* Enhanced Search Interface */}
+                <div className="space-y-4 mb-6">
+                  {/* Date Range and Primary Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg border">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">From Date</label>
+                      <input
+                        type="date"
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        value={logsSearchFilters.startDate}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, startDate: e.target.value }))}
+                        placeholder="Start date"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">To Date</label>
+                      <input
+                        type="date"
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        value={logsSearchFilters.endDate}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, endDate: e.target.value }))}
+                        placeholder="End date"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">Branch</label>
+                      <select 
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        value={logsSearchFilters.branch}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, branch: e.target.value }))}
+                      >
+                        <option value="">All Branches</option>
+                        {branches.map((branch) => (
+                          <option key={branch.id} value={branch.id}>{branch.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">Oil Type</label>
+                      <select 
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        value={logsSearchFilters.oilType}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, oilType: e.target.value }))}
+                      >
+                        <option value="">All Oil Types</option>
+                        {oilTypes.map((oilType) => (
+                          <option key={oilType.id} value={oilType.id}>{oilType.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Oil Type</label>
-                    <select 
-                      className="w-full text-sm border rounded px-3 py-1.5 bg-white"
-                      value={logFilters.oilType}
-                      onChange={(e) => setLogFilters(prev => ({ ...prev, oilType: e.target.value }))}
-                    >
-                      <option value="">All Oil Types</option>
-                      {oilTypes.map((oilType) => (
-                        <option key={oilType.id} value={oilType.id}>{oilType.name}</option>
-                      ))}
-                    </select>
+
+                  {/* Secondary Filters */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">Updated By User</label>
+                      <input
+                        type="text"
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        placeholder="Filter by user who made the update..."
+                        value={logsSearchFilters.user}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, user: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">Search Text</label>
+                      <input
+                        type="text"
+                        className="w-full text-sm border rounded px-3 py-2 bg-white"
+                        placeholder="Search in notes, reason, branch, oil type..."
+                        value={logsSearchFilters.searchText}
+                        onChange={(e) => setLogsSearchFilters(prev => ({ ...prev, searchText: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">User</label>
-                    <input
-                      type="text"
-                      className="w-full text-sm border rounded px-3 py-1.5 bg-white"
-                      placeholder="Filter by user..."
-                      value={logFilters.user}
-                      onChange={(e) => setLogFilters(prev => ({ ...prev, user: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-700 mb-1 block">Date Range</label>
-                    <select 
-                      className="w-full text-sm border rounded px-3 py-1.5 bg-white"
-                      value={logFilters.dateRange}
-                      onChange={(e) => setLogFilters(prev => ({ ...prev, dateRange: e.target.value }))}
+
+                  {/* Search Actions */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <Button
+                      onClick={searchLogsWithFilters}
+                      disabled={isSearchingLogs}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                      data-testid="button-search-logs"
                     >
-                      <option value="">All Time</option>
-                      <option value="today">Today</option>
-                      <option value="week">This Week</option>
-                      <option value="month">This Month</option>
-                    </select>
+                      {isSearchingLogs ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4 mr-2" />
+                          Search Logs
+                        </>
+                      )}
+                    </Button>
+                    
+                    {hasSearchedLogs && (
+                      <Button
+                        variant="outline"
+                        onClick={resetLogsSearch}
+                        className="border-gray-300"
+                        data-testid="button-reset-search"
+                      >
+                        <X className="h-4 w-4 mr-2" />
+                        Clear Search
+                      </Button>
+                    )}
+
+                    {searchLogs.length > 0 && (
+                      <Button 
+                        variant="outline"
+                        onClick={() => downloadLogData(logsSearchFilters.startDate, logsSearchFilters.endDate)}
+                        className="text-green-700 border-green-300 hover:bg-green-50"
+                        disabled={!logsSearchFilters.startDate || !logsSearchFilters.endDate}
+                      >
+                        <DownloadIcon className="h-4 w-4 mr-2" />
+                        Export CSV ({searchLogs.length})
+                      </Button>
+                    )}
                   </div>
                 </div>
 
-                {getFilteredLogs().length > 0 ? (
-                  <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
-                    {getFilteredLogs().map((log) => (
-                      <div key={log.id} className="p-3 border rounded-lg bg-white shadow-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 bg-blue-600 rounded-full"></div>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {log.branchName || 'Unknown Branch'} • {log.oilTypeName || 'Unknown Oil Type'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {log.oldLevel || 0}L → {log.newLevel || 0}L • By {log.updatedBy || 'Unknown User'}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <div className="text-xs text-gray-500">
-                                  {log.updatedAt ? (
-                                    log.updatedAt.toDate ? 
-                                      log.updatedAt.toDate().toLocaleString() :
-                                      new Date(log.updatedAt).toLocaleString()
-                                  ) : 'Unknown date'}
-                                </div>
-                                {log.photos && Object.keys(log.photos).length > 0 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    <ImageIcon className="h-3 w-3 mr-1" />
-                                    {Object.keys(log.photos).length} photo{Object.keys(log.photos).length !== 1 ? 's' : ''}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedLog(log);
-                              setShowLogModal(true);
-                            }}
-                            className="flex items-center gap-1"
-                          >
-                            <Eye className="h-4 w-4" />
-                            View Details
-                          </Button>
+                {/* Search Results */}
+                {(() => {
+                  if (!hasSearchedLogs) {
+                    return (
+                      <div className="text-center py-12 text-gray-500">
+                        <Search className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                        <h3 className="text-lg font-medium mb-2">Search Tank Update Logs</h3>
+                        <p className="mb-4">Enter search criteria above and click "Search Logs" to find specific log entries.</p>
+                        <p className="text-sm text-gray-400">
+                          Tip: Use date ranges for better performance and more targeted results
+                        </p>
+                      </div>
+                    );
+                  }
+
+                  if (searchLogs.length === 0) {
+                    return (
+                      <div className="text-center py-8 text-gray-500">
+                        <Calendar className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                        <p>No logs found matching your search criteria.</p>
+                        <p className="text-sm mt-2">Try adjusting your filters or expanding the date range.</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="text-sm text-gray-600 mb-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                          Found {searchLogs.length} log entries
+                          {logsSearchFilters.startDate && logsSearchFilters.endDate && (
+                            <span> from {logsSearchFilters.startDate} to {logsSearchFilters.endDate}</span>
+                          )}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <Calendar className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500">
-                      {updateLogs.length === 0 ? 'No update logs found' : 'No logs match the current filters'}
-                    </p>
-                  </div>
-                )}
+
+                      <div className="max-h-96 overflow-y-auto space-y-3 border rounded-lg p-4 bg-gray-50">
+                        {searchLogs.map((log) => (
+                          <div key={log.id} className="p-4 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <div className="w-3 h-3 bg-purple-600 rounded-full"></div>
+                                  <div>
+                                    <p className="font-medium text-sm">
+                                      {log.branchName || 'Unknown Branch'} • {log.oilTypeName || 'Unknown Oil Type'}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Level Change: {log.oldLevel || 0}L → {log.newLevel || 0}L 
+                                      <span className={`ml-2 px-1.5 py-0.5 rounded text-xs font-medium ${
+                                        (log.newLevel || 0) > (log.oldLevel || 0) 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {(log.newLevel || 0) > (log.oldLevel || 0) ? '+' : ''}{((log.newLevel || 0) - (log.oldLevel || 0))}L
+                                      </span>
+                                    </p>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3" />
+                                    Updated by: {log.updatedBy || 'Unknown User'}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {log.updatedAt ? (
+                                      log.updatedAt.toDate ? 
+                                        log.updatedAt.toDate().toLocaleString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        }) :
+                                        new Date(log.updatedAt).toLocaleString('en-US', {
+                                          month: 'short',
+                                          day: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit'
+                                        })
+                                    ) : 'Unknown date'}
+                                  </div>
+                                  {log.photos && Object.keys(log.photos).length > 0 && (
+                                    <Badge variant="outline" className="text-xs px-2">
+                                      <ImageIcon className="h-3 w-3 mr-1" />
+                                      {Object.keys(log.photos).length} photo{Object.keys(log.photos).length !== 1 ? 's' : ''}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {(log.notes || log.reason) && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+                                    {log.reason && (
+                                      <div><span className="font-medium">Reason:</span> {log.reason}</div>
+                                    )}
+                                    {log.notes && (
+                                      <div><span className="font-medium">Notes:</span> {log.notes}</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedLog(log);
+                                  setShowLogModal(true);
+                                }}
+                                className="flex items-center gap-1 ml-4"
+                                data-testid={`button-view-log-${log.id}`}
+                              >
+                                <Eye className="h-4 w-4" />
+                                View Details
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
