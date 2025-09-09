@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOutIcon, TruckIcon, DropletIcon, ClockIcon, EyeIcon, Calendar, User, XIcon, DownloadCloudIcon, AlertTriangleIcon, PlusIcon, CameraIcon, GaugeIcon } from "lucide-react";
+import { LogOutIcon, TruckIcon, DropletIcon, ClockIcon, EyeIcon, Calendar, User, XIcon, DownloadCloudIcon, AlertTriangleIcon, PlusIcon, CameraIcon, GaugeIcon, FileTextIcon, MessageCircleIcon, UserIcon, AlertCircleIcon, CheckCircleIcon, FileIcon, DownloadIcon } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { LoadingWorkflow } from "@/components/LoadingWorkflow";
 import { SupplyWorkflow } from "@/components/SupplyWorkflow";
@@ -53,6 +53,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
   const [showComplaintModal, setShowComplaintModal] = useState(false);
   const [showCreateComplaintModal, setShowCreateComplaintModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<any>(null);
+  const [isRefreshingComplaint, setIsRefreshingComplaint] = useState(false);
   const [complaintForm, setComplaintForm] = useState({
     title: '',
     description: '',
@@ -62,6 +63,59 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
     location: '',
     branchName: ''
   });
+
+  // Auto-refresh complaint when modal is open
+  useEffect(() => {
+    let refreshInterval: NodeJS.Timeout;
+    
+    if (showComplaintModal && selectedComplaint) {
+      // Refresh complaint data every 30 seconds when modal is open
+      refreshInterval = setInterval(async () => {
+        await refreshComplaintData();
+      }, 30000); // Refresh every 30 seconds
+    }
+
+    return () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval);
+      }
+    };
+  }, [showComplaintModal, selectedComplaint, user]);
+
+  // Function to refresh complaint data with loading indicator
+  const refreshComplaintData = async () => {
+    try {
+      setIsRefreshingComplaint(true);
+      const userId = user?.id || (user as any)?.uid;
+      if (userId) {
+        const userComplaints = await getUserComplaints(userId);
+        const updatedComplaint = userComplaints?.find((c: any) => c.id === selectedComplaint?.id);
+        if (updatedComplaint) {
+          // Check if there are any new updates
+          const hasNewUpdates = 
+            updatedComplaint.comments?.length !== selectedComplaint?.comments?.length ||
+            updatedComplaint.status !== selectedComplaint?.status ||
+            updatedComplaint.documents?.length !== selectedComplaint?.documents?.length;
+
+          setSelectedComplaint(updatedComplaint);
+          setComplaints(userComplaints || []);
+
+          // Show notification if there are new updates
+          if (hasNewUpdates) {
+            toast({
+              title: "Complaint Updated",
+              description: "New updates have been added to your complaint",
+              duration: 3000
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing complaint:', error);
+    } finally {
+      setIsRefreshingComplaint(false);
+    }
+  };
 
   useEffect(() => {
     loadDeliveries();
@@ -1307,11 +1361,21 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => loadComplaints()}
+                      onClick={() => refreshComplaintData()}
+                      disabled={isRefreshingComplaint}
                       className="text-xs"
                       data-testid="button-refresh-complaint"
                     >
-                      🔄 Refresh
+                      {isRefreshingComplaint ? (
+                        <>
+                          <ClockIcon className="h-3 w-3 mr-1 animate-spin" />
+                          Refreshing...
+                        </>
+                      ) : (
+                        <>
+                          🔄 Refresh
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
