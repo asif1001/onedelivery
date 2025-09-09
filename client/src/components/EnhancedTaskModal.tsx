@@ -16,7 +16,10 @@ import {
   AlertCircleIcon,
   CheckCircleIcon,
   XCircleIcon,
-  Loader2Icon
+  Loader2Icon,
+  DownloadIcon,
+  ImageIcon,
+  FileIcon
 } from "lucide-react";
 
 interface TaskComment {
@@ -51,6 +54,12 @@ interface Task {
   updatedAt: Date;
   comments?: TaskComment[];
   documents?: TaskDocument[];
+  attachments?: Array<{
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+  }>;
   lastUpdated?: Date;
   updatedBy?: string;
 }
@@ -145,6 +154,23 @@ function EnhancedTaskModal({
       case 'document_upload': return <FileTextIcon className="h-4 w-4 text-green-500" />;
       default: return <MessageCircleIcon className="h-4 w-4 text-gray-500" />;
     }
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const downloadFile = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -306,36 +332,85 @@ function EnhancedTaskModal({
               </CardContent>
             </Card>
 
+            {/* Task Attachments */}
+            {task.attachments && task.attachments.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileIcon className="h-5 w-5" />
+                    Task Attachments ({task.attachments.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {task.attachments.map((attachment, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <div className="flex items-center gap-2">
+                          {attachment.type.startsWith('image/') ? (
+                            <ImageIcon className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <FileIcon className="h-4 w-4 text-blue-600" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{attachment.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadFile(attachment.url, attachment.name)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <DownloadIcon className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Documents */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <FileTextIcon className="h-5 w-5" />
-                  Documents ({task.documents?.length || 0})
+                  Additional Documents ({task.documents?.length || 0})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {task.documents && task.documents.length > 0 ? (
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {task.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                        <FileTextIcon className="h-4 w-4 text-blue-500" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{doc.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {doc.uploadedBy} • {formatDate(doc.uploadedAt)}
-                          </p>
+                      <div key={doc.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          <FileTextIcon className="h-4 w-4 text-blue-500" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{doc.name}</p>
+                            <p className="text-xs text-gray-500">
+                              {doc.uploadedBy} • {formatDate(doc.uploadedAt)}
+                            </p>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadFile(doc.url, doc.name)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <DownloadIcon className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-500 text-sm">No documents uploaded</p>
+                  <p className="text-gray-500 text-sm">No additional documents uploaded</p>
                 )}
 
                 {/* Upload Documents */}
                 <div className="pt-3 border-t">
-                  <Label className="text-sm font-medium">Upload Documents</Label>
+                  <Label className="text-sm font-medium">Upload Additional Documents</Label>
                   <Input
                     type="file"
                     multiple
