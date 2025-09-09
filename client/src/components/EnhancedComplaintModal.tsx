@@ -307,7 +307,7 @@ function EnhancedComplaintModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-7xl max-h-[95vh] w-[95vw] overflow-y-auto">
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
             <div>
@@ -336,9 +336,9 @@ function EnhancedComplaintModal({
           </div>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
           {/* Main Complaint Details */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="xl:col-span-2 space-y-4">
             {/* Complaint Info */}
             <Card>
               <CardHeader>
@@ -588,20 +588,26 @@ function EnhancedComplaintModal({
               </CardHeader>
               <CardContent className="space-y-3">
                 {complaint.documents && complaint.documents.length > 0 ? (
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
                     {complaint.documents.map((doc) => (
-                      <div key={doc.id} className="flex items-center gap-2 p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                        {getFileIcon(doc.type)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate" title={doc.name}>{doc.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {doc.uploadedBy} • {formatDate(doc.uploadedAt)}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {(doc.size / 1024).toFixed(1)} KB • {doc.type}
-                          </p>
+                      <div key={doc.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors border">
+                        <div className="mt-1">
+                          {getFileIcon(doc.type)}
                         </div>
-                        <div className="flex items-center gap-1">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <p className="text-sm font-medium break-words" title={doc.name}>{doc.name}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            <span>{doc.uploadedBy}</span>
+                            <span>•</span>
+                            <span>{formatDate(doc.uploadedAt)}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-400">
+                            <span>{(doc.size / 1024).toFixed(1)} KB</span>
+                            <span>•</span>
+                            <span className="break-all">{doc.type}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <Button
                             size="sm"
                             variant="outline"
