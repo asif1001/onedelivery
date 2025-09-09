@@ -3791,26 +3791,50 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
           </div>
 
           {/* Tasks List */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileTextIcon className="h-5 w-5 mr-2" />
-                All Tasks
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {tasks.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <FileTextIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                    <p>No tasks available</p>
-                  </div>
-                ) : (
-                  tasks.map((task: any) => (
-                    <div key={task.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <h3 className="font-semibold text-lg">{task.title}</h3>
+          <div>
+            <div className="flex items-center mb-6">
+              <FileTextIcon className="h-5 w-5 mr-2" />
+              <h3 className="text-lg font-semibold">All Tasks</h3>
+            </div>
+            
+            {tasks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileTextIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No tasks available</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {tasks.map((task: any) => (
+                  <Card key={task.id} className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                            <FileTextIcon className="h-5 w-5 text-green-600" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">{task.title}</CardTitle>
+                            <p className="text-sm text-gray-600">Assigned to: {task.assignedTo || 'Unassigned'}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setSelectedTaskForDetails(task);
+                            setShowEnhancedTaskModal(true);
+                          }}
+                          className="flex items-center gap-1"
+                        >
+                          <SettingsIcon className="h-4 w-4" />
+                          Manage
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Status:</span>
                           <Badge variant={
                             task.status === 'completed' ? 'default' : 
                             task.status === 'in-progress' ? 'secondary' : 
@@ -3818,39 +3842,31 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           }>
                             {task.status}
                           </Badge>
+                        </div>
+                        
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium">Priority:</span>
                           <Badge variant="outline" className={
                             task.priority === 'high' ? 'border-red-200 text-red-800 bg-red-50' :
                             task.priority === 'medium' ? 'border-yellow-200 text-yellow-800 bg-yellow-50' :
                             'border-green-200 text-green-800 bg-green-50'
                           }>
-                            {task.priority} priority
+                            {task.priority}
                           </Badge>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedTaskForDetails(task);
-                              setShowEnhancedTaskModal(true);
-                            }}
-                            className="flex items-center gap-1"
-                          >
-                            <SettingsIcon className="h-4 w-4" />
-                            Manage
-                          </Button>
-                        </div>
-                      </div>
-                      
-                      <p className="text-gray-600 mb-3">{task.description}</p>
-                      
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <div className="flex items-center gap-4">
-                          <span>Assigned to: {task.assignedTo || 'Unassigned'}</span>
-                          {task.dueDate && (
-                            <span className="flex items-center gap-1">
-                              <CalendarIcon className="h-4 w-4" />
-                              Due: {(() => {
+                        
+                        {task.description && (
+                          <div>
+                            <span className="text-sm font-medium">Description:</span>
+                            <p className="text-sm text-gray-600 mt-1">{task.description}</p>
+                          </div>
+                        )}
+                        
+                        {task.dueDate && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-medium">Due Date:</span>
+                            <span className="text-sm text-gray-600">
+                              {(() => {
                                 if (task.dueDate.toDate) {
                                   return task.dueDate.toDate().toLocaleDateString();
                                 } else if (task.dueDate instanceof Date) {
@@ -3860,29 +3876,33 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                                 }
                               })()}
                             </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {task.attachments && task.attachments.length > 0 && (
-                            <span className="flex items-center gap-1 text-blue-600">
-                              <PaperclipIcon className="h-4 w-4" />
-                              {task.attachments.length}
-                            </span>
-                          )}
-                          {task.comments && task.comments.length > 0 && (
-                            <span className="flex items-center gap-1 text-green-600">
-                              <MessageCircleIcon className="h-4 w-4" />
-                              {task.comments.length}
-                            </span>
-                          )}
+                          </div>
+                        )}
+                        
+                        <div className="flex justify-between items-center pt-2">
+                          <div className="flex items-center gap-3">
+                            {task.attachments && task.attachments.length > 0 && (
+                              <span className="flex items-center gap-1 text-blue-600 text-sm">
+                                <PaperclipIcon className="h-4 w-4" />
+                                {task.attachments.length}
+                              </span>
+                            )}
+                            {task.comments && task.comments.length > 0 && (
+                              <span className="flex items-center gap-1 text-green-600 text-sm">
+                                <MessageCircleIcon className="h-4 w-4" />
+                                {task.comments.length}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                )}
+                    </CardContent>
+                  </Card>
+                ))
+                }
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
       )}
 
