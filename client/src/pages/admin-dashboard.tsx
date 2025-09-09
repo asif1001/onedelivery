@@ -529,48 +529,57 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
   };
 
-  const handleTaskDocumentUpload = async (taskId: string, file: File) => {
+  const handleTaskDocumentUpload = async (taskId: string, files: FileList) => {
     setUploadingDocument(true);
     try {
-      // This would upload to Firebase Storage
-      // For now, we'll simulate the upload
-      const documentUrl = URL.createObjectURL(file);
-      const document = {
-        id: Date.now().toString(),
-        name: file.name,
-        url: documentUrl,
-        size: file.size,
-        type: file.type,
-        uploadedAt: new Date(),
-        uploadedBy: getUserDisplayName(user) || 'Admin'
-      };
+      const uploadedDocs = [];
+      const logEntries = [];
+      
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        // This would upload to Firebase Storage
+        // For now, we'll simulate the upload
+        const documentUrl = URL.createObjectURL(file);
+        const document = {
+          id: (Date.now() + i).toString(), // Ensure unique IDs
+          name: file.name,
+          url: documentUrl,
+          size: file.size,
+          type: file.type,
+          uploadedAt: new Date(),
+          uploadedBy: getUserDisplayName(user) || 'Admin'
+        };
+        uploadedDocs.push(document);
+
+        // Add to task log
+        const logEntry = {
+          id: (Date.now() + i + 1000).toString(), // Ensure unique IDs
+          type: 'document',
+          content: `Document uploaded: ${file.name}`,
+          timestamp: new Date(),
+          user: getUserDisplayName(user) || 'Admin',
+          documentId: document.id
+        };
+        logEntries.push(logEntry);
+      }
 
       // Update task documents
       const currentDocs = taskDocuments[taskId] || [];
       setTaskDocuments(prev => ({
         ...prev,
-        [taskId]: [...currentDocs, document]
+        [taskId]: [...currentDocs, ...uploadedDocs]
       }));
 
-      // Add to task log
-      const logEntry = {
-        id: Date.now().toString(),
-        type: 'document',
-        content: `Document uploaded: ${file.name}`,
-        timestamp: new Date(),
-        user: getUserDisplayName(user) || 'Admin',
-        documentId: document.id
-      };
-
+      // Update task logs
       const currentLogs = taskLogs[taskId] || [];
       setTaskLogs(prev => ({
         ...prev,
-        [taskId]: [...currentLogs, logEntry]
+        [taskId]: [...currentLogs, ...logEntries]
       }));
 
       toast({
         title: "Success",
-        description: `Document "${file.name}" uploaded successfully`
+        description: `${files.length} document(s) uploaded successfully`
       });
     } catch (error) {
       console.error('Error uploading document:', error);
