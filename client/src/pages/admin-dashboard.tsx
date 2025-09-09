@@ -335,6 +335,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   // Enhanced task and complaint management states
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
   const [showEnhancedTaskModal, setShowEnhancedTaskModal] = useState(false);
+  const [showTaskDetails, setShowTaskDetails] = useState(false);
   const [selectedComplaintForDetails, setSelectedComplaintForDetails] = useState<Complaint | null>(null);
   const [showEnhancedComplaintModal, setShowEnhancedComplaintModal] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -3730,7 +3731,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       </div>
 
       {/* Tasks Management Section */}
-      {activeTab === 'tasks' && (
+      {activeTab === 'tasks' && !showTaskDetails && (
         <div className="space-y-4 lg:space-y-6" style={{ display: 'block' }}>
           <div className="flex items-center justify-between">
             <div>
@@ -3822,7 +3823,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                           variant="outline"
                           onClick={() => {
                             setSelectedTaskForDetails(task);
-                            setShowEnhancedTaskModal(true);
+                            setShowTaskDetails(true);
                           }}
                           className="flex items-center gap-1"
                         >
@@ -3902,6 +3903,136 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 }
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Task Details View */}
+      {activeTab === 'tasks' && showTaskDetails && selectedTaskForDetails && (
+        <div className="space-y-4 lg:space-y-6" style={{ display: 'block' }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTaskDetails(false);
+                  setSelectedTaskForDetails(null);
+                }}
+                className="flex items-center gap-2"
+              >
+                <ChevronLeftIcon className="h-4 w-4" />
+                Back to Tasks
+              </Button>
+              <div>
+                <h2 className={`text-xl lg:text-2xl font-bold ${themeClasses.text}`}>Task Details</h2>
+                <p className={`text-sm lg:text-base ${themeClasses.secondaryText}`}>{selectedTaskForDetails.title}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Task Information */}
+            <div className="lg:col-span-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileTextIcon className="h-5 w-5" />
+                    {selectedTaskForDetails.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium">Status</Label>
+                      <div className="mt-1">
+                        <Badge variant={
+                          selectedTaskForDetails.status === 'completed' ? 'default' : 
+                          selectedTaskForDetails.status === 'in-progress' ? 'secondary' : 
+                          selectedTaskForDetails.status === 'hold' ? 'destructive' : 'outline'
+                        }>
+                          {selectedTaskForDetails.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Priority</Label>
+                      <div className="mt-1">
+                        <Badge variant="outline" className={
+                          selectedTaskForDetails.priority === 'high' ? 'border-red-200 text-red-800 bg-red-50' :
+                          selectedTaskForDetails.priority === 'medium' ? 'border-yellow-200 text-yellow-800 bg-yellow-50' :
+                          'border-green-200 text-green-800 bg-green-50'
+                        }>
+                          {selectedTaskForDetails.priority} priority
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Assigned To</Label>
+                      <p className="text-sm text-gray-600 mt-1">{selectedTaskForDetails.assignedTo || 'Unassigned'}</p>
+                    </div>
+                    {selectedTaskForDetails.dueDate && (
+                      <div>
+                        <Label className="text-sm font-medium">Due Date</Label>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {(() => {
+                            if (selectedTaskForDetails.dueDate.toDate) {
+                              return selectedTaskForDetails.dueDate.toDate().toLocaleDateString();
+                            } else if (selectedTaskForDetails.dueDate instanceof Date) {
+                              return selectedTaskForDetails.dueDate.toLocaleDateString();
+                            } else {
+                              return new Date(selectedTaskForDetails.dueDate).toLocaleDateString();
+                            }
+                          })()} 
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {selectedTaskForDetails.description && (
+                    <div>
+                      <Label className="text-sm font-medium">Description</Label>
+                      <p className="text-sm text-gray-600 mt-1">{selectedTaskForDetails.description}</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Task Actions */}
+            <div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quick Actions</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button 
+                    onClick={() => {
+                      setSelectedTaskForDetails(selectedTaskForDetails);
+                      setShowEnhancedTaskModal(true);
+                    }}
+                    className="w-full"
+                  >
+                    <SettingsIcon className="h-4 w-4 mr-2" />
+                    Manage Task
+                  </Button>
+                  
+                  <div className="text-sm text-gray-500 space-y-2">
+                    {selectedTaskForDetails.attachments && selectedTaskForDetails.attachments.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <PaperclipIcon className="h-4 w-4" />
+                        <span>{selectedTaskForDetails.attachments.length} attachments</span>
+                      </div>
+                    )}
+                    {selectedTaskForDetails.comments && selectedTaskForDetails.comments.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <MessageCircleIcon className="h-4 w-4" />
+                        <span>{selectedTaskForDetails.comments.length} comments</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       )}
