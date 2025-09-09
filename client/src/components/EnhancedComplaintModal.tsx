@@ -192,36 +192,81 @@ function EnhancedComplaintModal({
   // Document download and view functions
   const handleDownloadDocument = async (doc: ComplaintDocument) => {
     try {
-      // For Firebase Storage URLs, we can directly download
-      const response = await fetch(doc.url);
+      console.log('Downloading document:', doc.name, doc.url);
+      
+      // For Firebase Storage URLs, use a more robust approach
+      const response = await fetch(doc.url, {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Accept': '*/*',
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const blob = await response.blob();
+      console.log('Downloaded blob:', blob.type, blob.size);
       
       // Create download link
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = doc.name;
+      link.download = doc.name || 'download';
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       
       // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(downloadUrl);
+      }, 100);
+      
     } catch (error) {
       console.error('Error downloading document:', error);
-      // Fallback: open in new tab
-      window.open(doc.url, '_blank');
+      // Fallback: try direct download with different approach
+      try {
+        const link = document.createElement('a');
+        link.href = doc.url;
+        link.download = doc.name || 'download';
+        link.target = '_blank';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (fallbackError) {
+        console.error('Fallback download failed:', fallbackError);
+        // Last resort: open in new tab
+        window.open(doc.url, '_blank', 'noopener,noreferrer');
+      }
     }
   };
 
   const handleViewDocument = (doc: ComplaintDocument) => {
-    const fileType = doc.type.toLowerCase();
-    
-    // For images, PDFs, and text files that can be viewed in browser
-    if (fileType.includes('image') || fileType.includes('pdf') || fileType.includes('text')) {
-      window.open(doc.url, '_blank');
-    } else {
-      // For other file types, download them
+    try {
+      console.log('Viewing document:', doc.name, doc.type, doc.url);
+      
+      // Open in new tab with proper security attributes
+      const newWindow = window.open(doc.url, '_blank', 'noopener,noreferrer');
+      
+      if (!newWindow) {
+        console.warn('Popup blocked, trying alternative approach');
+        // If popup is blocked, try alternative approach
+        const link = document.createElement('a');
+        link.href = doc.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error) {
+      console.error('Error viewing document:', error);
+      // Fallback to download
       handleDownloadDocument(doc);
     }
   };
