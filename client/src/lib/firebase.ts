@@ -1922,6 +1922,7 @@ export const saveTask = async (taskData: any) => {
       assignedToName: taskData.assignedToName || '', // Enhanced: Save display name
       createdBy: taskData.createdBy || '',
       createdByName: taskData.createdByName || '', // Enhanced: Save creator display name
+      attachments: taskData.attachments || [], // File attachments array
       id: taskRef.id,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),

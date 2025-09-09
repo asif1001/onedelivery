@@ -19,8 +19,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PlusIcon, CalendarIcon } from "lucide-react";
+import { PlusIcon, CalendarIcon, Upload, X, FileIcon, ImageIcon } from "lucide-react";
 import { AppUser } from "@shared/schema";
+import { uploadPhotoToFirebaseStorage } from "@/lib/firebase";
 
 interface CreateTask {
   title: string;
@@ -28,16 +29,29 @@ interface CreateTask {
   priority: 'low' | 'medium' | 'high';
   dueDate: Date;
   assignedTo?: string;
+  attachments?: Array<{
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+  }>;
 }
 
 interface TaskCreationDialogProps {
   onAdd: (taskData: CreateTask) => Promise<void>;
-  drivers: AppUser[];
+  allUsers: AppUser[];
 }
 
-export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialogProps) {
+export default function TaskCreationDialog({ onAdd, allUsers }: TaskCreationDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{
+    name: string;
+    url: string;
+    type: string;
+    size: number;
+  }>>([]);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -65,7 +79,8 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
         description: formData.description,
         priority: formData.priority,
         dueDate: new Date(formData.dueDate),
-        assignedTo: formData.assignedTo || undefined
+        assignedTo: formData.assignedTo || undefined,
+        attachments: attachments
       });
       
       setFormData({
@@ -75,6 +90,7 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
         dueDate: '',
         assignedTo: ''
       });
+      setAttachments([]);
       setOpen(false);
     } catch (error) {
       console.error('Error creating task:', error);
@@ -85,6 +101,63 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        console.log('Uploading file:', file.name);
+        const downloadURL = await uploadPhotoToFirebaseStorage(file, 'tasks/attachments');
+        
+        const newAttachment = {
+          name: file.name,
+          url: downloadURL,
+          type: file.type,
+          size: file.size
+        };
+        
+        setAttachments(prev => [...prev, newAttachment]);
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+    } finally {
+      setUploading(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  const getUserDisplayName = (user: AppUser) => {
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user.displayName || user.email;
+  };
+
+  const getRoleDisplay = (role: string) => {
+    switch (role) {
+      case 'admin': return 'Admin';
+      case 'driver': return 'Driver';
+      case 'branch_user': return 'Branch User';
+      case 'warehouse': return 'Warehouse';
+      default: return role;
     }
   };
 
@@ -192,22 +265,89 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="assignedTo">Assign to Driver (Optional)</Label>
+              <Label htmlFor="assignedTo">Assign to User (Optional)</Label>
               <Select 
                 value={formData.assignedTo} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, assignedTo: value }))}
               >
-                <SelectTrigger data-testid="select-task-driver">
-                  <SelectValue placeholder="Select driver" />
+                <SelectTrigger data-testid="select-task-user">
+                  <SelectValue placeholder="Select user to assign task" />
                 </SelectTrigger>
                 <SelectContent>
-                  {drivers.map((driver) => (
-                    <SelectItem key={driver.uid} value={driver.uid}>
-                      {driver.firstName && driver.lastName ? `${driver.firstName} ${driver.lastName}` : driver.displayName || driver.email} ({driver.email})
+                  {allUsers.map((user) => (
+                    <SelectItem key={user.uid} value={user.uid}>
+                      <div className="flex items-center justify-between w-full">
+                        <span>{getUserDisplayName(user)}</span>
+                        <span className="text-xs bg-gray-100 px-2 py-1 rounded ml-2">
+                          {getRoleDisplay(user.role)}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            
+            {/* File Upload Section */}
+            <div className="space-y-2">
+              <Label>Attachments (Optional)</Label>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
+                <div className="text-center">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="file-upload"
+                    accept="image/*,.pdf,.doc,.docx,.txt"
+                  />
+                  <label
+                    htmlFor="file-upload"
+                    className="cursor-pointer flex flex-col items-center gap-2"
+                  >
+                    <Upload className="h-8 w-8 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      {uploading ? 'Uploading...' : 'Click to upload documents or photos'}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Supports: Images, PDF, Word documents, Text files
+                    </span>
+                  </label>
+                </div>
+              </div>
+              
+              {/* Display uploaded attachments */}
+              {attachments.length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Uploaded Files:</Label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto">
+                    {attachments.map((attachment, index) => (
+                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded border">
+                        <div className="flex items-center gap-2">
+                          {attachment.type.startsWith('image/') ? (
+                            <ImageIcon className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <FileIcon className="h-4 w-4 text-blue-600" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium">{attachment.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeAttachment(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           
@@ -222,10 +362,10 @@ export default function TaskCreationDialog({ onAdd, drivers }: TaskCreationDialo
             </Button>
             <Button 
               type="submit" 
-              disabled={loading}
+              disabled={loading || uploading}
               data-testid="button-create-task"
             >
-              {loading ? 'Creating...' : 'Create Task'}
+              {loading ? 'Creating...' : uploading ? 'Uploading Files...' : 'Create Task'}
             </Button>
           </DialogFooter>
         </form>
