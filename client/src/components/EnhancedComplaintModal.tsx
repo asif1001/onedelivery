@@ -525,8 +525,12 @@ function EnhancedComplaintModal({
                     value={selectedStatus}
                     onValueChange={handleStatusChange}
                     disabled={isUpdating}
+                    onOpenChange={(open) => console.log('📋 Dropdown opened:', open)}
                   >
-                    <SelectTrigger className="mt-1">
+                    <SelectTrigger 
+                      className="mt-1"
+                      onClick={() => console.log('🖱️ Dropdown trigger clicked')}
+                    >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
