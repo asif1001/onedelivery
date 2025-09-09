@@ -4086,6 +4086,139 @@ export default function WarehouseDashboard() {
               <CardContent>
                 {/* Enhanced Search Interface */}
                 <div className="space-y-4 mb-6">
+                  {/* Quick Date Presets */}
+                  <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                    <label className="text-xs font-medium text-gray-700 mb-2 block">Quick Date Ranges</label>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date().toISOString().split('T')[0];
+                          setLogsSearchFilters(prev => ({ ...prev, startDate: today, endDate: today }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Today
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const yesterday = new Date();
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          const dateStr = yesterday.toISOString().split('T')[0];
+                          setLogsSearchFilters(prev => ({ ...prev, startDate: dateStr, endDate: dateStr }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Yesterday
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
+                          const weekEnd = new Date();
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: weekStart.toISOString().split('T')[0],
+                            endDate: weekEnd.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        This Week
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                          const monthEnd = new Date();
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: monthStart.toISOString().split('T')[0],
+                            endDate: monthEnd.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        This Month
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const lastWeekStart = new Date(today.setDate(today.getDate() - today.getDay() - 7));
+                          const lastWeekEnd = new Date(today.setDate(today.getDate() + 6));
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: lastWeekStart.toISOString().split('T')[0],
+                            endDate: lastWeekEnd.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Last Week
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+                          const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: lastMonthStart.toISOString().split('T')[0],
+                            endDate: lastMonthEnd.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Last Month
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const last7Days = new Date();
+                          last7Days.setDate(today.getDate() - 7);
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: last7Days.toISOString().split('T')[0],
+                            endDate: today.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Last 7 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const today = new Date();
+                          const last30Days = new Date();
+                          last30Days.setDate(today.getDate() - 30);
+                          setLogsSearchFilters(prev => ({ 
+                            ...prev, 
+                            startDate: last30Days.toISOString().split('T')[0],
+                            endDate: today.toISOString().split('T')[0]
+                          }));
+                        }}
+                        className="text-xs hover:bg-purple-100 border-purple-300"
+                      >
+                        Last 30 Days
+                      </Button>
+                    </div>
+                  </div>
+
                   {/* Date Range and Primary Filters */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg border">
                     <div>
