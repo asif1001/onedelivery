@@ -1280,9 +1280,9 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
         </DialogContent>
       </Dialog>
 
-      {/* View Complaint Modal */}
+      {/* Enhanced User Complaint View Modal */}
       <Dialog open={showComplaintModal} onOpenChange={setShowComplaintModal}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
           {selectedComplaint && (
             <div className="space-y-6">
               <DialogHeader>
@@ -1290,95 +1290,291 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                   <div>
                     <DialogTitle className="text-xl">{selectedComplaint.title}</DialogTitle>
                     <DialogDescription>
-                      Complaint #{selectedComplaint.id} • Reported on {selectedComplaint.createdAt?.toDate ? selectedComplaint.createdAt.toDate().toLocaleDateString() : 'Unknown date'}
+                      Complaint #{selectedComplaint.complaintId || selectedComplaint.id} • Reported on {selectedComplaint.createdAt?.toDate ? selectedComplaint.createdAt.toDate().toLocaleDateString() : 'Unknown date'}
                     </DialogDescription>
                   </div>
                   <div className="flex space-x-2">
                     <Badge 
                       variant={selectedComplaint.status === 'open' ? 'destructive' : 
-                               selectedComplaint.status === 'in-progress' ? 'default' : 'secondary'}
+                               selectedComplaint.status === 'in-progress' ? 'default' : 
+                               selectedComplaint.status === 'resolved' ? 'secondary' : 'outline'}
                     >
-                      {selectedComplaint.status}
+                      {selectedComplaint.status?.replace('-', ' ') || 'Open'}
                     </Badge>
                     <Badge variant="outline">
-                      {selectedComplaint.priority}
+                      {selectedComplaint.priority || 'Medium'}
                     </Badge>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => loadComplaints()}
+                      className="text-xs"
+                      data-testid="button-refresh-complaint"
+                    >
+                      🔄 Refresh
+                    </Button>
                   </div>
                 </div>
               </DialogHeader>
 
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Description</Label>
-                  <p className="mt-1">{selectedComplaint.description}</p>
-                </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Main Content */}
+                <div className="lg:col-span-2 space-y-6">
+                  {/* Original Complaint Details */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <FileTextIcon className="h-4 w-4 mr-2 text-blue-600" />
+                        Original Complaint Details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">Description</Label>
+                        <p className="mt-1 text-sm">{selectedComplaint.description}</p>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Category</Label>
-                    <p className="mt-1 capitalize">{selectedComplaint.category}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Priority</Label>
-                    <p className="mt-1 capitalize">{selectedComplaint.priority}</p>
-                  </div>
-                </div>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <Label className="text-xs font-medium text-gray-500">Category</Label>
+                          <p className="capitalize">{selectedComplaint.category}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-gray-500">Priority</Label>
+                          <p className="capitalize">{selectedComplaint.priority}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-gray-500">Location</Label>
+                          <p>{selectedComplaint.location || 'Not specified'}</p>
+                        </div>
+                        <div>
+                          <Label className="text-xs font-medium text-gray-500">Branch</Label>
+                          <p>{selectedComplaint.branchName || 'Not specified'}</p>
+                        </div>
+                      </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Status</Label>
-                    <p className="mt-1 capitalize">{selectedComplaint.status.replace('-', ' ')}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Last Updated</Label>
-                    <p className="mt-1">{selectedComplaint.updatedAt?.toDate ? selectedComplaint.updatedAt.toDate().toLocaleDateString() : 'Unknown date'}</p>
-                  </div>
-                </div>
-
-                {selectedComplaint.resolution && (
-                  <div className="pt-4 border-t">
-                    <Label className="text-sm font-medium text-gray-600">Resolution</Label>
-                    <div className="mt-1 p-3 bg-green-50 border border-green-200 rounded">
-                      <p>{selectedComplaint.resolution}</p>
-                      {selectedComplaint.resolvedAt && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Resolved on {selectedComplaint.resolvedAt.toDate ? selectedComplaint.resolvedAt.toDate().toLocaleString() : 'Unknown date'}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {selectedComplaint.watermarkedPhotos && selectedComplaint.watermarkedPhotos.length > 0 && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">
-                      Photo Evidence ({selectedComplaint.watermarkedPhotos.length})
-                    </Label>
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      {selectedComplaint.watermarkedPhotos.map((photo: string, index: number) => (
-                        <div key={index} className="relative group">
-                          <img 
-                            src={photo} 
-                            alt={`Evidence ${index + 1}`}
-                            className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => {
-                              console.log('Photo clicked:', photo, `Evidence ${index + 1}`);
-                              setSelectedPhoto({
-                                url: photo,
-                                label: `Evidence ${index + 1}`
-                              });
-                              setShowPhotoModal(true);
-                            }}
-                            data-testid={`complaint-photo-${index}`}
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center pointer-events-none">
-                            <EyeIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                      {/* Original Photos */}
+                      {selectedComplaint.watermarkedPhotos && selectedComplaint.watermarkedPhotos.length > 0 && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-600">
+                            Original Photos ({selectedComplaint.watermarkedPhotos.length})
+                          </Label>
+                          <div className="grid grid-cols-4 gap-2 mt-2">
+                            {selectedComplaint.watermarkedPhotos.map((photo: string, index: number) => (
+                              <div key={index} className="relative group">
+                                <img 
+                                  src={photo} 
+                                  alt={`Evidence ${index + 1}`}
+                                  className="w-full h-16 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={() => {
+                                    setSelectedPhoto({
+                                      url: photo,
+                                      label: `Evidence ${index + 1}`
+                                    });
+                                    setShowPhotoModal(true);
+                                  }}
+                                  data-testid={`complaint-photo-${index}`}
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center pointer-events-none">
+                                  <EyeIcon className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Comments and Updates History */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <MessageCircleIcon className="h-4 w-4 mr-2 text-green-600" />
+                        Updates & Communication
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4 max-h-80 overflow-y-auto">
+                        {selectedComplaint.comments && selectedComplaint.comments.length > 0 ? (
+                          selectedComplaint.comments
+                            .sort((a: any, b: any) => {
+                              const aTime = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                              const bTime = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                              return aTime.getTime() - bTime.getTime();
+                            })
+                            .map((comment: any, index: number) => (
+                            <div key={comment.id || index} className="p-3 rounded-lg border-l-4 bg-gray-50 border-l-blue-500">
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center space-x-2">
+                                  <UserIcon className="h-4 w-4 text-gray-600" />
+                                  <span className="font-medium text-sm text-gray-900">
+                                    {comment.author || 'System'}
+                                  </span>
+                                  {comment.type === 'status_change' && (
+                                    <Badge variant="outline" className="text-xs">Status Update</Badge>
+                                  )}
+                                  {comment.type === 'document_upload' && (
+                                    <Badge variant="outline" className="text-xs">Document Added</Badge>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-500">
+                                  {comment.timestamp?.toDate ? 
+                                    comment.timestamp.toDate().toLocaleString() : 
+                                    new Date(comment.timestamp || 0).toLocaleString()
+                                  }
+                                </span>
+                              </div>
+                              <p className="text-sm text-gray-700 leading-relaxed">{comment.text}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <MessageCircleIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">No updates yet</p>
+                            <p className="text-xs">Admin updates will appear here</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Sidebar - Status & Documents */}
+                <div className="space-y-6">
+                  {/* Status Information */}
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <AlertCircleIcon className="h-4 w-4 mr-2 text-orange-600" />
+                        Status Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Current Status</span>
+                          <Badge 
+                            variant={selectedComplaint.status === 'open' ? 'destructive' : 
+                                     selectedComplaint.status === 'in-progress' ? 'default' : 
+                                     selectedComplaint.status === 'resolved' ? 'secondary' : 'outline'}
+                            className="text-xs"
+                          >
+                            {selectedComplaint.status?.replace('-', ' ') || 'Open'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Priority</span>
+                          <Badge variant="outline" className="text-xs">
+                            {selectedComplaint.priority || 'Medium'}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Last Updated</span>
+                          <span className="text-gray-900">
+                            {selectedComplaint.lastUpdated?.toDate ? 
+                              selectedComplaint.lastUpdated.toDate().toLocaleDateString() : 
+                              selectedComplaint.updatedAt?.toDate ? 
+                              selectedComplaint.updatedAt.toDate().toLocaleDateString() : 
+                              'Unknown date'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Resolution Information */}
+                  {(selectedComplaint.resolution || selectedComplaint.status === 'resolved' || selectedComplaint.status === 'closed') && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center">
+                          <CheckCircleIcon className="h-4 w-4 mr-2 text-green-600" />
+                          Resolution
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {selectedComplaint.resolution ? (
+                          <div className="p-3 bg-green-50 border border-green-200 rounded">
+                            <p className="text-sm text-green-900">{selectedComplaint.resolution}</p>
+                            {selectedComplaint.resolvedAt && (
+                              <p className="text-xs text-green-700 mt-2">
+                                Resolved on {selectedComplaint.resolvedAt.toDate ? 
+                                  selectedComplaint.resolvedAt.toDate().toLocaleString() : 'Unknown date'}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-600">Complaint marked as {selectedComplaint.status}</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Documents Added by Admin */}
+                  {selectedComplaint.documents && selectedComplaint.documents.length > 0 && (
+                    <Card>
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center">
+                          <FileIcon className="h-4 w-4 mr-2 text-purple-600" />
+                          Documents ({selectedComplaint.documents.length})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          {selectedComplaint.documents.map((doc: any, index: number) => (
+                            <div key={doc.id || index} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50">
+                              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                <FileIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {doc.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Added by {doc.uploadedBy || 'Admin'}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-1 flex-shrink-0">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (doc.url) {
+                                      window.open(doc.url, '_blank');
+                                    }
+                                  }}
+                                  className="h-6 w-6 p-0"
+                                  data-testid={`button-view-document-${index}`}
+                                >
+                                  <EyeIcon className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (doc.url) {
+                                      const link = document.createElement('a');
+                                      link.href = doc.url;
+                                      link.download = doc.name;
+                                      document.body.appendChild(link);
+                                      link.click();
+                                      document.body.removeChild(link);
+                                    }
+                                  }}
+                                  className="h-6 w-6 p-0"
+                                  data-testid={`button-download-document-${index}`}
+                                >
+                                  <DownloadIcon className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
             </div>
           )}
