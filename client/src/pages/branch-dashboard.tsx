@@ -35,7 +35,11 @@ import {
   MessageSquareIcon,
   XIcon,
   GalleryVerticalIcon,
-  CheckIcon
+  CheckIcon,
+  UserIcon,
+  FileTextIcon,
+  CheckCircleIcon,
+  DownloadIcon
 } from "lucide-react";
 import { 
   getActiveBranchesOnly,
@@ -2843,90 +2847,298 @@ export default function BranchDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Complaint Details Dialog */}
+      {/* Enhanced Complaint Details Dialog for Branch Users */}
       <Dialog open={showComplaintDetailsDialog} onOpenChange={setShowComplaintDetailsDialog}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Complaint Details</DialogTitle>
-            <DialogDescription>
-              Detailed view of your complaint and its current status
-            </DialogDescription>
-          </DialogHeader>
-          
-          {selectedComplaintForView && (
-            <div className="space-y-4">
-              <div className="flex justify-between items-start">
-                <div>
-                  <h3 className="text-xl font-semibold">Complaint #{selectedComplaintForView.complaintNumber || 'N/A'} - {selectedComplaintForView.title}</h3>
-                  <p className="text-sm text-gray-600">
-                    Submitted on {formatComplaintDate(selectedComplaintForView.createdAt, true)}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Badge 
-                    variant={
-                      selectedComplaintForView.status === 'open' ? 'destructive' : 
-                      selectedComplaintForView.status === 'in-progress' ? 'default' : 
-                      selectedComplaintForView.status === 'resolved' ? 'secondary' : 'outline'
-                    }
-                  >
-                    {selectedComplaintForView.status?.replace('-', ' ') || 'unknown'}
-                  </Badge>
-                  <Badge variant="outline" className="capitalize">
-                    {selectedComplaintForView.priority}
-                  </Badge>
-                </div>
+            <div className="flex justify-between items-start">
+              <div>
+                <DialogTitle className="text-xl">{selectedComplaintForView?.title}</DialogTitle>
+                <DialogDescription>
+                  Complaint #{selectedComplaintForView?.complaintId || selectedComplaintForView?.complaintNumber || selectedComplaintForView?.id} • Submitted on {formatComplaintDate(selectedComplaintForView?.createdAt, true)}
+                </DialogDescription>
               </div>
-              
-              <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium text-gray-600">Description</Label>
-                  <p className="mt-1 p-3 bg-gray-50 rounded border text-sm">{selectedComplaintForView.description}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Branch</Label>
-                    <p className="mt-1">{selectedComplaintForView.branchName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Priority</Label>
-                    <p className="mt-1 capitalize">{selectedComplaintForView.priority}</p>
-                  </div>
-                </div>
-                
-                {selectedComplaintForView.resolutionNotes && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600">Resolution Notes</Label>
-                    <p className="mt-1 p-3 bg-green-50 rounded border text-sm">{selectedComplaintForView.resolutionNotes}</p>
-                  </div>
-                )}
-                
-                {selectedComplaintForView.photos && selectedComplaintForView.photos.length > 0 && (
-                  <div>
-                    <Label className="text-sm font-medium text-gray-600 block mb-2">Photos</Label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {selectedComplaintForView.photos.map((photoUrl: string, photoIndex: number) => (
-                        <div key={photoIndex} className="relative group cursor-pointer"
-                             onClick={() => {
-                               setSelectedPhoto({
-                                 url: photoUrl,
-                                 label: `Complaint Photo ${photoIndex + 1}`
-                               });
-                               setShowPhotoModal(true);
-                             }}>
-                          <img 
-                            src={photoUrl} 
-                            alt={`Complaint photo ${photoIndex + 1}`} 
-                            className="w-full h-20 object-cover rounded border hover:opacity-90 transition-opacity"
-                          />
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
-                            <EyeIcon className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                      ))}
+              <div className="flex space-x-2">
+                <Badge 
+                  variant={selectedComplaintForView?.status === 'open' ? 'destructive' : 
+                           selectedComplaintForView?.status === 'in-progress' ? 'default' : 
+                           selectedComplaintForView?.status === 'resolved' ? 'secondary' : 'outline'}
+                >
+                  {selectedComplaintForView?.status?.replace('-', ' ') || 'Open'}
+                </Badge>
+                <Badge variant="outline">
+                  {selectedComplaintForView?.priority || 'Medium'}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => loadUserComplaints()}
+                  className="text-xs"
+                  data-testid="button-refresh-complaint"
+                >
+                  🔄 Refresh
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedComplaintForView && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {/* Original Complaint Details */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center">
+                      <FileIcon className="h-4 w-4 mr-2 text-blue-600" />
+                      Original Complaint Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-600">Description</Label>
+                      <p className="mt-1 text-sm">{selectedComplaintForView.description}</p>
                     </div>
-                  </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Category</Label>
+                        <p className="capitalize">{selectedComplaintForView.category}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Priority</Label>
+                        <p className="capitalize">{selectedComplaintForView.priority}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Location</Label>
+                        <p>{selectedComplaintForView.location || 'Not specified'}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-medium text-gray-500">Branch</Label>
+                        <p>{selectedComplaintForView.branchName || 'Not specified'}</p>
+                      </div>
+                    </div>
+
+                    {/* Original Photos */}
+                    {selectedComplaintForView.photos && selectedComplaintForView.photos.length > 0 && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-600">
+                          Original Photos ({selectedComplaintForView.photos.length})
+                        </Label>
+                        <div className="grid grid-cols-4 gap-2 mt-2">
+                          {selectedComplaintForView.photos.map((photo: string, index: number) => (
+                            <div key={index} className="relative group">
+                              <img 
+                                src={photo} 
+                                alt={`Evidence ${index + 1}`}
+                                className="w-full h-16 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
+                                onClick={() => {
+                                  setSelectedPhoto({
+                                    url: photo,
+                                    label: `Evidence ${index + 1}`
+                                  });
+                                  setShowPhotoModal(true);
+                                }}
+                                data-testid={`complaint-photo-${index}`}
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center pointer-events-none">
+                                <EyeIcon className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Comments and Updates History */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center">
+                      <MessageSquareIcon className="h-4 w-4 mr-2 text-green-600" />
+                      Updates & Communication
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4 max-h-80 overflow-y-auto">
+                      {selectedComplaintForView.comments && selectedComplaintForView.comments.length > 0 ? (
+                        selectedComplaintForView.comments
+                          .sort((a: any, b: any) => {
+                            const aTime = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp || 0);
+                            const bTime = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp || 0);
+                            return aTime.getTime() - bTime.getTime();
+                          })
+                          .map((comment: any, index: number) => (
+                          <div key={comment.id || index} className="p-3 rounded-lg border-l-4 bg-gray-50 border-l-blue-500">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center space-x-2">
+                                <UserIcon className="h-4 w-4 text-gray-600" />
+                                <span className="font-medium text-sm text-gray-900">
+                                  {comment.author || 'System'}
+                                </span>
+                                {comment.type === 'status_change' && (
+                                  <Badge variant="outline" className="text-xs">Status Update</Badge>
+                                )}
+                                {comment.type === 'document_upload' && (
+                                  <Badge variant="outline" className="text-xs">Document Added</Badge>
+                                )}
+                              </div>
+                              <span className="text-xs text-gray-500">
+                                {comment.timestamp?.toDate ? 
+                                  comment.timestamp.toDate().toLocaleString() : 
+                                  new Date(comment.timestamp || 0).toLocaleString()
+                                }
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-700 leading-relaxed">{comment.text}</p>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <MessageSquareIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">No updates yet</p>
+                          <p className="text-xs">Admin updates will appear here</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Sidebar - Status & Documents */}
+              <div className="space-y-6">
+                {/* Status Information */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center">
+                      <AlertTriangleIcon className="h-4 w-4 mr-2 text-orange-600" />
+                      Status Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Current Status</span>
+                        <Badge 
+                          variant={selectedComplaintForView.status === 'open' ? 'destructive' : 
+                                   selectedComplaintForView.status === 'in-progress' ? 'default' : 
+                                   selectedComplaintForView.status === 'resolved' ? 'secondary' : 'outline'}
+                          className="text-xs"
+                        >
+                          {selectedComplaintForView.status?.replace('-', ' ') || 'Open'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm text-gray-600">Priority</span>
+                        <Badge variant="outline" className="text-xs">
+                          {selectedComplaintForView.priority || 'Medium'}
+                        </Badge>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600">Last Updated</span>
+                        <span className="text-gray-900">
+                          {selectedComplaintForView.lastUpdated?.toDate ? 
+                            selectedComplaintForView.lastUpdated.toDate().toLocaleDateString() : 
+                            selectedComplaintForView.updatedAt?.toDate ? 
+                            selectedComplaintForView.updatedAt.toDate().toLocaleDateString() : 
+                            'Unknown date'
+                          }
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Resolution Information */}
+                {(selectedComplaintForView.resolution || selectedComplaintForView.resolutionNotes || selectedComplaintForView.status === 'resolved' || selectedComplaintForView.status === 'closed') && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <ImageIcon className="h-4 w-4 mr-2 text-green-600" />
+                        Resolution
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {(selectedComplaintForView.resolution || selectedComplaintForView.resolutionNotes) ? (
+                        <div className="p-3 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm text-green-900">{selectedComplaintForView.resolution || selectedComplaintForView.resolutionNotes}</p>
+                          {selectedComplaintForView.resolvedAt && (
+                            <p className="text-xs text-green-700 mt-2">
+                              Resolved on {selectedComplaintForView.resolvedAt.toDate ? 
+                                selectedComplaintForView.resolvedAt.toDate().toLocaleString() : 'Unknown date'}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-600">Complaint marked as {selectedComplaintForView.status}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Documents Added by Admin */}
+                {selectedComplaintForView.documents && selectedComplaintForView.documents.length > 0 && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center">
+                        <FileIcon className="h-4 w-4 mr-2 text-purple-600" />
+                        Documents ({selectedComplaintForView.documents.length})
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {selectedComplaintForView.documents.map((doc: any, index: number) => (
+                          <div key={doc.id || index} className="flex items-center justify-between p-2 border rounded hover:bg-gray-50">
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <FileIcon className="h-4 w-4 text-gray-500 flex-shrink-0" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {doc.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Added by {doc.uploadedBy || 'Admin'}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-1 flex-shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (doc.url) {
+                                    window.open(doc.url, '_blank');
+                                  }
+                                }}
+                                className="h-6 w-6 p-0"
+                                data-testid={`button-view-document-${index}`}
+                              >
+                                <EyeIcon className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  if (doc.url) {
+                                    const link = document.createElement('a');
+                                    link.href = doc.url;
+                                    link.download = doc.name;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  }
+                                }}
+                                className="h-6 w-6 p-0"
+                                data-testid={`button-download-document-${index}`}
+                              >
+                                <DownloadIcon className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             </div>
