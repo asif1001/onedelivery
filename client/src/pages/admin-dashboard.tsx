@@ -76,6 +76,7 @@ import {
   addComplaintComment,
   updateComplaintStatus,
   addComplaintDocument,
+  uploadDocumentToFirebaseStorage,
   db,
   updateBranchNameCascading,
   updateOilTypeNameCascading,
@@ -1762,11 +1763,15 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log('📄 Uploading complaint document:', file.name, file.type, file.size);
         
-        // Create a simulated upload URL (in real app, upload to Firebase Storage)
+        // Actually upload file to Firebase Storage
+        const uploadedUrl = await uploadDocumentToFirebaseStorage(file, `complaints/${complaintId}`);
+        console.log('✅ Document uploaded successfully:', uploadedUrl);
+        
         const documentData = {
           name: file.name,
-          url: `complaints/${complaintId}/${Date.now()}_${file.name}`,
+          url: uploadedUrl,
           type: file.type,
           size: file.size,
           uploadedBy: getUserDisplayName(user) || user.email || 'Admin'

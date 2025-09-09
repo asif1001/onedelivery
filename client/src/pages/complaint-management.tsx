@@ -20,7 +20,8 @@ import {
   updateComplaint,
   updateComplaintStatus,
   addComplaintComment,
-  addComplaintDocument
+  addComplaintDocument,
+  uploadDocumentToFirebaseStorage
 } from "@/lib/firebase";
 import { 
   CameraIcon, 
@@ -187,9 +188,15 @@ export default function ComplaintManagement() {
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        console.log('📄 Uploading complaint document:', file.name, file.type, file.size);
+        
+        // Actually upload file to Firebase Storage
+        const uploadedUrl = await uploadDocumentToFirebaseStorage(file, `complaints/${complaintId}`);
+        console.log('✅ Document uploaded successfully:', uploadedUrl);
+        
         const documentData = {
           name: file.name,
-          url: `complaints/${complaintId}/${Date.now()}_${file.name}`,
+          url: uploadedUrl,
           type: file.type,
           size: file.size,
           uploadedBy: userData?.displayName || userData?.email || 'User'
