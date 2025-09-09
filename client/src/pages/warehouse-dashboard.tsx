@@ -1730,16 +1730,20 @@ export default function WarehouseDashboard() {
         endDate.setHours(23, 59, 59, 999); // End of day
       }
       
-      // Build Firestore query constraints
-      let constraints = [orderBy('updatedAt', 'desc'), limit(200)];
+      // Build Firestore query constraints (where clauses must come before orderBy)
+      let constraints: any[] = [];
       
       // Add date filtering at the query level for efficiency
       if (startDate) {
-        constraints.unshift(where('updatedAt', '>=', startDate));
+        constraints.push(where('updatedAt', '>=', startDate));
       }
       if (endDate) {
-        constraints.unshift(where('updatedAt', '<=', endDate));
+        constraints.push(where('updatedAt', '<=', endDate));
       }
+      
+      // Add ordering and limit after where clauses
+      constraints.push(orderBy('updatedAt', 'desc'));
+      constraints.push(limit(200));
       
       // Fetch logs from Firebase
       const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
@@ -3942,7 +3946,7 @@ export default function WarehouseDashboard() {
                               variant="outline" 
                               size="sm" 
                               className="mt-2"
-                              onClick={() => setTransactionFilters({ type: '', branch: '', oilType: '', driver: '' })}
+                              onClick={() => setTransactionFilters({ type: '', branch: '', oilType: '', driver: '', dateRange: '' })}
                             >
                               Clear Filters
                             </Button>
