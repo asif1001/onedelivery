@@ -138,7 +138,7 @@ export function CameraCapture({ onCapture, isOpen, onClose, title, branchName }:
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-80 object-cover"
+                  className="w-full h-88 object-cover"
                   data-testid="camera-video"
                 />
               </div>
@@ -170,7 +170,7 @@ export function CameraCapture({ onCapture, isOpen, onClose, title, branchName }:
                 <img
                   src={capturedImage || ''}
                   alt="Captured"
-                  className="w-full h-80 object-cover"
+                  className="w-full h-88 object-cover"
                   data-testid="captured-image"
                 />
               </div>
