@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +21,8 @@ import {
   MapPinIcon,
   DownloadIcon,
   EyeIcon,
-  ExternalLinkIcon
+  ExternalLinkIcon,
+  TrashIcon
 } from "lucide-react";
 
 interface ComplaintComment {
@@ -79,6 +80,7 @@ interface EnhancedComplaintModalProps {
   onStatusUpdate: (complaintId: string, newStatus: string) => Promise<void>;
   onAddComment: (complaintId: string, comment: string) => Promise<void>;
   onUploadDocument: (complaintId: string, files: FileList) => Promise<void>;
+  onDeleteDocument?: (complaintId: string, documentId: string) => Promise<void>;
   user: any;
   isUpdating?: boolean;
   isAddingComment?: boolean;
@@ -93,6 +95,7 @@ function EnhancedComplaintModal({
   onStatusUpdate,
   onAddComment,
   onUploadDocument,
+  onDeleteDocument,
   user,
   isUpdating = false,
   isAddingComment = false,
@@ -103,6 +106,16 @@ function EnhancedComplaintModal({
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>(complaint?.status || 'open');
   const [hasChanges, setHasChanges] = useState(false);
+
+  // Sync selectedStatus with complaint prop changes
+  useEffect(() => {
+    if (complaint?.status) {
+      setSelectedStatus(complaint.status as 'open' | 'in-progress' | 'resolved' | 'closed');
+      setHasChanges(false);
+      setNewComment('');
+      setSelectedFiles(null);
+    }
+  }, [complaint?.id, complaint?.status]);
 
   if (!complaint) return null;
 
@@ -279,6 +292,16 @@ function EnhancedComplaintModal({
       return <FileTextIcon className="h-4 w-4 text-red-500" />;
     } else {
       return <FileTextIcon className="h-4 w-4 text-blue-500" />;
+    }
+  };
+
+  const handleDeleteDocument = async (doc: ComplaintDocument) => {
+    if (!onDeleteDocument) return;
+    
+    try {
+      await onDeleteDocument(complaint.id, doc.id);
+    } catch (error) {
+      console.error('Error deleting document:', error);
     }
   };
 
@@ -590,6 +613,18 @@ function EnhancedComplaintModal({
                           >
                             <DownloadIcon className="h-3 w-3" />
                           </Button>
+                          {onDeleteDocument && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleDeleteDocument(doc)}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              title="Delete document"
+                              data-testid={`button-delete-document-${doc.id}`}
+                            >
+                              <TrashIcon className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
