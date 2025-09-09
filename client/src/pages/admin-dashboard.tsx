@@ -4127,7 +4127,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Transaction Details Modal - Simple Working Version */}
       <Dialog open={showTransactionModal} onOpenChange={setShowTransactionModal}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl z-[999]">
           <DialogTitle>Transaction Details</DialogTitle>
           <DialogDescription>
             View detailed information about this transaction including photos and metadata
@@ -4284,7 +4284,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       {/* Full-Size Photo Modal */}
       <Dialog open={showPhotoModal} onOpenChange={setShowPhotoModal}>
-        <DialogContent className="max-w-4xl w-full h-[90vh] p-0">
+        <DialogContent className="max-w-4xl w-full h-[90vh] p-0 z-[999]">
           <DialogTitle className="sr-only">Photo Viewer</DialogTitle>
           <DialogDescription className="sr-only">
             Full size view of {selectedPhoto?.label || 'delivery photo'}
@@ -4375,7 +4375,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Task Edit Modal */}
       {editingTask && (
         <Dialog open={showTaskEditModal} onOpenChange={setShowTaskEditModal}>
-          <DialogContent className="max-w-md" aria-describedby="task-edit-description">
+          <DialogContent className="max-w-md z-[999]" aria-describedby="task-edit-description">
             <DialogHeader>
               <DialogTitle>Edit Task</DialogTitle>
               <DialogDescription>Update task status and record changes.</DialogDescription>
@@ -4437,7 +4437,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Complaint Edit Modal */}
       {editingComplaint && (
         <Dialog open={showComplaintEditModal} onOpenChange={setShowComplaintEditModal}>
-          <DialogContent className="max-w-md" aria-describedby="complaint-edit-description">
+          <DialogContent className="max-w-md z-[999]" aria-describedby="complaint-edit-description">
             <DialogHeader>
               <DialogTitle>Edit Complaint</DialogTitle>
               <DialogDescription>Update complaint status and record resolution.</DialogDescription>
@@ -4502,7 +4502,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Complaint Photo Viewer Modal - Grid Layout */}
       {selectedComplaint && (
         <Dialog open={showComplaintPhotoModal} onOpenChange={setShowComplaintPhotoModal}>
-          <DialogContent className="max-w-4xl w-[95%] h-[90%] max-h-[800px]">
+          <DialogContent className="max-w-4xl w-[95%] h-[90%] max-h-[800px] z-[999]">
             <DialogTitle>Complaint Photos</DialogTitle>
             <DialogDescription>
               Photos uploaded by {selectedComplaint.reporterName} for {selectedComplaint.category || 'General'} complaint
@@ -4549,7 +4549,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Data Cleanup Confirmation Modal */}
       {showCleanupConfirmModal && (
         <Dialog open={showCleanupConfirmModal} onOpenChange={setShowCleanupConfirmModal}>
-          <DialogContent className="max-w-md" aria-describedby="cleanup-confirm-description">
+          <DialogContent className="max-w-md z-[999]" aria-describedby="cleanup-confirm-description">
             <DialogHeader>
               <DialogTitle>Confirm Data Cleanup</DialogTitle>
               <DialogDescription>
@@ -4616,7 +4616,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       {/* Task Details Modal with Comments and Documents */}
       {selectedTaskForDetails && (
         <Dialog open={showTaskDetailsModal} onOpenChange={setShowTaskDetailsModal}>
-          <DialogContent className="max-w-4xl w-[95%] h-[90%] max-h-[800px] flex flex-col" aria-describedby="task-details-description">
+          <DialogContent className="max-w-4xl w-[95%] h-[90%] max-h-[800px] flex flex-col z-[999]" aria-describedby="task-details-description">
             <DialogHeader>
               <DialogTitle>Task Details & Management</DialogTitle>
               <DialogDescription>
