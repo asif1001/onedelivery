@@ -2291,17 +2291,12 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                     <ClockIcon className="mr-3 h-5 w-5" />
                     Logs Update
                   </button>
-                  <button 
-                    onClick={() => setActiveTab('tasks')}
-                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-                      activeTab === 'tasks' 
-                        ? 'bg-orange-100 text-orange-900' 
-                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`
-                    }`}
-                  >
-                    <ClipboardListIcon className="mr-3 h-5 w-5" />
-                    Tasks
-                  </button>
+                  <Link to="/task-management">
+                    <button className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : theme === 'midday' ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                      <ClipboardListIcon className="mr-3 h-5 w-5" />
+                      Tasks
+                    </button>
+                  </Link>
                   <Link to="/complaint-management">
                     <button className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`}>
                       <AlertTriangleIcon className="mr-3 h-5 w-5" />
