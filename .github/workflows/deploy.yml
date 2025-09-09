@@ -1,9 +1,10 @@
-name: Deploy onedelveiry to GitHub Pages
+# DISABLED - Missing build:github script and wrong project config  
+# name: Deploy onedelveiry to GitHub Pages
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: [ main ]
+#   workflow_dispatch:
 
 permissions:
   contents: read

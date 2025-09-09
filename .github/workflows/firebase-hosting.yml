@@ -1,9 +1,10 @@
-name: Deploy to Firebase Hosting
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+# DISABLED - Conflicts with firebase-deploy.yml
+# name: Deploy to Firebase Hosting
+# on:
+#   push:
+#     branches: [ main ]
+#   pull_request:
+#     branches: [ main ]
 
 jobs:
   build_and_deploy:
