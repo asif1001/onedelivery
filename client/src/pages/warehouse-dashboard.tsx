@@ -2682,23 +2682,20 @@ export default function WarehouseDashboard() {
                       let newestUpdate: Date | null = null;
                       
                       oilTypesArray.forEach((oilType: any) => {
-                        let lastUpdateDate: Date | null = null;
+                        let lastUpdateMs = -Infinity;
                         
                         if (oilType.manualUpdate?.updatedAt) {
-                          const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                          if (!lastUpdateDate || manualDate > lastUpdateDate) {
-                            lastUpdateDate = manualDate;
-                          }
+                          const manualMs = new Date(oilType.manualUpdate.updatedAt).getTime();
+                          if (manualMs > lastUpdateMs) lastUpdateMs = manualMs;
                         }
                         
                         if (oilType.supplyLoading?.createdAt) {
-                          const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                          if (!lastUpdateDate || supplyDate > lastUpdateDate) {
-                            lastUpdateDate = supplyDate;
-                          }
+                          const supplyMs = new Date(oilType.supplyLoading.createdAt).getTime();
+                          if (supplyMs > lastUpdateMs) lastUpdateMs = supplyMs;
                         }
                         
-                        if (lastUpdateDate) {
+                        if (Number.isFinite(lastUpdateMs)) {
+                          const lastUpdateDate = new Date(lastUpdateMs);
                           updatedOilTypes++;
                           if (!oldestUpdate || lastUpdateDate < oldestUpdate) oldestUpdate = lastUpdateDate;
                           if (!newestUpdate || lastUpdateDate > newestUpdate) newestUpdate = lastUpdateDate;
@@ -2708,7 +2705,7 @@ export default function WarehouseDashboard() {
                       if (updatedOilTypes === 0) return 'red';
                       if (updatedOilTypes < oilTypesArray.length) return 'violet';
                       
-                      const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - oldestUpdate.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+                      const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - (oldestUpdate as Date).getTime()) / (1000 * 60 * 60 * 24)) : 999;
                       
                       if (daysSinceOldest > 7) return 'red';
                       else if (daysSinceOldest >= 2) return 'yellow';
@@ -3563,25 +3560,22 @@ export default function WarehouseDashboard() {
                           let newestUpdate: Date | null = null;
                           
                           oilTypesArray.forEach((oilType: any) => {
-                            let lastUpdateDate: Date | null = null;
+                            let lastUpdateMs = -Infinity;
                             
                             // Check manual update
                             if (oilType.manualUpdate?.updatedAt) {
-                              const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                              if (!lastUpdateDate || manualDate > lastUpdateDate) {
-                                lastUpdateDate = manualDate;
-                              }
+                              const manualMs = new Date(oilType.manualUpdate.updatedAt).getTime();
+                              if (manualMs > lastUpdateMs) lastUpdateMs = manualMs;
                             }
                             
                             // Check supply activity
                             if (oilType.supplyLoading?.createdAt) {
-                              const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                              if (!lastUpdateDate || supplyDate > lastUpdateDate) {
-                                lastUpdateDate = supplyDate;
-                              }
+                              const supplyMs = new Date(oilType.supplyLoading.createdAt).getTime();
+                              if (supplyMs > lastUpdateMs) lastUpdateMs = supplyMs;
                             }
                             
-                            if (lastUpdateDate) {
+                            if (Number.isFinite(lastUpdateMs)) {
+                              const lastUpdateDate = new Date(lastUpdateMs);
                               updatedOilTypes++;
                               if (!oldestUpdate || lastUpdateDate < oldestUpdate) oldestUpdate = lastUpdateDate;
                               if (!newestUpdate || lastUpdateDate > newestUpdate) newestUpdate = lastUpdateDate;
@@ -3599,7 +3593,7 @@ export default function WarehouseDashboard() {
                           }
                           
                           // Use oldest update to determine overall status
-                          const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - oldestUpdate.getTime()) / (1000 * 60 * 60 * 24)) : 999;
+                          const daysSinceOldest = oldestUpdate ? Math.floor((now.getTime() - (oldestUpdate as Date).getTime()) / (1000 * 60 * 60 * 24)) : 999;
                           
                           if (daysSinceOldest > 7) {
                             return { status: 'red', color: 'bg-red-50 border-red-200', textColor: 'text-red-800' };
