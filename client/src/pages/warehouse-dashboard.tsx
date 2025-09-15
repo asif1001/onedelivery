@@ -2686,14 +2686,14 @@ export default function WarehouseDashboard() {
                         
                         if (oilType.manualUpdate?.updatedAt) {
                           const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                          if (lastUpdateDate === null || manualDate > lastUpdateDate) {
+                          if (!lastUpdateDate || manualDate > lastUpdateDate) {
                             lastUpdateDate = manualDate;
                           }
                         }
                         
                         if (oilType.supplyLoading?.createdAt) {
                           const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                          if (lastUpdateDate === null || supplyDate > lastUpdateDate) {
+                          if (!lastUpdateDate || supplyDate > lastUpdateDate) {
                             lastUpdateDate = supplyDate;
                           }
                         }
@@ -3249,96 +3249,76 @@ export default function WarehouseDashboard() {
                       {tanks.map((tank) => {
                         const percentage = tank.capacity > 0 ? (tank.currentLevel / tank.capacity) * 100 : 0;
                         
-                        // Format last update date
-                        let lastUpdateText = '>1M ago';
+                        // Format last update date - Check if tank has real update data
+                        let lastUpdateText = '>1m Ago';
                         let lastUpdateColor = 'text-gray-400';
                         
-                        if (tank.lastUpdated) {
+                        // Check if tank actually has update data by verifying it's not a default/placeholder timestamp
+                        const hasValidUpdateData = tank.lastUpdated && 
+                          tank.lastUpdated !== null && 
+                          (tank.lastUpdated.toDate || tank.lastUpdated !== 'Invalid Date');
+                        
+                        if (hasValidUpdateData) {
                           try {
                             const lastUpdate = tank.lastUpdated.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-                            const now = new Date();
-                            const diffTime = now.getTime() - lastUpdate.getTime();
-                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                            const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-                            const diffMinutes = Math.floor(diffTime / (1000 * 60));
                             
-                            if (diffDays > 30) {
-                              lastUpdateText = '>1M ago';
-                              lastUpdateColor = 'text-gray-400';
-                            } else if (diffDays > 0) {
-                              lastUpdateText = `${diffDays}d ago`;
-                              lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
-                            } else if (diffHours > 0) {
-                              lastUpdateText = `${diffHours}h ago`;
-                              lastUpdateColor = 'text-green-600';
-                            } else if (diffMinutes > 0) {
-                              lastUpdateText = `${diffMinutes}m ago`;
-                              lastUpdateColor = 'text-green-600';
-                            } else {
-                              lastUpdateText = 'Just now';
-                              lastUpdateColor = 'text-green-600';
+                            // Check if the date is valid and not a default placeholder
+                            if (lastUpdate && !isNaN(lastUpdate.getTime())) {
+                              const now = new Date();
+                              const diffTime = now.getTime() - lastUpdate.getTime();
+                              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                              const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+                              const diffMinutes = Math.floor(diffTime / (1000 * 60));
+                              
+                              // Only show actual times if the update is real (not older than 180 days which indicates placeholder)
+                              if (diffDays <= 180) {
+                                if (diffDays > 0) {
+                                  lastUpdateText = `${diffDays}d ago`;
+                                  lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
+                                } else if (diffHours > 0) {
+                                  lastUpdateText = `${diffHours}h ago`;
+                                  lastUpdateColor = 'text-green-600';
+                                } else if (diffMinutes > 0) {
+                                  lastUpdateText = `${diffMinutes}m ago`;
+                                  lastUpdateColor = 'text-green-600';
+                                } else {
+                                  lastUpdateText = 'Just now';
+                                  lastUpdateColor = 'text-green-600';
+                                }
+                              }
                             }
                           } catch (e) {
-                            lastUpdateText = '>1M ago';
+                            // If there's an error parsing the date, treat as no data
+                            lastUpdateText = '>1m Ago';
                             lastUpdateColor = 'text-gray-400';
                           }
                         }
                         
-                        // Get enhanced manual update data from tankActivityData
-                        const tankKey = `${branchName}-${tank.oilTypeName}`;
-                        const activityData = tankActivityData.get(tank.id);
-                        const manualUpdateInfo = activityData?.manualUpdateDisplay || 'Loading manual update info...';
-                        const supplyUpdateInfo = activityData?.supplyUpdateDisplay || 'Loading supply info...';
-
                         return (
-                          <div key={tank.id} className="p-3 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="flex items-center gap-2">
-                                <DropletIcon className="h-4 w-4 text-blue-600" />
-                                <span className="font-medium text-sm">{tank.oilTypeName}</span>
+                          <div key={tank.id} className="p-2 border rounded-lg bg-gray-50">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-1">
+                                <DropletIcon className="h-3 w-3 text-blue-600" />
+                                <span className="font-medium text-xs">{tank.oilTypeName}</span>
+                                <span className="text-xs text-gray-500">({Math.round(percentage)}% capacity)</span>
                               </div>
                               <Badge className={`text-xs ${getStatusColor(tank.status)}`}>
                                 {tank.status.toUpperCase()}
                               </Badge>
                             </div>
-                            
-                            <div className="text-sm text-gray-700 mb-2">
-                              <p className="font-medium">{(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L</p>
-                              <p className="text-xs text-gray-500">({Math.round(percentage)}% capacity)</p>
+                            <div className="text-xs text-gray-600 mb-1">
+                              <p>{(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L</p>
                             </div>
-
-                            {/* Enhanced Manual Update Information */}
-                            <div className="space-y-1 mb-2">
-                              <div className="text-xs flex items-center gap-1">
-                                <ClockIcon className="h-3 w-3 text-blue-500" />
-                                <span className="text-gray-600">Manual Update:</span>
-                                <span className={`font-medium ${
-                                  manualUpdateInfo.includes('No manual update') ? 'text-red-600' :
-                                  manualUpdateInfo.includes('Today') ? 'text-green-600' :
-                                  manualUpdateInfo.includes('Yesterday') || manualUpdateInfo.includes('1d ago') ? 'text-yellow-600' :
-                                  'text-gray-600'
-                                }`}>
-                                  {manualUpdateInfo}
-                                </span>
-                              </div>
-                              <div className="text-xs flex items-center gap-1">
-                                <TruckIcon className="h-3 w-3 text-green-500" />
-                                <span className="text-gray-600">Supply/Loading:</span>
-                                <span className={`font-medium ${
-                                  supplyUpdateInfo.includes('No activity') ? 'text-gray-500' :
-                                  supplyUpdateInfo.includes('Today') ? 'text-green-600' :
-                                  supplyUpdateInfo.includes('Yesterday') || supplyUpdateInfo.includes('1d ago') ? 'text-yellow-600' :
-                                  'text-gray-600'
-                                }`}>
-                                  {supplyUpdateInfo}
-                                </span>
-                              </div>
+                            {/* Last Update Information */}
+                            <div className="text-xs mb-1 flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-gray-400" />
+                              <span className="text-gray-500">Last updated:</span>
+                              <span className={`font-medium ${lastUpdateColor}`}>{lastUpdateText}</span>
                             </div>
-
                             {/* Oil Level Visual Indicator */}
-                            <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
                               <div 
-                                className={`h-2 rounded-full transition-all duration-300 ${
+                                className={`h-1.5 rounded-full transition-all duration-300 ${
                                   tank.status === 'critical' ? 'bg-red-500' :
                                   tank.status === 'low' ? 'bg-yellow-500' :
                                   tank.status === 'full' ? 'bg-blue-500' :
@@ -3588,7 +3568,7 @@ export default function WarehouseDashboard() {
                             // Check manual update
                             if (oilType.manualUpdate?.updatedAt) {
                               const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                              if (lastUpdateDate === null || manualDate > lastUpdateDate) {
+                              if (!lastUpdateDate || manualDate > lastUpdateDate) {
                                 lastUpdateDate = manualDate;
                               }
                             }
@@ -3596,7 +3576,7 @@ export default function WarehouseDashboard() {
                             // Check supply activity
                             if (oilType.supplyLoading?.createdAt) {
                               const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                              if (lastUpdateDate === null || supplyDate > lastUpdateDate) {
+                              if (!lastUpdateDate || supplyDate > lastUpdateDate) {
                                 lastUpdateDate = supplyDate;
                               }
                             }
