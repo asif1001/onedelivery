@@ -3248,6 +3248,39 @@ export default function WarehouseDashboard() {
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {tanks.map((tank) => {
                         const percentage = tank.capacity > 0 ? (tank.currentLevel / tank.capacity) * 100 : 0;
+                        
+                        // Format last update date
+                        let lastUpdateText = 'No updates';
+                        let lastUpdateColor = 'text-gray-400';
+                        
+                        if (tank.lastUpdated) {
+                          try {
+                            const lastUpdate = tank.lastUpdated.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+                            const now = new Date();
+                            const diffTime = now.getTime() - lastUpdate.getTime();
+                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                            const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+                            const diffMinutes = Math.floor(diffTime / (1000 * 60));
+                            
+                            if (diffDays > 0) {
+                              lastUpdateText = `${diffDays}d ago`;
+                              lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
+                            } else if (diffHours > 0) {
+                              lastUpdateText = `${diffHours}h ago`;
+                              lastUpdateColor = 'text-green-600';
+                            } else if (diffMinutes > 0) {
+                              lastUpdateText = `${diffMinutes}m ago`;
+                              lastUpdateColor = 'text-green-600';
+                            } else {
+                              lastUpdateText = 'Just now';
+                              lastUpdateColor = 'text-green-600';
+                            }
+                          } catch (e) {
+                            lastUpdateText = 'Invalid date';
+                            lastUpdateColor = 'text-gray-400';
+                          }
+                        }
+                        
                         return (
                           <div key={tank.id} className="p-2 border rounded-lg bg-gray-50">
                             <div className="flex items-center justify-between mb-1">
@@ -3262,6 +3295,12 @@ export default function WarehouseDashboard() {
                             </div>
                             <div className="text-xs text-gray-600 mb-1">
                               <p>{(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L</p>
+                            </div>
+                            {/* Last Update Information */}
+                            <div className="text-xs mb-1 flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-gray-400" />
+                              <span className="text-gray-500">Last updated:</span>
+                              <span className={`font-medium ${lastUpdateColor}`}>{lastUpdateText}</span>
                             </div>
                             {/* Oil Level Visual Indicator */}
                             <div className="w-full bg-gray-200 rounded-full h-1.5">
