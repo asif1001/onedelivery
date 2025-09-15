@@ -104,13 +104,20 @@ function EnhancedComplaintModal({
 }: EnhancedComplaintModalProps) {
   const [newComment, setNewComment] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>((complaint?.status as 'open' | 'in-progress' | 'resolved' | 'closed') || 'open');
+  
+  // Helper function to validate and convert status
+  const getValidStatus = (status: string | undefined): 'open' | 'in-progress' | 'resolved' | 'closed' => {
+    const validStatuses: ('open' | 'in-progress' | 'resolved' | 'closed')[] = ['open', 'in-progress', 'resolved', 'closed'];
+    return validStatuses.includes(status as any) ? status as 'open' | 'in-progress' | 'resolved' | 'closed' : 'open';
+  };
+  
+  const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>(getValidStatus(complaint?.status));
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync selectedStatus with complaint prop changes
   useEffect(() => {
     if (complaint?.status) {
-      setSelectedStatus(complaint.status as 'open' | 'in-progress' | 'resolved' | 'closed');
+      setSelectedStatus(getValidStatus(complaint.status));
       setHasChanges(false);
       setNewComment('');
       setSelectedFiles(null);
@@ -120,7 +127,7 @@ function EnhancedComplaintModal({
   if (!complaint) return null;
 
   const handleStatusChange = (newStatus: string) => {
-    setSelectedStatus(newStatus as 'open' | 'in-progress' | 'resolved' | 'closed');
+    setSelectedStatus(getValidStatus(newStatus));
     setHasChanges(newStatus !== complaint.status || newComment.trim() !== '' || selectedFiles !== null);
   };
 
