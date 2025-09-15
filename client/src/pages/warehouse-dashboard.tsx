@@ -3249,47 +3249,37 @@ export default function WarehouseDashboard() {
                       {tanks.map((tank) => {
                         const percentage = tank.capacity > 0 ? (tank.currentLevel / tank.capacity) * 100 : 0;
                         
-                        // Format last update date - Check if tank has real update data
-                        let lastUpdateText = '>1m Ago';
+                        // Format last update date
+                        let lastUpdateText = '>1M ago';
                         let lastUpdateColor = 'text-gray-400';
                         
-                        // Check if tank actually has update data by verifying it's not a default/placeholder timestamp
-                        const hasValidUpdateData = tank.lastUpdated && 
-                          tank.lastUpdated !== null && 
-                          (tank.lastUpdated.toDate || tank.lastUpdated !== 'Invalid Date');
-                        
-                        if (hasValidUpdateData) {
+                        if (tank.lastUpdated) {
                           try {
                             const lastUpdate = tank.lastUpdated.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+                            const now = new Date();
+                            const diffTime = now.getTime() - lastUpdate.getTime();
+                            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                            const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
+                            const diffMinutes = Math.floor(diffTime / (1000 * 60));
                             
-                            // Check if the date is valid and not a default placeholder
-                            if (lastUpdate && !isNaN(lastUpdate.getTime())) {
-                              const now = new Date();
-                              const diffTime = now.getTime() - lastUpdate.getTime();
-                              const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                              const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
-                              const diffMinutes = Math.floor(diffTime / (1000 * 60));
-                              
-                              // Only show actual times if the update is real (not older than 180 days which indicates placeholder)
-                              if (diffDays <= 180) {
-                                if (diffDays > 0) {
-                                  lastUpdateText = `${diffDays}d ago`;
-                                  lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
-                                } else if (diffHours > 0) {
-                                  lastUpdateText = `${diffHours}h ago`;
-                                  lastUpdateColor = 'text-green-600';
-                                } else if (diffMinutes > 0) {
-                                  lastUpdateText = `${diffMinutes}m ago`;
-                                  lastUpdateColor = 'text-green-600';
-                                } else {
-                                  lastUpdateText = 'Just now';
-                                  lastUpdateColor = 'text-green-600';
-                                }
-                              }
+                            if (diffDays > 30) {
+                              lastUpdateText = '>1M ago';
+                              lastUpdateColor = 'text-gray-400';
+                            } else if (diffDays > 0) {
+                              lastUpdateText = `${diffDays}d ago`;
+                              lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
+                            } else if (diffHours > 0) {
+                              lastUpdateText = `${diffHours}h ago`;
+                              lastUpdateColor = 'text-green-600';
+                            } else if (diffMinutes > 0) {
+                              lastUpdateText = `${diffMinutes}m ago`;
+                              lastUpdateColor = 'text-green-600';
+                            } else {
+                              lastUpdateText = 'Just now';
+                              lastUpdateColor = 'text-green-600';
                             }
                           } catch (e) {
-                            // If there's an error parsing the date, treat as no data
-                            lastUpdateText = '>1m Ago';
+                            lastUpdateText = '>1M ago';
                             lastUpdateColor = 'text-gray-400';
                           }
                         }
