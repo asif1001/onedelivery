@@ -104,7 +104,7 @@ function EnhancedComplaintModal({
 }: EnhancedComplaintModalProps) {
   const [newComment, setNewComment] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>(complaint?.status || 'open');
+  const [selectedStatus, setSelectedStatus] = useState<'open' | 'in-progress' | 'resolved' | 'closed'>((complaint?.status as 'open' | 'in-progress' | 'resolved' | 'closed') || 'open');
   const [hasChanges, setHasChanges] = useState(false);
 
   // Sync selectedStatus with complaint prop changes
