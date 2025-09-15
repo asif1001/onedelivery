@@ -2686,14 +2686,14 @@ export default function WarehouseDashboard() {
                         
                         if (oilType.manualUpdate?.updatedAt) {
                           const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                          if (!lastUpdateDate || manualDate > lastUpdateDate) {
+                          if (lastUpdateDate === null || manualDate > lastUpdateDate) {
                             lastUpdateDate = manualDate;
                           }
                         }
                         
                         if (oilType.supplyLoading?.createdAt) {
                           const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                          if (!lastUpdateDate || supplyDate > lastUpdateDate) {
+                          if (lastUpdateDate === null || supplyDate > lastUpdateDate) {
                             lastUpdateDate = supplyDate;
                           }
                         }
@@ -3284,31 +3284,61 @@ export default function WarehouseDashboard() {
                           }
                         }
                         
+                        // Get enhanced manual update data from tankActivityData
+                        const tankKey = `${branchName}-${tank.oilTypeName}`;
+                        const activityData = tankActivityData.get(tank.id);
+                        const manualUpdateInfo = activityData?.manualUpdateDisplay || 'Loading manual update info...';
+                        const supplyUpdateInfo = activityData?.supplyUpdateDisplay || 'Loading supply info...';
+
                         return (
-                          <div key={tank.id} className="p-2 border rounded-lg bg-gray-50">
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="flex items-center gap-1">
-                                <DropletIcon className="h-3 w-3 text-blue-600" />
-                                <span className="font-medium text-xs">{tank.oilTypeName}</span>
-                                <span className="text-xs text-gray-500">({Math.round(percentage)}% capacity)</span>
+                          <div key={tank.id} className="p-3 border rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <DropletIcon className="h-4 w-4 text-blue-600" />
+                                <span className="font-medium text-sm">{tank.oilTypeName}</span>
                               </div>
                               <Badge className={`text-xs ${getStatusColor(tank.status)}`}>
                                 {tank.status.toUpperCase()}
                               </Badge>
                             </div>
-                            <div className="text-xs text-gray-600 mb-1">
-                              <p>{(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L</p>
+                            
+                            <div className="text-sm text-gray-700 mb-2">
+                              <p className="font-medium">{(tank.currentLevel || 0).toLocaleString()}L / {(tank.capacity || 0).toLocaleString()}L</p>
+                              <p className="text-xs text-gray-500">({Math.round(percentage)}% capacity)</p>
                             </div>
-                            {/* Last Update Information */}
-                            <div className="text-xs mb-1 flex items-center gap-1">
-                              <Clock className="h-3 w-3 text-gray-400" />
-                              <span className="text-gray-500">Last updated:</span>
-                              <span className={`font-medium ${lastUpdateColor}`}>{lastUpdateText}</span>
+
+                            {/* Enhanced Manual Update Information */}
+                            <div className="space-y-1 mb-2">
+                              <div className="text-xs flex items-center gap-1">
+                                <ClockIcon className="h-3 w-3 text-blue-500" />
+                                <span className="text-gray-600">Manual Update:</span>
+                                <span className={`font-medium ${
+                                  manualUpdateInfo.includes('No manual update') ? 'text-red-600' :
+                                  manualUpdateInfo.includes('Today') ? 'text-green-600' :
+                                  manualUpdateInfo.includes('Yesterday') || manualUpdateInfo.includes('1d ago') ? 'text-yellow-600' :
+                                  'text-gray-600'
+                                }`}>
+                                  {manualUpdateInfo}
+                                </span>
+                              </div>
+                              <div className="text-xs flex items-center gap-1">
+                                <TruckIcon className="h-3 w-3 text-green-500" />
+                                <span className="text-gray-600">Supply/Loading:</span>
+                                <span className={`font-medium ${
+                                  supplyUpdateInfo.includes('No activity') ? 'text-gray-500' :
+                                  supplyUpdateInfo.includes('Today') ? 'text-green-600' :
+                                  supplyUpdateInfo.includes('Yesterday') || supplyUpdateInfo.includes('1d ago') ? 'text-yellow-600' :
+                                  'text-gray-600'
+                                }`}>
+                                  {supplyUpdateInfo}
+                                </span>
+                              </div>
                             </div>
+
                             {/* Oil Level Visual Indicator */}
-                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div className="w-full bg-gray-200 rounded-full h-2 mb-1">
                               <div 
-                                className={`h-1.5 rounded-full transition-all duration-300 ${
+                                className={`h-2 rounded-full transition-all duration-300 ${
                                   tank.status === 'critical' ? 'bg-red-500' :
                                   tank.status === 'low' ? 'bg-yellow-500' :
                                   tank.status === 'full' ? 'bg-blue-500' :
@@ -3558,7 +3588,7 @@ export default function WarehouseDashboard() {
                             // Check manual update
                             if (oilType.manualUpdate?.updatedAt) {
                               const manualDate = new Date(oilType.manualUpdate.updatedAt);
-                              if (!lastUpdateDate || manualDate > lastUpdateDate) {
+                              if (lastUpdateDate === null || manualDate > lastUpdateDate) {
                                 lastUpdateDate = manualDate;
                               }
                             }
@@ -3566,7 +3596,7 @@ export default function WarehouseDashboard() {
                             // Check supply activity
                             if (oilType.supplyLoading?.createdAt) {
                               const supplyDate = new Date(oilType.supplyLoading.createdAt);
-                              if (!lastUpdateDate || supplyDate > lastUpdateDate) {
+                              if (lastUpdateDate === null || supplyDate > lastUpdateDate) {
                                 lastUpdateDate = supplyDate;
                               }
                             }
