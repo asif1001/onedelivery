@@ -68,6 +68,9 @@ interface EditData {
   endMeterReading?: number;
   oilSuppliedLiters?: number;
   totalLoadedLiters?: number;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
   oilTypeId?: string;
   branchId?: string;
   reason: string;

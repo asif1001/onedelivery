@@ -18,6 +18,7 @@ import MonitoringDebug from "@/pages/monitoring-debug";
 import FirestoreStats from "@/pages/firestore-stats";
 import NotFound from "@/pages/not-found";
 import { PWAInstallPrompt } from "@/components/PWAInstallPrompt";
+import { AppUser } from "@shared/schema";
 
 function Router() {
   const { userData, isLoading } = useAuth();
@@ -63,12 +64,29 @@ function Router() {
     </div>
   );
 
+  // Transform AuthUser to AppUser format for components
+  const transformToAppUser = (authUser: typeof userData): AppUser => {
+    return {
+      id: authUser.id || authUser.uid || '',
+      email: authUser.email || null,
+      firstName: authUser.firstName || authUser.displayName?.split(' ')[0] || null,
+      lastName: authUser.lastName || authUser.displayName?.split(' ')[1] || null,
+      profileImageUrl: authUser.profileImageUrl || null,
+      role: authUser.role || 'user',
+      branchIds: authUser.branchIds || null,
+      createdAt: authUser.createdAt || null,
+      updatedAt: authUser.updatedAt || null,
+    };
+  };
+
+  const appUser = transformToAppUser(userData);
+
   return (
     <Switch>
       {userData.role === 'admin' ? (
         <>
-          <Route path="/" component={() => <AdminDashboard user={userData} />} />
-          <Route path="/admin-dashboard" component={() => <AdminDashboard user={userData} />} />
+          <Route path="/" component={() => <AdminDashboard user={appUser} />} />
+          <Route path="/admin-dashboard" component={() => <AdminDashboard user={appUser} />} />
           <Route path="/task-management" component={() => <TaskManagement />} />
           <Route path="/complaint-management" component={() => <ComplaintManagement />} />
           <Route path="/admin-branch-users" component={() => <AdminBranchUsers />} />
@@ -80,26 +98,8 @@ function Router() {
         </>
       ) : userData.role === 'driver' ? (
         <>
-          <Route path="/" component={() => <DriverDashboard user={{
-            ...userData,
-            id: userData.uid,
-            firstName: userData.displayName?.split(' ')[0] || null,
-            lastName: userData.displayName?.split(' ')[1] || null,
-            profileImageUrl: null,
-            createdAt: null,
-            updatedAt: null,
-            branchIds: (userData as any).branchIds || []
-          }} />} />
-          <Route path="/driver-dashboard" component={() => <DriverDashboard user={{
-            ...userData,
-            id: userData.uid,
-            firstName: userData.displayName?.split(' ')[0] || null,
-            lastName: userData.displayName?.split(' ')[1] || null,
-            profileImageUrl: null,
-            createdAt: null,
-            updatedAt: null,
-            branchIds: (userData as any).branchIds || []
-          }} />} />
+          <Route path="/" component={() => <DriverDashboard user={appUser} />} />
+          <Route path="/driver-dashboard" component={() => <DriverDashboard user={appUser} />} />
           <Route path="/warehouse-dashboard" component={() => <AccessDenied requiredRole="warehouse or admin" />} />
           <Route path="/admin-dashboard" component={() => <AccessDenied requiredRole="admin" />} />
           <Route path="/branch-dashboard" component={() => <AccessDenied requiredRole="branch user" />} />

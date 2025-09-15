@@ -80,12 +80,12 @@ export function DeliveryWorkflow() {
   });
 
   // Fetch oil types from API
-  const { data: oilTypes = [], isLoading: oilTypesLoading } = useQuery({
+  const { data: oilTypes = [], isLoading: oilTypesLoading } = useQuery<any[]>({
     queryKey: ['/api/oil-types'],
   });
 
   // Fetch branches from API
-  const { data: branches = [], isLoading: branchesLoading } = useQuery({
+  const { data: branches = [], isLoading: branchesLoading } = useQuery<any[]>({
     queryKey: ['/api/branches'],
   });
 

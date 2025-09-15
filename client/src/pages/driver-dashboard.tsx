@@ -19,6 +19,7 @@ import { useUserProfile, useTransactions } from "@/hooks/useFirebaseAPI";
 
 import { useToast } from "@/hooks/use-toast";
 import { OilDeliveryLogo } from "@/components/ui/logo";
+import { getUserDisplayName } from "@/lib/utils";
 
 import { AppUser } from "@shared/schema";
 
@@ -92,10 +93,12 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
         const updatedComplaint = userComplaints?.find((c: any) => c.id === selectedComplaint?.id);
         if (updatedComplaint) {
           // Check if there are any new updates
+          const updatedComplaintTyped = updatedComplaint as any;
+          const selectedComplaintTyped = selectedComplaint as any;
           const hasNewUpdates = 
-            updatedComplaint.comments?.length !== selectedComplaint?.comments?.length ||
-            updatedComplaint.status !== selectedComplaint?.status ||
-            updatedComplaint.documents?.length !== selectedComplaint?.documents?.length;
+            (updatedComplaintTyped.comments?.length || 0) !== (selectedComplaintTyped.comments?.length || 0) ||
+            (updatedComplaintTyped.status || 'open') !== (selectedComplaintTyped.status || 'open') ||
+            (updatedComplaintTyped.documents?.length || 0) !== (selectedComplaintTyped.documents?.length || 0);
 
           setSelectedComplaint(updatedComplaint);
           setComplaints(userComplaints || []);
@@ -315,7 +318,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
         category: complaintForm.category,
         priority: complaintForm.priority,
         reportedBy: userId,
-        reporterName: user.displayName || user.email || 'Unknown Driver',
+        reporterName: getUserDisplayName(user),
         status: 'open',
         photos: complaintForm.photos,
         photoUrls: complaintForm.photos,
@@ -454,7 +457,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
             <div className="flex items-center space-x-2 sm:space-x-4">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">
-                  {userProfile?.displayName || user.displayName || user.email}
+                  {getUserDisplayName(userProfile) || getUserDisplayName(user)}
                 </p>
                 <p className="text-xs text-gray-500">{userProfile?.email || user.email}</p>
               </div>
@@ -712,7 +715,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                                 : (transaction.branchName || 'Unknown Location')
                               }
                             </div>
-                            <div>Driver: {transaction.driverName || userProfile?.displayName || user.displayName || user.email}</div>
+                            <div>Driver: {transaction.driverName || getUserDisplayName(userProfile) || getUserDisplayName(user)}</div>
                             {transaction.type === 'loading' && transaction.loadMeterReading && (
                               <div>Meter Reading: {transaction.loadMeterReading?.toLocaleString()}</div>
                             )}

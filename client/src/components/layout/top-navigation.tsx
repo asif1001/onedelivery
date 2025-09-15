@@ -36,7 +36,7 @@ export default function TopNavigation() {
             <div>
               <h1 className="text-lg font-semibold text-gray-800">RoleManager</h1>
               <p className="text-xs text-gray-500" data-testid="text-role-display">
-                {getRoleDisplay(user?.role)}
+                {getRoleDisplay(user?.role || undefined)}
               </p>
             </div>
           </div>

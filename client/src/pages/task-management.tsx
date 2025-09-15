@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { AppUser } from "@shared/schema";
+import { getUserDisplayName } from "@/lib/utils";
 import { 
   getAllTasks, 
   updateTask, 
@@ -53,17 +55,11 @@ interface CreateTask {
   assignedTo?: string;
 }
 
-interface User {
-  id: string;
-  displayName: string;
-  email: string;
-  role: string;
-  active: boolean;
-}
+// Use AppUser from shared schema instead of local User interface
 
 export default function TaskManagement() {
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [drivers, setDrivers] = useState<User[]>([]);
+  const [drivers, setDrivers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedTaskForDetails, setSelectedTaskForDetails] = useState<Task | null>(null);
@@ -93,7 +89,7 @@ export default function TaskManagement() {
       
       setTasks(tasksData as Task[]);
       // Filter only drivers from all users
-      setDrivers((driversData as User[]).filter(user => user.role === 'driver'));
+      setDrivers((driversData as AppUser[]).filter(user => user.role === 'driver'));
     } catch (error) {
       console.error('Error loading data:', error);
       toast({
@@ -115,9 +111,9 @@ export default function TaskManagement() {
       // Enhanced task data with user display names
       const enhancedTask = {
         ...task,
-        createdBy: user.uid,
-        createdByName: user.displayName || user.email || 'Task Manager',
-        assignedToName: task.assignedTo ? (drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.displayName || drivers.find(d => d.uid === task.assignedTo || d.id === task.assignedTo)?.email || 'Unknown User') : ''
+        createdBy: userData?.id || 'unknown',
+        createdByName: getUserDisplayName(userData) || 'Task Manager',
+        assignedToName: task.assignedTo ? (getUserDisplayName(drivers.find(d => d.id === task.assignedTo)) || 'Unknown User') : ''
       };
       await saveTask(enhancedTask);
       await loadData();
@@ -384,7 +380,7 @@ export default function TaskManagement() {
             <h2 className="text-2xl font-bold text-gray-900">Task Management</h2>
             <p className="text-gray-600">Create and manage operational tasks</p>
           </div>
-          <TaskCreationDialog onAdd={handleAddTask} drivers={drivers} />
+          <TaskCreationDialog onAdd={handleAddTask} allUsers={drivers} />
         </div>
 
         {/* Stats Grid */}

@@ -56,8 +56,19 @@ interface Transaction {
   actualDeliveredLiters?: number;
   transactionId?: string;
   deliveryOrderNo?: string;
-  editHistory?: any[];
+  deliveryOrderId?: string;
+  loadSessionId?: string;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
+  reporterName?: string;
+  reportedByName?: string;
+  editCount?: number;
+  lastEditedByName?: string;
   lastEditedAt?: any;
+  editReason?: string;
+  inventoryAdjusted?: boolean;
+  editHistory?: any[];
 }
 
 interface EditHistoryItem {

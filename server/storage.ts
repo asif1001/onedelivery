@@ -5,7 +5,7 @@ import {
   oilTypes,
   branches,
   oilTanks,
-  type User,
+  type AppUser,
   type UpsertUser,
   type Delivery,
   type InsertDelivery,
@@ -25,8 +25,8 @@ import { eq, desc } from "drizzle-orm";
 export interface IStorage {
   // User operations
   // (IMPORTANT) these user operations are mandatory for Replit Auth.
-  getUser(id: string): Promise<User | undefined>;
-  upsertUser(user: UpsertUser): Promise<User>;
+  getUser(id: string): Promise<AppUser | undefined>;
+  upsertUser(user: UpsertUser): Promise<AppUser>;
   
   // Delivery operations
   createDelivery(delivery: InsertDelivery): Promise<Delivery>;
@@ -68,12 +68,12 @@ export class DatabaseStorage implements IStorage {
   // User operations
   // (IMPORTANT) these user operations are mandatory for Replit Auth.
 
-  async getUser(id: string): Promise<User | undefined> {
+  async getUser(id: string): Promise<AppUser | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
   }
 
-  async upsertUser(userData: UpsertUser): Promise<User> {
+  async upsertUser(userData: UpsertUser): Promise<AppUser> {
     const [user] = await db
       .insert(users)
       .values(userData)

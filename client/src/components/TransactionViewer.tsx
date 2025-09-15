@@ -42,6 +42,8 @@ interface Transaction {
   oilTypeId?: string;
   oilTypeName?: string;
   deliveryOrderNo?: string;
+  deliveryOrderId?: string;
+  loadSessionId?: string;
   startMeterReading?: number;
   endMeterReading?: number;
   oilSuppliedLiters?: number;
@@ -56,6 +58,19 @@ interface Transaction {
   actualDeliveryStartFuel?: number;
   actualDeliveryEndFuel?: number;
   actualDeliveredLiters?: number;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
+  reporterName?: string;
+  reportedByName?: string;
+  editCount?: number;
+  lastEditedByName?: string;
+  lastEditedBy?: string; // Alias for compatibility
+  lastEditedAt?: any;
+  editReason?: string;
+  inventoryAdjusted?: boolean;
+  hasBeenEdited?: boolean;
+  editHistory?: any[];
 }
 
 interface TransactionFilters {

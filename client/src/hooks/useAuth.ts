@@ -1,18 +1,33 @@
 import { useState, useEffect } from 'react';
+import { AppUser } from '@shared/schema';
 
-interface User {
-  uid: string;
-  id?: string;
-  email: string | null;
-  role: string;
-  displayName: string | null;
-  firstName?: string;
-  lastName?: string;
-  active?: boolean;
+interface AuthUser extends Partial<AppUser> {
+  uid?: string;
+  displayName?: string | null;
+  photoURL?: string | null;
+  metadata?: {
+    creationTime?: string;
+    lastSignInTime?: string;
+  };
+}
+
+// Extended AppUser type with displayName for compatibility
+export interface ExtendedAppUser extends AppUser {
+  displayName?: string | null;
+  uid?: string;
+}
+
+export interface AuthHookResult {
+  userData: AuthUser | null;
+  user: AuthUser | null; // Alias for backward compatibility
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  login: () => void;
+  logout: () => void;
 }
 
 export function useAuth() {
-  const [userData, setUserData] = useState<User | null>(null);
+  const [userData, setUserData] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -23,7 +38,7 @@ export function useAuth() {
         try {
           const parsedUser = JSON.parse(savedUser);
           console.log('Using stored user session:', parsedUser);
-          setUserData(parsedUser as User);
+          setUserData(parsedUser as AuthUser);
           setIsLoading(false);
           return true;
         } catch (error) {
@@ -77,6 +92,7 @@ export function useAuth() {
 
   return {
     userData,
+    user: userData, // Alias for backward compatibility
     isLoading,
     isAuthenticated: !!userData,
     login,

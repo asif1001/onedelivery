@@ -116,7 +116,7 @@ export function FirebaseUsageCalculator() {
       
       // Calculate real values in parallel (no initial estimates)
       const [storageUsage, firestoreUsage] = await Promise.all([
-        getStorageUsage().catch(err => {
+        getStorageUsage().catch((err: unknown) => {
           console.error('❌ Storage calculation failed:', err);
           return {
             totalSizeGb: 0, 
@@ -125,7 +125,7 @@ export function FirebaseUsageCalculator() {
             estimatedDownloads: 0
           };
         }),
-        getFirestoreUsage().catch(err => {
+        getFirestoreUsage().catch((err: unknown) => {
           console.error('❌ Firestore calculation failed:', err);
           return {
             sizeGb: 0,
@@ -135,7 +135,7 @@ export function FirebaseUsageCalculator() {
             estimatedDeletes: 0
           };
         })
-      ]);
+      ]) as [UsageData['storage'], UsageData['firestore']];
       
       console.log('📊 Real Storage Data:', storageUsage);
       console.log('📊 Real Firestore Data:', firestoreUsage);
@@ -157,7 +157,7 @@ export function FirebaseUsageCalculator() {
       setCostBreakdown(calculateCosts(finalUsage));
       console.log('✅ Firebase Usage Calculator - Real calculation complete!', finalUsage);
       
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ Firebase Usage Calculator - Critical Error:', error);
       // Set minimal values if everything fails
       const fallback: UsageData = {
@@ -256,12 +256,13 @@ export function FirebaseUsageCalculator() {
       const result = await Promise.race([storageOperation(), timeout]);
       console.log('✅ Firebase Storage calculation succeeded:', result);
       return result;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('❌ FIREBASE STORAGE ERROR:', error);
+      const errorDetails = error as { message?: string; code?: string; stack?: string };
       console.log('❌ Error details:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
+        message: errorDetails.message,
+        code: errorDetails.code,
+        stack: errorDetails.stack
       });
       console.log('⚠️  This means your photos are NOT being counted in usage costs!');
       console.log('⚠️  Returning ZERO values to clearly show when real data fails');

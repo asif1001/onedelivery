@@ -140,6 +140,15 @@ interface TaskDocument {
   uploadedAt: Date;
 }
 
+interface LogEntry {
+  id: string;
+  type: 'comment' | 'document' | 'status_change';
+  content: string;
+  timestamp: Date;
+  user: string;
+  documentId?: string;
+}
+
 interface CreateTask {
   title: string;
   description: string;
@@ -529,14 +538,18 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
     }
   };
 
-  const handleTaskDocumentUpload = async (taskId: string, files: FileList) => {
+  const handleTaskDocumentUpload = async (taskId: string, files: FileList | File) => {
     setUploadingDocument(true);
     try {
-      const uploadedDocs = [];
-      const logEntries = [];
+      const uploadedDocs: TaskDocument[] = [];
+      const logEntries: LogEntry[] = [];
       
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      // Handle both File and FileList
+      const fileList = files instanceof FileList ? files : [files];
+      const fileCount = files instanceof FileList ? files.length : 1;
+      
+      for (let i = 0; i < fileCount; i++) {
+        const file = fileList[i];
         // This would upload to Firebase Storage
         // For now, we'll simulate the upload
         const documentUrl = URL.createObjectURL(file);
@@ -552,9 +565,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
         uploadedDocs.push(document);
 
         // Add to task log
-        const logEntry = {
+        const logEntry: LogEntry = {
           id: (Date.now() + i + 1000).toString(), // Ensure unique IDs
-          type: 'document',
+          type: 'document' as const,
           content: `Document uploaded: ${file.name}`,
           timestamp: new Date(),
           user: getUserDisplayName(user) || 'Admin',
@@ -579,7 +592,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
       toast({
         title: "Success",
-        description: `${files.length} document(s) uploaded successfully`
+        description: `${fileCount} document(s) uploaded successfully`
       });
     } catch (error) {
       console.error('Error uploading document:', error);
