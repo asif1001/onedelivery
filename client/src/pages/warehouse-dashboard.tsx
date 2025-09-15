@@ -3250,7 +3250,7 @@ export default function WarehouseDashboard() {
                         const percentage = tank.capacity > 0 ? (tank.currentLevel / tank.capacity) * 100 : 0;
                         
                         // Format last update date
-                        let lastUpdateText = '>1M ago';
+                        let lastUpdateText = 'No updates';
                         let lastUpdateColor = 'text-gray-400';
                         
                         if (tank.lastUpdated) {
@@ -3262,10 +3262,7 @@ export default function WarehouseDashboard() {
                             const diffHours = Math.floor(diffTime / (1000 * 60 * 60));
                             const diffMinutes = Math.floor(diffTime / (1000 * 60));
                             
-                            if (diffDays > 30) {
-                              lastUpdateText = '>1M ago';
-                              lastUpdateColor = 'text-gray-400';
-                            } else if (diffDays > 0) {
+                            if (diffDays > 0) {
                               lastUpdateText = `${diffDays}d ago`;
                               lastUpdateColor = diffDays > 7 ? 'text-red-600' : diffDays > 1 ? 'text-yellow-600' : 'text-green-600';
                             } else if (diffHours > 0) {
@@ -3279,7 +3276,7 @@ export default function WarehouseDashboard() {
                               lastUpdateColor = 'text-green-600';
                             }
                           } catch (e) {
-                            lastUpdateText = '>1M ago';
+                            lastUpdateText = 'Invalid date';
                             lastUpdateColor = 'text-gray-400';
                           }
                         }
