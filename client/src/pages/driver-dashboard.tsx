@@ -48,6 +48,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<{url: string, label: string} | null>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   
   // Complaint state
   const [complaints, setComplaints] = useState<any[]>([]);
@@ -126,6 +127,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
     loadTransactions();
     loadComplaints();
     loadDrivers();
+    loadBranches();
   }, [user.id]);
 
   const loadDeliveries = async () => {
@@ -137,6 +139,16 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
       setRecentDeliveries([]);
     } catch (error) {
       console.error('Error loading deliveries:', error);
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      const list = await getActiveBranchesOnly();
+      setBranches(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.error('Error loading branches:', error);
+      setBranches([]);
     }
   };
 
@@ -318,7 +330,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
         category: complaintForm.category,
         priority: complaintForm.priority,
         reportedBy: userId,
-        reporterName: getUserDisplayName(user),
+  reporterName: getUserDisplayName(user),
         status: 'open',
         photos: complaintForm.photos,
         photoUrls: complaintForm.photos,
@@ -1183,15 +1195,19 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
 
       {/* Create Complaint Modal */}
       <Dialog open={showCreateComplaintModal} onOpenChange={setShowCreateComplaintModal}>
-        <DialogContent className="max-w-2xl" aria-describedby="complaint-modal-description">
-          <DialogHeader>
+        <DialogContent
+          className="max-w-2xl w-[95vw] max-h-[85vh] p-0 overflow-hidden flex flex-col"
+          aria-describedby="complaint-modal-description"
+        >
+          <DialogHeader className="p-6 pb-4 border-b">
             <DialogTitle>Report an Issue</DialogTitle>
             <DialogDescription id="complaint-modal-description">
               Describe the issue you're experiencing. Add photos for evidence if needed.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4">
+
+          {/* Scrollable Body */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-4">
             <div>
               <Label htmlFor="complaint-title">Issue Title *</Label>
               <Input
@@ -1259,12 +1275,27 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
               
               <div>
                 <Label htmlFor="complaint-branch">Branch/Site</Label>
-                <Input
-                  id="complaint-branch"
+                <Select
                   value={complaintForm.branchName}
-                  onChange={(e) => setComplaintForm(prev => ({ ...prev, branchName: e.target.value }))}
-                  placeholder="Branch or site name"
-                />
+                  onValueChange={(value) => setComplaintForm(prev => ({ ...prev, branchName: value }))}
+                >
+                  <SelectTrigger id="complaint-branch">
+                    <SelectValue placeholder="Select a branch/site" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.length > 0 ? (
+                      branches.map((b: any) => (
+                        <SelectItem key={b.id || b.name} value={b.name}>
+                          {b.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="">
+                        No branches available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -1313,26 +1344,27 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                 </div>
               )}
             </div>
+          </div>
 
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => {
-                setShowCreateComplaintModal(false);
-                setComplaintForm({
-                  title: '',
-                  description: '',
-                  category: 'other',
-                  priority: 'medium',
-                  photos: [],
-                  location: '',
-                  branchName: ''
-                });
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={handleSubmitComplaint}>
-                Submit Complaint
-              </Button>
-            </div>
+          {/* Sticky Footer */}
+          <div className="flex justify-end gap-2 border-t p-4">
+            <Button variant="outline" onClick={() => {
+              setShowCreateComplaintModal(false);
+              setComplaintForm({
+                title: '',
+                description: '',
+                category: 'other',
+                priority: 'medium',
+                photos: [],
+                location: '',
+                branchName: ''
+              });
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitComplaint}>
+              Submit Complaint
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

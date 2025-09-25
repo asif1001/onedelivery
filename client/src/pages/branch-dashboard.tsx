@@ -528,7 +528,7 @@ export default function BranchDashboard() {
       // Use only where clause to avoid composite index requirement
       const q = query(
         collection(db, 'tankUpdateLogs'),
-        where('updatedBy', '==', currentUser.displayName || currentUser.email)
+  where('updatedBy', '==', (currentUser as any)?.displayName || currentUser.email)
       );
       
       const snapshot = await getDocs(q);
@@ -863,10 +863,10 @@ export default function BranchDashboard() {
       // Only show active complaints (open, in-progress) - hide closed/completed/resolved
       const userComplaints = allComplaints.filter((complaint: any) => {
         const isUserComplaint = (complaint.reportedBy === currentUser.uid || 
-                                complaint.reportedByName === currentUser.displayName ||
+                                complaint.reportedByName === (currentUser as any)?.displayName ||
                                 complaint.reportedByName === currentUser.email ||
                                 complaint.createdBy === currentUser.uid ||
-                                complaint.createdBy === currentUser.displayName ||
+                                complaint.createdBy === (currentUser as any)?.displayName ||
                                 complaint.createdBy === currentUser.email ||
                                 // Also check if complaint is from user's branches (since user submitted it)
                                 (currentUser.branchIds && currentUser.branchIds.includes(complaint.branchId)));
@@ -909,16 +909,16 @@ export default function BranchDashboard() {
           reportedByName: (complaint as any).reportedByName,
           createdBy: complaint.createdBy,
           currentUserId: currentUser.uid,
-          currentUserName: currentUser.displayName,
+          currentUserName: (currentUser as any)?.displayName,
           currentUserEmail: currentUser.email,
           currentUserBranches: currentUser.branchIds
         });
         
         const isUserComplaint = (complaint as any).reportedBy === currentUser.uid ||
-                                (complaint as any).reportedByName === currentUser.displayName ||
+                                (complaint as any).reportedByName === (currentUser as any)?.displayName ||
                                 (complaint as any).reportedByName === currentUser.email ||
                                 complaint.createdBy === currentUser.uid ||
-                                complaint.createdBy === currentUser.displayName ||
+                                complaint.createdBy === (currentUser as any)?.displayName ||
                                 complaint.createdBy === currentUser.email ||
                                 // Also check if complaint is from user's branches (since user submitted it)
                                 (currentUser.branchIds && currentUser.branchIds.includes(complaint.branchId));
@@ -1079,13 +1079,13 @@ export default function BranchDashboard() {
         previousLevel: selectedTank.currentLevel,
         newLevel,
         capacity: selectedTank.capacity,
-        user: currentUser.displayName || currentUser.email
+  user: (currentUser as any)?.displayName || currentUser.email
       });
 
       // Apply optimistic update immediately
       const optimisticUpdate = {
         currentLevel: newLevel,
-        lastUpdatedBy: currentUser.displayName || currentUser.email,
+  lastUpdatedBy: (currentUser as any)?.displayName || currentUser.email,
         lastUpdated: new Date(),
         updating: true
       };
@@ -1101,7 +1101,7 @@ export default function BranchDashboard() {
       const branchForWatermark = branches.find(b => b.id === selectedBranchForUpdate);
       const branchName = branchForWatermark?.name || 'Unknown Branch';
       const tankName = tankForWatermark?.oilTypeName || 'Unknown Tank';
-      const userName = currentUser.displayName || currentUser.email;
+  const userName = (currentUser as any)?.displayName || currentUser.email;
       const sessionId = `${currentUser.uid}_${Date.now()}`;
       
       // PARALLEL WATERMARKING - Process both photos simultaneously with fallback
@@ -1167,7 +1167,7 @@ export default function BranchDashboard() {
       // ENHANCED CONCURRENT UPDATE DATA with performance optimizations
       const updateData = {
         currentLevel: newLevel,
-        lastUpdatedBy: currentUser.displayName || currentUser.email,
+  lastUpdatedBy: (currentUser as any)?.displayName || currentUser.email,
         notes: updateNotes || '',
         tankGaugePhoto: gaugePhotoUrl,
         systemScreenPhoto: systemPhotoUrl,
@@ -1252,7 +1252,7 @@ export default function BranchDashboard() {
         newLevel: result.newLevel,
         levelDifference: result.levelDifference,
         updateVersion: result.updateVersion,
-        updatedBy: currentUser.displayName || currentUser.email,
+  updatedBy: (currentUser as any)?.displayName || currentUser.email,
         timestamp: new Date().toLocaleString(),
         photos: { gauge: gaugePhotoUrl, system: systemPhotoUrl }
       });
@@ -1377,7 +1377,7 @@ export default function BranchDashboard() {
         priority: complaintData.priority,
         photos: photoUrls,
         reportedBy: currentUser.uid,
-        reportedByName: currentUser.displayName || currentUser.email,
+  reportedByName: (currentUser as any)?.displayName || currentUser.email,
         status: 'open',
         createdAt: new Date()
       });
@@ -1462,7 +1462,7 @@ export default function BranchDashboard() {
               />
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">Branch Dashboard</h1>
-                <p className="text-xs sm:text-sm text-gray-500 truncate">Welcome, {currentUser.displayName || currentUser.email}</p>
+                <p className="text-xs sm:text-sm text-gray-500 truncate">Welcome, {(currentUser as any)?.displayName || currentUser.email}</p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
@@ -2540,15 +2540,16 @@ export default function BranchDashboard() {
 
       {/* Complaint Dialog */}
       <Dialog open={showComplaintDialog} onOpenChange={setShowComplaintDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md w-[95vw] max-h-[85vh] p-0 overflow-hidden flex flex-col">
+          <DialogHeader className="px-6 pt-6 pb-2">
             <DialogTitle>Submit Complaint</DialogTitle>
             <DialogDescription>
               Report any issues or concerns for your assigned branches
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          {/* Scrollable body */}
+          <div className="space-y-4 px-6 pb-4 flex-1 overflow-y-auto">
             <div className="space-y-2">
               <Label>Branch</Label>
               <Select value={complaintData.branchId} onValueChange={(value) => setComplaintData(prev => ({ ...prev, branchId: value }))}>
@@ -2648,7 +2649,11 @@ export default function BranchDashboard() {
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2">
+          </div>
+
+          {/* Non-scrolling footer with actions */}
+          <DialogFooter className="px-6 py-4 border-t bg-white">
+            <div className="flex justify-end w-full gap-2">
               <Button variant="outline" onClick={() => setShowComplaintDialog(false)}>
                 Cancel
               </Button>
@@ -2666,7 +2671,7 @@ export default function BranchDashboard() {
                 )}
               </Button>
             </div>
-          </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
