@@ -66,6 +66,18 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
     branchName: ''
   });
 
+  // Debug: log when create-complaint modal open state changes (temporary)
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log('[DriverDashboard] showCreateComplaintModal:', showCreateComplaintModal);
+  }, [showCreateComplaintModal]);
+
+  const openCreateComplaintModal = () => {
+    // eslint-disable-next-line no-console
+    console.log('[DriverDashboard] Report Issue clicked');
+    setShowCreateComplaintModal(true);
+  };
+
   // Auto-refresh complaint when modal is open
   useEffect(() => {
     let refreshInterval: NodeJS.Timeout;
@@ -560,7 +572,7 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                 Report problems or safety concerns
               </p>
               <Button 
-                onClick={() => setShowCreateComplaintModal(true)}
+                onClick={openCreateComplaintModal}
                 className="w-full bg-red-500 hover:bg-red-600"
                 data-testid="button-report-issue"
               >
