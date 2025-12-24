@@ -1,0 +1,22 @@
+STORAGE RULES UPDATE NEEDED:
+
+The Firebase Storage rules need to be deployed manually since CLI authentication is not available in this environment.
+
+Current storage.rules content:
+```
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow all users to read and write any file for development
+    // This matches the working setup before Firebase credential changes
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Manual steps to deploy:
+1. Go to Firebase Console > Storage > Rules
+2. Replace the existing rules with the content above
+3. Click "Publish"

@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoleManager - Business Management App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: '#1976D2',
+                        secondary: '#424242',
+                        admin: '#9C27B0',
+                        user: '#2196F3', 
+                        driver: '#FF5722',
+                        business: '#4CAF50',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="font-inter bg-gray-50 min-h-screen">
+    <!-- @COMPONENT: App [main application container] -->
+    <div id="app" class="min-h-screen">
+        
+        <!-- LOGIN PAGE -->
+        <!-- @COMPONENT: LoginPage [authentication interface] -->
+        <div id="loginPage" class="min-h-screen bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center p-4">
+            <div class="w-full max-w-md">
+                <!-- Logo/Brand Section -->
+                <div class="text-center mb-8">
+                    <div class="bg-white rounded-full w-20 h-20 mx-auto flex items-center justify-center mb-4 shadow-lg">
+                        <i class="fas fa-users-cog text-primary text-2xl"></i>
+                    </div>
+                    <h1 class="text-white text-2xl font-bold mb-2">RoleManager</h1>
+                    <p class="text-blue-100 text-sm">Business Management Platform</p>
+                </div>
+
+                <!-- Login Form Card -->
+                <div class="bg-white rounded-2xl shadow-2xl p-6">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800 mb-2">Welcome Back</h2>
+                        <p class="text-gray-600 text-sm">Sign in to access your dashboard</p>
+                    </div>
+
+                    <form class="space-y-4" data-mock="true">
+                        <!-- Email Input -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                            <div class="relative">
+                                <i class="fas fa-envelope absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                <input type="email" placeholder="Enter your email" 
+                                       class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                       data-implementation="Connect to Firebase Auth">
+                            </div>
+                        </div>
+
+                        <!-- Password Input -->
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                            <div class="relative">
+                                <i class="fas fa-lock absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                                <input type="password" placeholder="Enter your password" 
+                                       class="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                       data-implementation="Connect to Firebase Auth">
+                                <button type="button" class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Remember Me & Forgot Password -->
+                        <div class="flex items-center justify-between text-sm">
+                            <label class="flex items-center">
+                                <input type="checkbox" class="rounded border-gray-300 text-primary focus:ring-primary">
+                                <span class="ml-2 text-gray-600">Remember me</span>
+                            </label>
+                            <a href="#" class="text-primary font-medium hover:text-blue-700 transition-colors">Forgot Password?</a>
+                        </div>
+
+                        <!-- Login Button -->
+                        <button type="submit" 
+                                class="w-full bg-primary hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                                data-event="click:handleLogin"
+                                data-implementation="Authenticate with Firebase and determine user role">
+                            <i class="fas fa-sign-in-alt mr-2"></i>
+                            Sign In
+                        </button>
+
+                        <!-- Loading State -->
+                        <button type="button" class="hidden w-full bg-gray-400 text-white font-medium py-3 rounded-lg" data-loading-state="true">
+                            <i class="fas fa-spinner fa-spin mr-2"></i>
+                            Signing In...
+                        </button>
+                    </form>
+
+                    <!-- Divider -->
+                    <div class="my-6 flex items-center">
+                        <div class="flex-1 border-t border-gray-300"></div>
+                        <span class="px-3 text-gray-500 text-sm">or</span>
+                        <div class="flex-1 border-t border-gray-300"></div>
+                    </div>
+
+                    <!-- Social Login Options -->
+                    <div class="space-y-3">
+                        <button class="w-full flex items-center justify-center py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                data-implementation="Google OAuth integration">
+                            <i class="fab fa-google text-red-500 mr-3"></i>
+                            Continue with Google
+                        </button>
+                    </div>
+
+                    <!-- Sign Up Link -->
+                    <div class="text-center mt-6 pt-4 border-t border-gray-200">
+                        <p class="text-gray-600 text-sm">
+                            Don't have an account? 
+                            <a href="#" class="text-primary font-medium hover:text-blue-700 transition-colors">Contact Administrator</a>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="text-center mt-6 text-blue-100 text-xs">
+                    <p>Secure authentication powered by Firebase</p>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: LoginPage -->
+
+        <!-- MAIN DASHBOARD PAGE -->
+        <!-- @COMPONENT: DashboardPage [role-specific main interface] -->
+        <div id="dashboardPage" class="hidden min-h-screen bg-gray-50">
+            
+            <!-- Top Navigation Bar -->
+            <!-- @COMPONENT: TopNavigation [header with user info and notifications] -->
+            <header class="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
+                <div class="px-4 py-3">
+                    <div class="flex items-center justify-between">
+                        <!-- Logo/Brand -->
+                        <div class="flex items-center space-x-3">
+                            <div class="bg-primary rounded-lg w-10 h-10 flex items-center justify-center">
+                                <i class="fas fa-users-cog text-white text-lg"></i>
+                            </div>
+                            <div>
+                                <h1 class="text-lg font-semibold text-gray-800">RoleManager</h1>
+                                <p class="text-xs text-gray-500" data-bind="user.role">Admin Dashboard</p>
+                            </div>
+                        </div>
+
+                        <!-- User Actions -->
+                        <div class="flex items-center space-x-3">
+                            <!-- Notifications -->
+                            <button class="relative p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors">
+                                <i class="fas fa-bell text-lg"></i>
+                                <span class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
+                            </button>
+                            
+                            <!-- User Profile -->
+                            <div class="flex items-center space-x-2">
+                                <!-- Profile image would come from Cloudinary -->
+                                <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&w=100&h=100&fit=crop&crop=face" 
+                                     alt="User Profile" 
+                                     class="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                                     data-mock-image="true"
+                                     data-implementation="Load from Cloudinary user profile images">
+                                <div class="hidden sm:block">
+                                    <p class="text-sm font-medium text-gray-700" data-bind="user.name">John Admin</p>
+                                    <p class="text-xs text-gray-500" data-bind="user.email">john@company.com</p>
+                                </div>
+                                <i class="fas fa-chevron-down text-gray-400 text-xs"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <!-- @END_COMPONENT: TopNavigation -->
+
+            <!-- Main Content Area -->
+            <main class="pb-20">
+                <!-- Role-Based Quick Stats -->
+                <!-- @COMPONENT: StatsOverview [KPI cards based on user role] -->
+                <section class="p-4">
+                    <div class="mb-6">
+                        <h2 class="text-xl font-semibold text-gray-800 mb-1">Dashboard Overview</h2>
+                        <p class="text-gray-600 text-sm">Welcome back! Here's what's happening today.</p>
+                    </div>
+
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <!-- @MAP: stats.map(stat => ( -->
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="bg-admin rounded-lg w-10 h-10 flex items-center justify-center">
+                                    <i class="fas fa-users text-white"></i>
+                                </div>
+                                <span class="text-xs text-green-600 font-medium">+12%</span>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800" data-bind="stats.totalUsers">248</h3>
+                            <p class="text-sm text-gray-600">Total Users</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="bg-driver rounded-lg w-10 h-10 flex items-center justify-center">
+                                    <i class="fas fa-truck text-white"></i>
+                                </div>
+                                <span class="text-xs text-green-600 font-medium">+8%</span>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800" data-bind="stats.activeDrivers">52</h3>
+                            <p class="text-sm text-gray-600">Active Drivers</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="bg-business rounded-lg w-10 h-10 flex items-center justify-center">
+                                    <i class="fas fa-building text-white"></i>
+                                </div>
+                                <span class="text-xs text-blue-600 font-medium">+5%</span>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800" data-bind="stats.businesses">18</h3>
+                            <p class="text-sm text-gray-600">Businesses</p>
+                        </div>
+
+                        <div class="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="bg-user rounded-lg w-10 h-10 flex items-center justify-center">
+                                    <i class="fas fa-chart-line text-white"></i>
+                                </div>
+                                <span class="text-xs text-green-600 font-medium">+15%</span>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-800" data-bind="stats.revenue">$12.4K</h3>
+                            <p class="text-sm text-gray-600">Revenue</p>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: StatsOverview -->
+
+                <!-- Recent Activities -->
+                <!-- @COMPONENT: ActivityFeed [recent actions and updates] -->
+                <section class="px-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-semibold text-gray-800">Recent Activities</h3>
+                                <button class="text-primary text-sm font-medium">View All</button>
+                            </div>
+                        </div>
+                        <div class="divide-y divide-gray-100">
+                            <!-- @MAP: activities.map(activity => ( -->
+                            <div class="p-4 flex items-center space-x-3">
+                                <div class="bg-green-100 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-user-plus text-green-600 text-sm"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-gray-800" data-bind="activity.message">New driver registered: Mike Johnson</p>
+                                    <p class="text-xs text-gray-500" data-bind="activity.timestamp">2 minutes ago</p>
+                                </div>
+                            </div>
+
+                            <div class="p-4 flex items-center space-x-3">
+                                <div class="bg-blue-100 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-building text-blue-600 text-sm"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-gray-800" data-bind="activity.message">Business account updated: TechCorp Ltd</p>
+                                    <p class="text-xs text-gray-500" data-bind="activity.timestamp">1 hour ago</p>
+                                </div>
+                            </div>
+
+                            <div class="p-4 flex items-center space-x-3">
+                                <div class="bg-orange-100 rounded-full w-8 h-8 flex items-center justify-center flex-shrink-0">
+                                    <i class="fas fa-exclamation-triangle text-orange-600 text-sm"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm text-gray-800" data-bind="activity.message">System maintenance scheduled for tonight</p>
+                                    <p class="text-xs text-gray-500" data-bind="activity.timestamp">3 hours ago</p>
+                                </div>
+                            </div>
+                            <!-- @END_MAP )) -->
+                        </div>
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: ActivityFeed -->
+
+                <!-- Role-Based Quick Actions -->
+                <!-- @COMPONENT: QuickActions [contextual action buttons] -->
+                <section class="px-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="font-semibold text-gray-800 mb-4">Quick Actions</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button class="flex flex-col items-center p-4 rounded-xl bg-admin/10 border border-admin/20 hover:bg-admin/20 transition-colors"
+                                    data-implementation="Navigate to user management">
+                                <i class="fas fa-user-cog text-admin text-xl mb-2"></i>
+                                <span class="text-sm font-medium text-admin">Manage Users</span>
+                            </button>
+                            
+                            <button class="flex flex-col items-center p-4 rounded-xl bg-driver/10 border border-driver/20 hover:bg-driver/20 transition-colors"
+                                    data-implementation="Navigate to driver management">
+                                <i class="fas fa-truck text-driver text-xl mb-2"></i>
+                                <span class="text-sm font-medium text-driver">Driver Panel</span>
+                            </button>
+                            
+                            <button class="flex flex-col items-center p-4 rounded-xl bg-business/10 border border-business/20 hover:bg-business/20 transition-colors"
+                                    data-implementation="Navigate to business management">
+                                <i class="fas fa-building text-business text-xl mb-2"></i>
+                                <span class="text-sm font-medium text-business">Businesses</span>
+                            </button>
+                            
+                            <button class="flex flex-col items-center p-4 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors"
+                                    data-implementation="Navigate to reports">
+                                <i class="fas fa-chart-bar text-primary text-xl mb-2"></i>
+                                <span class="text-sm font-medium text-primary">Reports</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: QuickActions -->
+
+                <!-- Role Indicators (Demo) -->
+                <!-- @COMPONENT: RoleDemo [demonstration of different user role interfaces] -->
+                <section class="px-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="font-semibold text-gray-800 mb-4">Role-Based Views <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-normal">Demo</span></h3>
+                        <div class="space-y-3">
+                            <!-- Admin Role -->
+                            <div class="flex items-center p-3 rounded-lg bg-admin/5 border border-admin/20">
+                                <div class="bg-admin rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                    <i class="fas fa-crown text-white text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-admin">Admin Dashboard</p>
+                                    <p class="text-xs text-gray-600">Full system access, user management, analytics</p>
+                                </div>
+                                <button class="text-admin text-sm font-medium px-3 py-1 border border-admin/30 rounded-lg hover:bg-admin/10 transition-colors"
+                                        data-implementation="Switch to admin view">
+                                    Switch
+                                </button>
+                            </div>
+
+                            <!-- User Role -->
+                            <div class="flex items-center p-3 rounded-lg bg-user/5 border border-user/20">
+                                <div class="bg-user rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                    <i class="fas fa-user text-white text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-user">User Dashboard</p>
+                                    <p class="text-xs text-gray-600">Personal profile, bookings, history</p>
+                                </div>
+                                <button class="text-user text-sm font-medium px-3 py-1 border border-user/30 rounded-lg hover:bg-user/10 transition-colors"
+                                        data-implementation="Switch to user view">
+                                    Switch
+                                </button>
+                            </div>
+
+                            <!-- Driver Role -->
+                            <div class="flex items-center p-3 rounded-lg bg-driver/5 border border-driver/20">
+                                <div class="bg-driver rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                    <i class="fas fa-steering-wheel text-white text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-driver">Driver Dashboard</p>
+                                    <p class="text-xs text-gray-600">Active trips, earnings, vehicle status</p>
+                                </div>
+                                <button class="text-driver text-sm font-medium px-3 py-1 border border-driver/30 rounded-lg hover:bg-driver/10 transition-colors"
+                                        data-implementation="Switch to driver view">
+                                    Switch
+                                </button>
+                            </div>
+
+                            <!-- Business Role -->
+                            <div class="flex items-center p-3 rounded-lg bg-business/5 border border-business/20">
+                                <div class="bg-business rounded-full w-8 h-8 flex items-center justify-center mr-3">
+                                    <i class="fas fa-briefcase text-white text-sm"></i>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-business">Business Dashboard</p>
+                                    <p class="text-xs text-gray-600">Analytics, fleet management, billing</p>
+                                </div>
+                                <button class="text-business text-sm font-medium px-3 py-1 border border-business/30 rounded-lg hover:bg-business/10 transition-colors"
+                                        data-implementation="Switch to business view">
+                                    Switch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: RoleDemo -->
+            </main>
+
+            <!-- Bottom Navigation -->
+            <!-- @COMPONENT: BottomNavigation [mobile navigation tabs] -->
+            <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-2 z-50">
+                <div class="flex justify-around">
+                    <button class="flex flex-col items-center py-2 px-3 text-primary" data-active="true">
+                        <i class="fas fa-home text-lg mb-1"></i>
+                        <span class="text-xs font-medium">Home</span>
+                    </button>
+                    <button class="flex flex-col items-center py-2 px-3 text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-users text-lg mb-1"></i>
+                        <span class="text-xs">Users</span>
+                    </button>
+                    <button class="flex flex-col items-center py-2 px-3 text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-chart-bar text-lg mb-1"></i>
+                        <span class="text-xs">Analytics</span>
+                    </button>
+                    <button class="flex flex-col items-center py-2 px-3 text-gray-400 hover:text-gray-600 transition-colors">
+                        <i class="fas fa-cog text-lg mb-1"></i>
+                        <span class="text-xs">Settings</span>
+                    </button>
+                </div>
+            </nav>
+            <!-- @END_COMPONENT: BottomNavigation -->
+        </div>
+        <!-- @END_COMPONENT: DashboardPage -->
+
+    </div>
+    <!-- @END_COMPONENT: App -->
+
+    <!-- Demo Navigation Script -->
+    <script>
+        (function() {
+            // Simple page navigation for demo purposes
+            // TODO: Replace with proper routing system for production
+            let currentPage = 'login';
+            
+            const loginPage = document.getElementById('loginPage');
+            const dashboardPage = document.getElementById('dashboardPage');
+            const loginForm = loginPage.querySelector('form');
+            
+            // Handle login form submission
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Show loading state
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const loadingBtn = this.querySelector('[data-loading-state]');
+                
+                submitBtn.classList.add('hidden');
+                loadingBtn.classList.remove('hidden');
+                
+                // Simulate authentication delay
+                setTimeout(() => {
+                    // TODO: Implement Firebase authentication
+                    // TODO: Determine user role from Firebase user claims
+                    // TODO: Redirect based on user role
+                    
+                    // For demo, switch to dashboard
+                    loginPage.classList.add('hidden');
+                    dashboardPage.classList.remove('hidden');
+                    currentPage = 'dashboard';
+                }, 2000);
+            });
+            
+            // Handle role switching buttons
+            const roleSwitchButtons = document.querySelectorAll('[data-implementation*="Switch to"]');
+            roleSwitchButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // TODO: Implement role-based view switching
+                    // TODO: Update dashboard content based on selected role
+                    // TODO: Modify navigation and available actions
+                    console.log('Role switch clicked:', this.textContent);
+                });
+            });
+            
+            // Handle bottom navigation
+            const navButtons = document.querySelectorAll('nav button');
+            navButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    // Remove active state from all buttons
+                    navButtons.forEach(btn => {
+                        btn.classList.remove('text-primary');
+                        btn.classList.add('text-gray-400', 'hover:text-gray-600');
+                        btn.removeAttribute('data-active');
+                    });
+                    
+                    // Add active state to clicked button
+                    this.classList.add('text-primary');
+                    this.classList.remove('text-gray-400', 'hover:text-gray-600');
+                    this.setAttribute('data-active', 'true');
+                    
+                    // TODO: Implement proper navigation between sections
+                    console.log('Navigation clicked:', this.textContent.trim());
+                });
+            });
+            
+            // Handle password visibility toggle
+            const passwordToggle = document.querySelector('[data-implementation] .fa-eye').parentElement;
+            passwordToggle.addEventListener('click', function() {
+                const input = this.parentElement.querySelector('input');
+                const icon = this.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            });
+            
+        })();
+    </script>
+
+    <!-- @STATE: currentUser:object = null -->
+    <!-- @STATE: userRole:string = '' -->
+    <!-- @STATE: isLoading:boolean = false -->
+    <!-- @STATE: activities:array = [] -->
+    <!-- @STATE: stats:object = {} -->
+    
+    <!-- @FUNCTIONALITY: This app should implement Firebase Authentication with role-based access control -->
+    <!-- @FUNCTIONALITY: User profiles and images should be stored in Cloudinary -->
+    <!-- @FUNCTIONALITY: Real-time updates for activities and statistics -->
+    <!-- @FUNCTIONALITY: Progressive Web App (PWA) capabilities for mobile installation -->
+</body>
+</html>

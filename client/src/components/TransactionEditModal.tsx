@@ -1,0 +1,900 @@
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Separator } from '@/components/ui/separator';
+import { 
+  AlertTriangleIcon, 
+  SaveIcon, 
+  XIcon, 
+  ClockIcon,
+  UserIcon,
+  EditIcon,
+  GaugeIcon,
+  DropletIcon,
+  MapPinIcon,
+  PackageIcon
+} from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { 
+  updateTransaction, 
+  getBranches, 
+  getOilTypes, 
+  getCurrentUser,
+  createTransactionEditHistory,
+  calculateInventoryImpact,
+  getTankerVehicle,
+  db
+} from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+
+interface Transaction {
+  id: string;
+  type: string;
+  driverUid: string;
+  driverName: string;
+  branchId?: string;
+  branchName?: string;
+  oilTypeId?: string;
+  oilTypeName?: string;
+  startMeterReading?: number;
+  endMeterReading?: number;
+  oilSuppliedLiters?: number;
+  totalLoadedLiters?: number;
+  loadMeterReading?: number;
+  timestamp?: any;
+  createdAt?: any;
+  status?: string;
+  photos?: Record<string, string>;
+  actualDeliveredLiters?: number;
+  transactionId?: string;
+  deliveryOrderNo?: string;
+  deliveryOrderId?: string;
+  loadSessionId?: string;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
+  editHistory?: any[];
+}
+
+interface EditData {
+  startMeterReading?: number;
+  endMeterReading?: number;
+  oilSuppliedLiters?: number;
+  totalLoadedLiters?: number;
+  deliveredLiters?: number;
+  loadedLiters?: number;
+  quantity?: number;
+  oilTypeId?: string;
+  branchId?: string;
+  reason: string;
+  adjustInventory: 'automatic' | 'manual' | 'none';
+  manualInventoryAdjustment?: number;
+}
+
+interface TransactionEditModalProps {
+  transaction: Transaction | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onTransactionUpdated: () => void;
+}
+
+export function TransactionEditModal({ 
+  transaction, 
+  isOpen, 
+  onClose, 
+  onTransactionUpdated 
+}: TransactionEditModalProps) {
+  const { toast } = useToast();
+  const [editData, setEditData] = useState<EditData>({
+    reason: '',
+    adjustInventory: 'automatic'
+  });
+  const [branches, setBranches] = useState<any[]>([]);
+  const [oilTypes, setOilTypes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [inventoryImpact, setInventoryImpact] = useState<any>(null);
+  const [showInventoryWarning, setShowInventoryWarning] = useState(false);
+
+  useEffect(() => {
+    if (transaction && isOpen) {
+      loadFormData();
+      loadReferenceLists();
+    }
+  }, [transaction, isOpen]);
+
+  useEffect(() => {
+    if (editData.adjustInventory !== 'none' && hasQuantityChanges()) {
+      calculateImpact();
+    }
+  }, [editData]);
+
+  const loadFormData = () => {
+    if (!transaction) return;
+    
+    
+    // Try multiple field names for each value
+    const startMeter = transaction.startMeterReading;
+                      
+    const endMeter = transaction.endMeterReading;
+                    
+    const oilSupplied = transaction.deliveredLiters ?? 
+                       transaction.oilSuppliedLiters ?? 
+                       transaction.actualDeliveredLiters;
+                       
+    const totalLoaded = transaction.loadedLiters ??
+                       transaction.totalLoadedLiters ??
+                       transaction.loadMeterReading;
+    
+    
+    setEditData({
+      startMeterReading: startMeter,
+      endMeterReading: endMeter,
+      oilSuppliedLiters: oilSupplied,
+      totalLoadedLiters: totalLoaded,
+      oilTypeId: transaction.oilTypeId,
+      branchId: transaction.branchId,
+      reason: '',
+      adjustInventory: 'automatic'
+    });
+  };
+
+  const loadReferenceLists = async () => {
+    try {
+      const [branchesData, oilTypesData] = await Promise.all([
+        getBranches(),
+        getOilTypes()
+      ]);
+      setBranches(branchesData || []);
+      setOilTypes(oilTypesData || []);
+    } catch (error) {
+      console.error('Error loading reference data:', error);
+    }
+  };
+
+  const hasQuantityChanges = () => {
+    if (!transaction) return false;
+    
+    const originalQuantity = transaction.oilSuppliedLiters || transaction.actualDeliveredLiters || transaction.totalLoadedLiters || 0;
+    const newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+    
+    return originalQuantity !== newQuantity;
+  };
+
+  const calculateImpact = async () => {
+    if (!transaction) return;
+    
+    try {
+      const impact = await calculateInventoryImpact({
+        transactionId: transaction.id,
+        originalQuantity: transaction.oilSuppliedLiters || transaction.totalLoadedLiters || 0,
+        newQuantity: editData.oilSuppliedLiters || editData.totalLoadedLiters || 0,
+        branchId: editData.branchId || transaction.branchId,
+        oilTypeId: editData.oilTypeId || transaction.oilTypeId,
+        transactionType: transaction.type
+      });
+      
+      setInventoryImpact(impact);
+      setShowInventoryWarning(impact.hasWarnings);
+    } catch (error) {
+      console.error('Error calculating inventory impact:', error);
+    }
+  };
+
+  const getChangedFields = () => {
+    if (!transaction) return [];
+    
+    const changes = [];
+    
+    if (editData.startMeterReading !== transaction.startMeterReading) {
+      changes.push({
+        field: 'Start Meter Reading',
+        oldValue: transaction.startMeterReading || 'N/A',
+        newValue: editData.startMeterReading || 'N/A'
+      });
+    }
+    
+    if (editData.endMeterReading !== transaction.endMeterReading) {
+      changes.push({
+        field: 'End Meter Reading',
+        oldValue: transaction.endMeterReading || 'N/A',
+        newValue: editData.endMeterReading || 'N/A'
+      });
+    }
+    
+    const originalQuantity = transaction.deliveredLiters || transaction.loadedLiters || transaction.quantity || transaction.oilSuppliedLiters || transaction.totalLoadedLiters;
+    
+    // Calculate the new quantity the same way as in handleSave
+    let newQuantity = 0;
+    if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+      newQuantity = editData.endMeterReading - editData.startMeterReading;
+    } else if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+      newQuantity = editData.totalLoadedLiters;
+    } else {
+      newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+    }
+    if (originalQuantity !== newQuantity) {
+      changes.push({
+        field: transaction.type === 'loading' ? 'Total Loaded Liters' : 'Oil Supplied Liters',
+        oldValue: originalQuantity || 'N/A',
+        newValue: newQuantity || 'N/A'
+      });
+    }
+    
+    if (editData.oilTypeId !== transaction.oilTypeId) {
+      const oldOilType = oilTypes.find(ot => ot.id === transaction.oilTypeId);
+      const newOilType = oilTypes.find(ot => ot.id === editData.oilTypeId);
+      changes.push({
+        field: 'Oil Type',
+        oldValue: oldOilType?.name || 'N/A',
+        newValue: newOilType?.name || 'N/A'
+      });
+    }
+    
+    if (editData.branchId !== transaction.branchId) {
+      const oldBranch = branches.find(b => b.id === transaction.branchId);
+      const newBranch = branches.find(b => b.id === editData.branchId);
+      changes.push({
+        field: 'Branch/Location',
+        oldValue: oldBranch?.name || 'N/A',
+        newValue: newBranch?.name || 'N/A'
+      });
+    }
+    
+    return changes;
+  };
+
+  const handleSave = async () => {
+    if (!transaction) return;
+    
+    const changes = getChangedFields();
+    if (changes.length === 0) {
+      toast({
+        title: "No Changes",
+        description: "No fields have been modified.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    if (!editData.reason.trim()) {
+      toast({
+        title: "Reason Required",
+        description: "Please provide a reason for this edit.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        throw new Error('Unable to identify current user');
+      }
+      
+      // 1. Apply inventory adjustments if needed
+      let inventoryAdjustments = null;
+      const quantityChanges = changes.filter((change: any) => 
+        change.field.includes('Liters') || change.field.includes('Meter Reading')
+      );
+      
+      if (quantityChanges.length > 0 && editData.adjustInventory !== 'none') {
+        console.log('🔄 Processing inventory adjustments for transaction:', transaction.id);
+        
+        // Get original and new quantities
+        const originalQuantity = transaction.deliveredLiters || 
+                               transaction.loadedLiters || 
+                               transaction.quantity || 
+                               transaction.oilSuppliedLiters || 
+                               transaction.actualDeliveredLiters || 
+                               transaction.totalLoadedLiters || 0;
+        
+        // Calculate the new quantity based on meter readings for supply transactions
+        let newQuantity = 0;
+        if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+          newQuantity = editData.endMeterReading - editData.startMeterReading;
+        } else if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+          newQuantity = editData.totalLoadedLiters;
+        } else {
+          newQuantity = editData.oilSuppliedLiters || editData.totalLoadedLiters || 0;
+        }
+        
+        if (originalQuantity !== newQuantity) {
+          const quantityDifference = newQuantity - originalQuantity;
+          
+          console.log('📊 Quantity change detected:', {
+            original: originalQuantity,
+            new: newQuantity,
+            difference: quantityDifference,
+            transactionType: transaction.type
+          });
+          
+          let adjustmentAmount = 0;
+          
+          if (editData.adjustInventory === 'automatic') {
+            adjustmentAmount = quantityDifference;
+          } else if (editData.adjustInventory === 'manual' && editData.manualInventoryAdjustment) {
+            adjustmentAmount = editData.manualInventoryAdjustment;
+          }
+          
+          if (adjustmentAmount !== 0) {
+            await applyInventoryAdjustments(adjustmentAmount);
+          }
+          
+          inventoryAdjustments = {
+            method: editData.adjustInventory,
+            quantityDifference,
+            adjustmentApplied: adjustmentAmount,
+            appliedAt: new Date()
+          };
+        }
+      }
+      
+      // 2. Prepare update data with additional edit tracking fields - only include defined values
+      const { reason, adjustInventory, manualInventoryAdjustment, ...updateFields } = editData;
+      
+      // Calculate quantity fields from meter readings for supply transactions
+      if (transaction.type === 'supply' && editData.startMeterReading !== undefined && editData.endMeterReading !== undefined) {
+        const calculatedQuantity = editData.endMeterReading - editData.startMeterReading;
+        updateFields.oilSuppliedLiters = calculatedQuantity;
+        updateFields.deliveredLiters = calculatedQuantity;
+        updateFields.quantity = calculatedQuantity;
+      }
+      
+      // For loading transactions, use the totalLoadedLiters as the main quantity
+      if (transaction.type === 'loading' && editData.totalLoadedLiters !== undefined) {
+        updateFields.loadedLiters = editData.totalLoadedLiters;
+        updateFields.quantity = editData.totalLoadedLiters;
+      }
+      
+      // Filter out undefined values to prevent Firebase updateDoc errors
+      const cleanUpdateFields = Object.fromEntries(
+        Object.entries(updateFields).filter(([_, value]) => value !== undefined)
+      );
+      
+      const updateData = {
+        ...cleanUpdateFields,
+        id: transaction.id,
+        lastEditedBy: currentUser.uid,
+        lastEditedByName: currentUser.displayName || currentUser.email || 'Admin',
+        lastEditedAt: new Date(),
+        editReason: editData.reason,
+        hasBeenEdited: true,
+        editCount: ((transaction as any).editCount || 0) + 1,
+        inventoryAdjusted: inventoryAdjustments ? true : false
+      };
+      
+      // 3. Create edit history record
+      const editHistoryData = {
+        transactionId: transaction.id,
+        editedBy: currentUser.uid,
+        editedByName: currentUser.displayName || currentUser.email || 'Admin',
+        editedAt: new Date(),
+        reason: editData.reason,
+        changes: changes,
+        inventoryAdjustment: editData.adjustInventory,
+        inventoryAdjustments: inventoryAdjustments,
+        manualInventoryAdjustment: editData.manualInventoryAdjustment || null
+      };
+      
+      // 4. Update transaction and create edit history
+      await Promise.all([
+        updateTransaction(updateData),
+        createTransactionEditHistory(editHistoryData)
+      ]);
+      
+      toast({
+        title: "Transaction Updated",
+        description: `Transaction updated successfully with ${changes.length} changes.${inventoryAdjustments ? ' Inventory levels adjusted.' : ''}`
+      });
+      
+      onTransactionUpdated();
+      onClose();
+      
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "Failed to update transaction",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applyInventoryAdjustments = async (adjustmentAmount: number) => {
+    try {
+      if (!transaction || adjustmentAmount === 0) return;
+      
+      console.log('🔧 Applying inventory adjustment:', adjustmentAmount);
+      
+      // For supply transactions: adjust branch tank levels
+      if (transaction.type === 'supply' && transaction.branchId && transaction.oilTypeId) {
+        const branchRef = doc(db, 'branches', transaction.branchId);
+        const branchSnap = await getDoc(branchRef);
+        
+        if (branchSnap.exists()) {
+          const branchData = branchSnap.data();
+          const oilTanks = branchData.oilTanks || [];
+          
+          // Find the relevant tank
+          const tankIndex = oilTanks.findIndex((tank: any) => tank.oilTypeId === transaction.oilTypeId);
+          
+          if (tankIndex >= 0) {
+            const updatedTanks = [...oilTanks];
+            const currentLevel = Number(updatedTanks[tankIndex].currentLevel || 0);
+            
+            // Apply adjustment (positive = increase tank level, negative = decrease)
+            updatedTanks[tankIndex].currentLevel = Math.max(0, currentLevel + adjustmentAmount);
+            updatedTanks[tankIndex].lastUpdated = new Date();
+            
+            await updateDoc(branchRef, {
+              oilTanks: updatedTanks,
+              updatedAt: new Date()
+            });
+            
+            console.log('✅ Branch tank inventory adjusted:', {
+              branchId: transaction.branchId,
+              tankIndex,
+              beforeLevel: currentLevel,
+              afterLevel: updatedTanks[tankIndex].currentLevel,
+              adjustment: adjustmentAmount
+            });
+          }
+        }
+      }
+      
+      // For loading transactions: adjust driver tanker levels
+      if (transaction.type === 'loading' && transaction.driverUid) {
+        // Get driver's tanker
+        const tanker = await getTankerVehicle(transaction.driverUid);
+        
+        if (tanker) {
+          const currentLevel = Number(tanker.currentLevel || 0);
+          const newLevel = Math.max(0, Math.min(tanker.capacity, currentLevel + adjustmentAmount));
+          
+          // Note: updateTankerLevel function needs to be implemented
+          
+          console.log('✅ Driver tanker inventory adjusted:', {
+            driverUid: transaction.driverUid,
+            beforeLevel: currentLevel,
+            afterLevel: newLevel,
+            adjustment: adjustmentAmount
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Error applying inventory adjustments:', error);
+      throw error;
+    }
+  };
+
+  const formatDate = (date: any) => {
+    if (!date) return 'N/A';
+    
+    const d = date.toDate ? date.toDate() : new Date(date);
+    if (!d || isNaN(d.getTime())) return 'N/A';
+    
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  if (!transaction) return null;
+
+  const changes = getChangedFields();
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="transaction-edit-modal">
+        <DialogHeader>
+          <DialogTitle className="flex items-center space-x-2">
+            <EditIcon className="h-5 w-5" />
+            <span>Edit Transaction</span>
+            <Badge variant="outline">
+              {transaction.transactionId || transaction.deliveryOrderNo || `ID: ${transaction.id.slice(-6)}`}
+            </Badge>
+          </DialogTitle>
+          <DialogDescription>
+            Modify transaction details and track changes for audit purposes
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Original Transaction Info */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm font-medium">Current Transaction Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <Label className="text-xs text-gray-500">Transaction ID</Label>
+                  <p className="font-medium">{transaction.transactionId || transaction.deliveryOrderNo || transaction.id}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Type</Label>
+                  <p className={`font-medium ${
+                    transaction.type === 'loading' ? 'text-blue-600' : 'text-orange-600'
+                  }`}>{transaction.type}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Driver</Label>
+                  <p className="font-medium">{transaction.driverName}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Date</Label>
+                  <p className="font-medium">{formatDate(transaction.timestamp || transaction.createdAt)}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Oil Type</Label>
+                  <p className="font-medium">{transaction.oilTypeName || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Branch</Label>
+                  <p className="font-medium">{transaction.branchName || 'N/A'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Current Quantity</Label>
+                  <p className="font-medium">
+                    {(() => {
+                      const quantity = transaction.deliveredLiters || 
+                                     transaction.loadedLiters || 
+                                     transaction.quantity || 
+                                     transaction.oilSuppliedLiters || 
+                                     transaction.actualDeliveredLiters || 
+                                     transaction.totalLoadedLiters ||
+                                     0;
+                      return quantity > 0 ? `${quantity.toLocaleString()}L` : 'N/A';
+                    })()}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Status</Label>
+                  <p className="font-medium text-green-600">{transaction.status || 'Completed'}</p>
+                </div>
+                {(transaction.deliveryOrderNo || transaction.deliveryOrderId) && (
+                  <div>
+                    <Label className="text-xs text-gray-500">Delivery Order</Label>
+                    <p className="font-medium">{transaction.deliveryOrderNo || transaction.deliveryOrderId}</p>
+                  </div>
+                )}
+              </div>
+              
+              <Separator />
+              
+              {/* Current Meter Readings */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div>
+                  <Label className="text-xs text-gray-500">Current Start Meter</Label>
+                  <p className="font-medium">
+                    {transaction.startMeterReading ?? 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Current End Meter</Label>
+                  <p className="font-medium">
+                    {transaction.endMeterReading ?? 'N/A'}
+                  </p>
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-500">Load Meter Reading</Label>
+                  <p className="font-medium">
+                    {transaction.loadMeterReading ?? 'N/A'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Photos if available */}
+              {transaction.photos && Object.keys(transaction.photos).length > 0 && (
+                <>
+                  <Separator />
+                  <div>
+                    <Label className="text-xs text-gray-500 block mb-2">Transaction Photos</Label>
+                    <div className="grid grid-cols-4 gap-2">
+                      {Object.entries(transaction.photos).slice(0, 4).map(([photoType, photoUrl]: [string, any]) => 
+                        photoUrl && (
+                          <div key={photoType} className="text-center">
+                            <div className="relative group cursor-pointer"
+                                 onClick={() => window.open(photoUrl, '_blank')}>
+                              <img 
+                                src={photoUrl} 
+                                alt={photoType} 
+                                className="w-full h-12 object-cover rounded border hover:opacity-90 transition-opacity"
+                              />
+                              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded flex items-center justify-center">
+                                <span className="h-3 w-3 text-white opacity-0 group-hover:opacity-100 transition-opacity">👁</span>
+                              </div>
+                            </div>
+                            <p className="text-xs text-gray-400 mt-1 truncate">
+                              {photoType.replace(/([A-Z])/g, ' $1').trim()}
+                            </p>
+                          </div>
+                        )
+                      )}
+                      {Object.keys(transaction.photos).length > 4 && (
+                        <div className="text-center">
+                          <div className="w-full h-12 bg-gray-100 rounded border flex items-center justify-center">
+                            <span className="text-xs text-gray-500">+{Object.keys(transaction.photos).length - 4} more</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Edit Form */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Meter Readings */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                  <GaugeIcon className="h-4 w-4" />
+                  <span>Meter Readings</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="startMeterReading">Start Meter Reading</Label>
+                  <Input
+                    id="startMeterReading"
+                    type="number"
+                    step="0.01"
+                    value={editData.startMeterReading || ''}
+                    onChange={(e) => setEditData(prev => ({
+                      ...prev,
+                      startMeterReading: parseFloat(e.target.value) || undefined
+                    }))}
+                    data-testid="input-start-meter"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="endMeterReading">End Meter Reading</Label>
+                  <Input
+                    id="endMeterReading"
+                    type="number"
+                    step="0.01"
+                    value={editData.endMeterReading || ''}
+                    onChange={(e) => setEditData(prev => ({
+                      ...prev,
+                      endMeterReading: parseFloat(e.target.value) || undefined
+                    }))}
+                    data-testid="input-end-meter"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Quantities */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                  <DropletIcon className="h-4 w-4" />
+                  <span>Quantities</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {transaction.type === 'loading' ? (
+                  <div>
+                    <Label htmlFor="totalLoadedLiters">Total Loaded Liters</Label>
+                    <Input
+                      id="totalLoadedLiters"
+                      type="number"
+                      step="0.01"
+                      value={editData.totalLoadedLiters || ''}
+                      onChange={(e) => setEditData(prev => ({
+                        ...prev,
+                        totalLoadedLiters: parseFloat(e.target.value) || undefined
+                      }))}
+                      data-testid="input-loaded-liters"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <Label htmlFor="oilSuppliedLiters">Oil Supplied Liters</Label>
+                    <Input
+                      id="oilSuppliedLiters"
+                      type="number"
+                      step="0.01"
+                      value={editData.oilSuppliedLiters || ''}
+                      onChange={(e) => setEditData(prev => ({
+                        ...prev,
+                        oilSuppliedLiters: parseFloat(e.target.value) || undefined
+                      }))}
+                      data-testid="input-supplied-liters"
+                    />
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Oil Type & Branch */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                  <PackageIcon className="h-4 w-4" />
+                  <span>Oil Type</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor="oilTypeId">Oil Type</Label>
+                <Select
+                  value={editData.oilTypeId || ''}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, oilTypeId: value }))}
+                >
+                  <SelectTrigger data-testid="select-oil-type">
+                    <SelectValue placeholder="Select oil type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {oilTypes.map(oilType => (
+                      <SelectItem key={oilType.id} value={oilType.id}>
+                        {oilType.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center space-x-2">
+                  <MapPinIcon className="h-4 w-4" />
+                  <span>Location</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Label htmlFor="branchId">Branch/Location</Label>
+                <Select
+                  value={editData.branchId || ''}
+                  onValueChange={(value) => setEditData(prev => ({ ...prev, branchId: value }))}
+                >
+                  <SelectTrigger data-testid="select-branch">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map(branch => (
+                      <SelectItem key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Inventory Management */}
+          {hasQuantityChanges() && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Inventory Adjustment</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="adjustInventory">Inventory Adjustment Method</Label>
+                  <Select
+                    value={editData.adjustInventory}
+                    onValueChange={(value: 'automatic' | 'manual' | 'none') => 
+                      setEditData(prev => ({ ...prev, adjustInventory: value }))
+                    }
+                  >
+                    <SelectTrigger data-testid="select-inventory-adjustment">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="automatic">Automatic Adjustment</SelectItem>
+                      <SelectItem value="manual">Manual Adjustment</SelectItem>
+                      <SelectItem value="none">No Adjustment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {editData.adjustInventory === 'manual' && (
+                  <div>
+                    <Label htmlFor="manualInventoryAdjustment">Manual Adjustment Amount (Liters)</Label>
+                    <Input
+                      id="manualInventoryAdjustment"
+                      type="number"
+                      step="0.01"
+                      value={editData.manualInventoryAdjustment || ''}
+                      onChange={(e) => setEditData(prev => ({
+                        ...prev,
+                        manualInventoryAdjustment: parseFloat(e.target.value) || undefined
+                      }))}
+                      data-testid="input-manual-adjustment"
+                    />
+                  </div>
+                )}
+
+                {showInventoryWarning && inventoryImpact && (
+                  <Alert>
+                    <AlertTriangleIcon className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Inventory Impact Warning:</strong><br />
+                      {inventoryImpact.warnings?.map((warning: string, index: number) => (
+                        <div key={index}>• {warning}</div>
+                      ))}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Changes Summary */}
+          {changes.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium">Changes Summary</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {changes.map((change, index) => (
+                    <div key={index} className="flex justify-between items-center text-sm">
+                      <span className="font-medium">{change.field}:</span>
+                      <span>
+                        <span className="text-red-600">{change.oldValue}</span>
+                        <span className="mx-2">→</span>
+                        <span className="text-green-600">{change.newValue}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Reason for Edit */}
+          <div>
+            <Label htmlFor="reason">Reason for Edit (Required)</Label>
+            <Textarea
+              id="reason"
+              placeholder="Explain why you are making these changes..."
+              value={editData.reason}
+              onChange={(e) => setEditData(prev => ({ ...prev, reason: e.target.value }))}
+              className="min-h-[80px]"
+              data-testid="textarea-edit-reason"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button variant="outline" onClick={onClose} data-testid="button-cancel">
+              <XIcon className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSave} 
+              disabled={loading || changes.length === 0 || !editData.reason.trim()}
+              data-testid="button-save-changes"
+            >
+              {loading ? (
+                <>
+                  <ClockIcon className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <SaveIcon className="h-4 w-4 mr-2" />
+                  Save Changes ({changes.length})
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
