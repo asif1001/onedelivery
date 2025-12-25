@@ -179,6 +179,11 @@ export default function WarehouseDashboard() {
   const [dailyUsageFileUrl, setDailyUsageFileUrl] = useState("https://docs.google.com/spreadsheets/d/example-daily-usage-sheet/edit"); // Default or fetched from DB
   const [dailyUsageUploadFile, setDailyUsageUploadFile] = useState<File | null>(null);
   const [dailyUsageProcessing, setDailyUsageProcessing] = useState(false);
+  const [madAutoUpdateIntervalMinutes, setMadAutoUpdateIntervalMinutes] = useState<number>(1440);
+  const [madScheduleDayOfMonth, setMadScheduleDayOfMonth] = useState<number | null>(null);
+  const [madScheduleTime, setMadScheduleTime] = useState<string>("08:00");
+  const [lastMadAutoUpdateAt, setLastMadAutoUpdateAt] = useState<Date | null>(null);
+  const [canUpdateMAD, setCanUpdateMAD] = useState(false);
 
 
   // Helper functions for real-time data fetching (same as debug view)
@@ -208,9 +213,27 @@ export default function WarehouseDashboard() {
   // Get user's assigned branches for filtering  
   const userBranchIds = (user as any)?.branchIds || [];
   const isRestrictedUser = user?.role === 'warehouse' && userBranchIds.length > 0;
-  
+
   // Theme state
   const [theme, setTheme] = useState<'light' | 'night' | 'midday'>('light');
+  
+  // Load current user's MAD permission
+  useEffect(() => {
+    const loadPermission = async () => {
+      try {
+        if (!user?.uid) return;
+        const userRef = doc(db, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setCanUpdateMAD(Boolean((data as any).canUpdateMAD));
+        }
+      } catch (e) {
+        console.error('Failed to load MAD permission:', e);
+      }
+    };
+    loadPermission();
+  }, [user?.uid]);
   
   // UI states
   const [loading, setLoading] = useState(true);
@@ -325,9 +348,21 @@ export default function WarehouseDashboard() {
         csvUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
       }
     }
+    // Handle OneDrive/SharePoint links by forcing direct download when possible
+    if (
+      sheetUrl.includes('onedrive.live.com') ||
+      sheetUrl.includes('1drv.ms') ||
+      sheetUrl.includes('sharepoint.com')
+    ) {
+      if (!sheetUrl.includes('download=1')) {
+        csvUrl = sheetUrl + (sheetUrl.includes('?') ? '&' : '?') + 'download=1';
+      } else {
+        csvUrl = sheetUrl;
+      }
+    }
 
     try {
-      console.log('🔄 Starting automatic Daily Usage update...');
+      console.log('🔄 Starting automatic MAD update...');
       const proxyUrl = `/api/proxy-sheet?url=${encodeURIComponent(csvUrl)}`;
       const response = await fetch(proxyUrl);
       
@@ -339,7 +374,7 @@ export default function WarehouseDashboard() {
       if (lines.length < 2) return;
 
       const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-      const requiredHeaders = ['Branch Name', 'Oil Type', 'Daily Usage (L)'];
+      const requiredHeaders = ['Branch Name', 'Oil Type', 'MAD'];
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
@@ -365,7 +400,7 @@ export default function WarehouseDashboard() {
 
         const branchName = row['Branch Name'];
         const oilTypeName = row['Oil Type'];
-        const dailyUsage = parseFloat(row['Daily Usage (L)']);
+        const dailyUsage = parseFloat(row['MAD']);
 
         if (!branchName || !oilTypeName || isNaN(dailyUsage)) continue;
 
@@ -409,17 +444,38 @@ export default function WarehouseDashboard() {
       await setDoc(doc(db, 'settings', 'warehouse'), {
         lastDailyUsageAutoUpdate: new Date()
       }, { merge: true });
+      setLastMadAutoUpdateAt(new Date());
 
       console.log(`✅ Auto-updated ${updateCount} daily usage records.`);
       toast({
         title: "Auto-Update Complete",
-        description: `Daily Usage updated for ${updateCount} tanks from linked sheet.`,
+        description: `MAD updated for ${updateCount} tanks from linked sheet.`,
       });
       
       loadAllData();
 
     } catch (error) {
       console.error('Auto-update error:', error);
+    }
+  };
+
+  const handleSaveMadSchedule = async () => {
+    try {
+      await setDoc(doc(db, 'settings', 'warehouse'), {
+        madScheduleDayOfMonth: madScheduleDayOfMonth,
+        madScheduleTime: madScheduleTime
+      }, { merge: true });
+      toast({
+        title: "MAD Schedule Updated",
+        description: "Monthly schedule has been saved successfully."
+      });
+      setShowDailyUsageModal(false);
+    } catch (error) {
+      toast({
+        title: "Save Failed",
+        description: "Failed to save the schedule. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -432,11 +488,23 @@ export default function WarehouseDashboard() {
           const data = settingsDoc.data();
           if (data.dailyUsageFileUrl) {
             setDailyUsageFileUrl(data.dailyUsageFileUrl);
+            if (data.madAutoUpdateIntervalMinutes) {
+              setMadAutoUpdateIntervalMinutes(Number(data.madAutoUpdateIntervalMinutes));
+            }
+            if (data.madScheduleDayOfMonth !== undefined) {
+              setMadScheduleDayOfMonth(Number(data.madScheduleDayOfMonth));
+            }
+            if (data.madScheduleTime) {
+              setMadScheduleTime(String(data.madScheduleTime));
+            }
 
             // Check for auto-update
             const lastUpdate = data.lastDailyUsageAutoUpdate?.toDate()?.getTime() || 0;
             const now = Date.now();
             const daysSinceUpdate = (now - lastUpdate) / (1000 * 60 * 60 * 24);
+            if (lastUpdate) {
+              setLastMadAutoUpdateAt(new Date(lastUpdate));
+            }
             
             if (daysSinceUpdate >= 30) {
               processDailyUsageFromUrl(data.dailyUsageFileUrl);
@@ -452,6 +520,38 @@ export default function WarehouseDashboard() {
       fetchSettings();
     }
   }, [user]);
+
+  // Scheduled auto-update for MAD from external file link
+  useEffect(() => {
+    if (!dailyUsageFileUrl) return;
+    if (madScheduleDayOfMonth == null || !madScheduleTime) return;
+    const intervalMs = 5 * 60 * 1000;
+    const interval = setInterval(() => {
+      const now = new Date();
+      const [hh, mm] = madScheduleTime.split(':').map(n => parseInt(n, 10));
+      const year = now.getFullYear();
+      const month = now.getMonth();
+      const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+      const scheduledDay = Math.min(madScheduleDayOfMonth, lastDayOfMonth);
+      const scheduledDate = new Date(year, month, scheduledDay, hh || 0, mm || 0, 0, 0);
+      const lastRun = lastMadAutoUpdateAt?.getTime() || 0;
+      if (now.getTime() >= scheduledDate.getTime() && lastRun < scheduledDate.getTime()) {
+        processDailyUsageFromUrl(dailyUsageFileUrl);
+      }
+    }, intervalMs);
+    return () => clearInterval(interval);
+  }, [dailyUsageFileUrl, madScheduleDayOfMonth, madScheduleTime, lastMadAutoUpdateAt]);
+
+  // Fallback interval-based auto-update when no schedule is set
+  useEffect(() => {
+    if (!dailyUsageFileUrl) return;
+    if (madScheduleDayOfMonth != null && madScheduleTime) return;
+    const intervalMs = madAutoUpdateIntervalMinutes * 60 * 1000;
+    const interval = setInterval(() => {
+      processDailyUsageFromUrl(dailyUsageFileUrl);
+    }, intervalMs);
+    return () => clearInterval(interval);
+  }, [dailyUsageFileUrl, madAutoUpdateIntervalMinutes, madScheduleDayOfMonth, madScheduleTime]);
 
   // Note: No auto-refresh interval - monitoring data will only reload when user clicks refresh
 
@@ -2428,7 +2528,7 @@ export default function WarehouseDashboard() {
   const downloadDailyUsageTemplate = () => {
     // CSV Template for Daily Usage Updates
     const csvContent = [
-      ['Branch Name', 'Oil Type', 'Daily Usage (L)', 'Month', 'Year'].join(','),
+      ['Branch Name', 'Oil Type', 'MAD', 'Month', 'Year'].join(','),
       ...oilTanks.map(tank => [
         tank.branchName,
         tank.oilTypeName,
@@ -2442,13 +2542,13 @@ export default function WarehouseDashboard() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `daily_usage_template_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `MAD_Update_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     
     toast({
       title: "Template Downloaded",
-      description: "Fill in the Daily Usage values and upload the file",
+      description: "Fill in the MAD values and upload the file",
     });
   };
 
@@ -2456,7 +2556,7 @@ export default function WarehouseDashboard() {
     if (!dailyUsageUploadFile) {
       toast({
         title: "No File Selected",
-        description: "Please select a Daily Usage CSV file to upload",
+        description: "Please select a MAD CSV file to upload",
         variant: "destructive"
       });
       return;
@@ -2469,7 +2569,7 @@ export default function WarehouseDashboard() {
       const lines = text.split('\n').filter(line => line.trim());
       const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
 
-      const requiredHeaders = ['Branch Name', 'Oil Type', 'Daily Usage (L)'];
+      const requiredHeaders = ['Branch Name', 'Oil Type', 'MAD'];
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
@@ -2490,7 +2590,7 @@ export default function WarehouseDashboard() {
 
         const branchName = row['Branch Name'];
         const oilTypeName = row['Oil Type'];
-        const dailyUsageStr = row['Daily Usage (L)'];
+        const dailyUsageStr = row['MAD'];
         const dailyUsage = parseFloat(dailyUsageStr);
 
         if (!branchName || !oilTypeName || isNaN(dailyUsage)) {
@@ -2575,8 +2675,8 @@ export default function WarehouseDashboard() {
       setOilTanks(newOilTanks);
 
       toast({
-        title: "Daily Usage Update Successful",
-        description: `Updated Daily Usage for ${updatedCount} tanks.`,
+        title: "MAD Update Successful",
+        description: `Updated MAD for ${updatedCount} tanks.`,
         className: "bg-green-50 border-green-200 text-green-800"
       });
       setShowDailyUsageModal(false);
@@ -2598,7 +2698,7 @@ export default function WarehouseDashboard() {
     if (!dailyUsageFileUrl.trim()) {
       toast({
         title: "Invalid URL",
-        description: "Please enter a valid URL for the Daily Usage file",
+        description: "Please enter a valid URL for the MAD file",
         variant: "destructive"
       });
       return;
@@ -2610,8 +2710,8 @@ export default function WarehouseDashboard() {
       }, { merge: true });
 
       toast({
-        title: "Daily Usage File Link Updated",
-        description: "The link to the Daily Usage file has been saved successfully.",
+        title: "MAD File Link Updated",
+        description: "The link to the MAD file has been saved successfully.",
       });
       setShowDailyUsageModal(false);
     } catch (error) {
@@ -3389,14 +3489,16 @@ export default function WarehouseDashboard() {
                           <FileSpreadsheet className="h-4 w-4" />
                           Download Template
                         </Button>
-                        <Button 
-                          onClick={handleUpdateDailyUsage}
-                          variant="outline"
-                          className="flex items-center gap-2"
-                        >
-                          <RefreshCwIcon className="h-4 w-4" />
-                          Update Daily Usage
-                        </Button>
+                        {canUpdateMAD && (
+                          <Button 
+                            onClick={handleUpdateDailyUsage}
+                            variant="outline"
+                            className="flex items-center gap-2"
+                          >
+                            <RefreshCwIcon className="h-4 w-4" />
+                            Update MAD
+                          </Button>
+                        )}
                         <Button 
                           onClick={downloadCurrentStockTemplate}
                           variant="outline"
@@ -3707,7 +3809,7 @@ export default function WarehouseDashboard() {
                               </div>
                               {tank.dailyUsage && tank.dailyUsage > 0 && (
                                 <div className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">
-                                  MAD: {Math.round(tank.currentLevel / tank.dailyUsage)}days
+                                  Stock Month: {(tank.currentLevel / tank.dailyUsage).toFixed(2)}
                                 </div>
                               )}
                             </div>
@@ -5113,16 +5215,16 @@ export default function WarehouseDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Daily Usage Update Modal */}
+      {/* MAD Update Modal */}
       <Dialog open={showDailyUsageModal} onOpenChange={setShowDailyUsageModal}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <RefreshCwIcon className="h-5 w-5 text-blue-600" />
-              Update Daily Usage Configuration
+              Update MAD Configuration
             </DialogTitle>
             <DialogDescription>
-              Manage Daily Usage values via template upload or update the master file link.
+              Manage MAD values via template upload or update the master file link.
             </DialogDescription>
           </DialogHeader>
 
@@ -5136,7 +5238,7 @@ export default function WarehouseDashboard() {
                 1. Download Template
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                Download the current Daily Usage configuration template to make updates offline.
+                Download the current MAD configuration template to make updates offline.
               </p>
               <Button 
                 onClick={downloadDailyUsageTemplate} 
@@ -5144,7 +5246,7 @@ export default function WarehouseDashboard() {
                 className="w-full sm:w-auto"
               >
                 <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Download Daily Usage Template
+                Download MAD Template
               </Button>
             </div>
 
@@ -5154,10 +5256,10 @@ export default function WarehouseDashboard() {
                 <div className="bg-green-100 p-1 rounded">
                   <Upload className="h-4 w-4 text-green-600" />
                 </div>
-                2. Upload Daily Usage Template
+                2. Upload MAD Template
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                Upload the filled template to update Daily Usage values in the system.
+                Upload the filled template to update MAD values in the system.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
                 <Input
@@ -5192,13 +5294,13 @@ export default function WarehouseDashboard() {
                 <div className="bg-purple-100 p-1 rounded">
                   <Edit className="h-4 w-4 text-purple-600" />
                 </div>
-                3. Update Daily Usage File Link
+                3. Update MAD File Link
               </h3>
               <p className="text-xs text-gray-500 mb-3">
-                Update the link to the master Daily Usage document (e.g., Google Sheet).
+                Update the link to the master MAD document (e.g., Google Sheet).
               </p>
               <div className="space-y-3">
-                <Label htmlFor="daily-usage-url" className="sr-only">Daily Usage File URL</Label>
+                <Label htmlFor="daily-usage-url" className="sr-only">MAD File URL</Label>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <Input
                     id="daily-usage-url"
@@ -5217,6 +5319,57 @@ export default function WarehouseDashboard() {
                   </Button>
                 </div>
               </div>
+            </div>
+            
+            {/* 4. Schedule Auto Update */}
+            <div className="bg-gray-50 p-4 rounded-lg border">
+              <h3 className="text-sm font-medium text-gray-900 mb-2 flex items-center gap-2">
+                <div className="bg-orange-100 p-1 rounded">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                </div>
+                4. Set Monthly Schedule
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                Choose the day and time each month when the app should auto-update MAD using the configured file link.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-1">
+                  <Label className="text-xs mb-1 block">Day of Month</Label>
+                  <select
+                    value={madScheduleDayOfMonth ?? ''}
+                    onChange={(e) => setMadScheduleDayOfMonth(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:border-transparent border-gray-300 focus:ring-blue-500 bg-white"
+                  >
+                    <option value="">Select day</option>
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="sm:col-span-1">
+                  <Label className="text-xs mb-1 block">Time</Label>
+                  <Input
+                    type="time"
+                    value={madScheduleTime}
+                    onChange={(e) => setMadScheduleTime(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <div className="sm:col-span-1 flex items-end">
+                  <Button 
+                    onClick={handleSaveMadSchedule}
+                    variant="default"
+                    className="w-full sm:w-auto"
+                    disabled={madScheduleDayOfMonth == null || !madScheduleTime}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Schedule
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[11px] text-gray-500 mt-3">
+                The update runs when the app detects the scheduled time this month and the link is accessible. If the selected day does not exist in a month, it runs on the last day of that month.
+              </p>
             </div>
           </div>
 

@@ -522,16 +522,8 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                       }
                       
                       setSupplyData(prev => {
-                        // Clear oil type selection if it's not available for the new branch
-                        let oilTypeId = prev.oilTypeId;
-                        if (selectedBranch?.oilTanks) {
-                          const branchOilTypeIds = selectedBranch.oilTanks.map((tank: any) => tank.oilTypeId);
-                          if (oilTypeId && !branchOilTypeIds.includes(oilTypeId)) {
-                            oilTypeId = ''; // Clear if not available for this branch
-                          }
-                        }
-                        
-                        const newState = { ...prev, branchId: value, oilTypeId };
+                        // Always clear oil type on branch change for clarity
+                        const newState = { ...prev, branchId: value, oilTypeId: '' };
                         console.log('Step 1 - Updated supplyData:', newState);
                         return newState;
                       });
@@ -556,6 +548,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                   <Select 
                     value={supplyData.oilTypeId} 
                     onValueChange={(value) => setSupplyData(prev => ({ ...prev, oilTypeId: value }))}
+                    disabled={!supplyData.branchId}
                   >
                     <SelectTrigger data-testid="select-oil-type" className="h-12 text-lg border-3 border-gray-400 focus:border-orange-500">
                       <SelectValue placeholder="Select oil type" />
@@ -568,6 +561,9 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {!supplyData.branchId && (
+                    <p className="text-sm text-gray-500 mt-1">Select a branch first</p>
+                  )}
                 </div>
 
                 {/* Start Meter Reading */}

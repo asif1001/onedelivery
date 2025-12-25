@@ -632,6 +632,7 @@ npm run build
 - ✅ Complete GitHub Actions CI/CD pipeline integration
 - ✅ Improved Firebase hosting with automatic deployments
 - ✅ Updated README with comprehensive deployment instructions
+- ✅ Restored “Branch *” dropdown in Oil Supply Workflow to fit-to-screen (no scrollbar)
 
 ### **Version 2.0**
 - ✅ Enhanced Supply workflow with two-step process

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -65,6 +65,16 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
     queryKey: ['branches'], 
     queryFn: getActiveBranchesOnly 
   });
+
+  // Default load location to "CV Plaza" when branches load (user can change)
+  useEffect(() => {
+    if (!loadingData.loadLocationId && Array.isArray(branches) && branches.length > 0) {
+      const defaultBranch = branches.find((b: any) => (b.name || '').toLowerCase() === 'main tanks plaza');
+      if (defaultBranch?.id) {
+        setLoadingData(prev => ({ ...prev, loadLocationId: defaultBranch.id }));
+      }
+    }
+  }, [branches]);
 
   const steps: LoadingStep[] = [
     { id: 1, title: 'Complete Tank Loading', status: currentStep === 1 ? 'active' : currentStep > 1 ? 'completed' : 'pending' },

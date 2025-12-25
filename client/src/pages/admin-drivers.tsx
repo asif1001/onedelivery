@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlusIcon, EditIcon, TrashIcon, UsersIcon, CalendarIcon, IdCardIcon, CreditCardIcon, SearchIcon, FilterIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
@@ -16,6 +17,7 @@ interface User {
   displayName: string;
   role: string;
   active: boolean;
+  canUpdateMAD?: boolean;
   empNo?: string;
   driverLicenceNo?: string;
   tankerLicenceNo?: string;
@@ -694,6 +696,20 @@ export default function AdminUsers({
                     {driver.active ? 'Active' : 'Inactive'}
                   </Badge>
                 </div>
+
+                {driver.role === 'warehouse' && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Update MAD Access:</span>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        defaultChecked={Boolean((driver as any).canUpdateMAD)}
+                        onCheckedChange={(checked) => {
+                          onUpdateDriver(driver.uid, { canUpdateMAD: checked });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
                 
                 {driver.empNo && (
                   <div className="flex items-center space-x-2">

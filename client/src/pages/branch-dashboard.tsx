@@ -2107,7 +2107,13 @@ export default function BranchDashboard() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Select Branch</Label>
-                  <Select value={selectedBranchForUpdate} onValueChange={setSelectedBranchForUpdate}>
+                  <Select
+                    value={selectedBranchForUpdate}
+                    onValueChange={(value) => {
+                      setSelectedBranchForUpdate(value);
+                      setSelectedTankForUpdate('');
+                    }}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Choose a branch" />
                     </SelectTrigger>
