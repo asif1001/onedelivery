@@ -141,6 +141,7 @@ interface OilTank {
   branchName: string;
   oilTypeId: string;
   oilTypeName: string;
+  tankName?: string;
   currentLevel: number;
   capacity: number;
   status: 'critical' | 'low' | 'normal' | 'full';
@@ -813,6 +814,7 @@ export default function WarehouseDashboard() {
         branchName: tankData.branchName,
         oilTypeId: tankData.oilTypeId || 'unknown',
         oilTypeName: oilTypeName,
+        tankName: tankData.tankName,
         currentLevel: currentLevel,
         capacity: capacity,
         status: status as 'critical' | 'low' | 'normal' | 'full',
@@ -3631,7 +3633,9 @@ export default function WarehouseDashboard() {
                             <div className="flex items-center justify-between">
                               <div>
                                 <p className="text-sm font-medium text-gray-900">{tank.branchName}</p>
-                                <p className="text-xs text-gray-600">{tank.oilTypeName}</p>
+                                <p className="text-xs text-gray-600">
+                                  {tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : tank.oilTypeName}
+                                </p>
                               </div>
                               {exceedsCapacity ? (
                                 <Badge className="bg-red-100 text-red-800 text-xs">
@@ -3790,7 +3794,9 @@ export default function WarehouseDashboard() {
                             <div className="flex items-center justify-between mb-1">
                               <div className="flex items-center gap-1">
                                 <DropletIcon className="h-3 w-3 text-blue-600" />
-                                <span className="font-medium text-xs">{tank.oilTypeName}</span>
+                                <span className="font-medium text-xs">
+                                  {tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : tank.oilTypeName}
+                                </span>
                                 <span className="text-xs text-gray-500">({Math.round(percentage)}% capacity)</span>
                               </div>
                               <Badge className={`text-xs ${getStatusColor(tank.status)}`}>

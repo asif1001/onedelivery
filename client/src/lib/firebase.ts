@@ -1495,7 +1495,7 @@ export const createTask = async (taskData: any) => {
       assignedToName: taskData.assignedToName || '',
       dueDate: taskData.dueDate ? Timestamp.fromDate(new Date(taskData.dueDate)) : null,
       createdBy: taskData.createdBy || '',
-      createdByName: taskData.createdByName || '',
+      createdByName: taskData.createdByName || '', // Enhanced: Save creator display name
       id: taskRef.id,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now()
@@ -1702,6 +1702,84 @@ export const updateBranch = async (id: string, branchData: any) => {
     await updateDoc(branchRef, branchData);
   } catch (error) {
     console.error('Error updating branch:', error);
+    throw error;
+  }
+};
+
+export const syncBranchOilTanks = async (
+  branchId: string,
+  oilTanks: Array<{
+    id?: string;
+    oilTypeId: string;
+    oilTypeName?: string;
+    capacity: number;
+    currentLevel?: number;
+    tankName?: string;
+    isActive?: boolean;
+  }>,
+): Promise<void> => {
+  try {
+    const tanksCollection = collection(db, 'oilTanks');
+    const existingSnapshot = await getDocs(
+      query(tanksCollection, where('branchId', '==', branchId)),
+    );
+
+    const existingById = new Map<string, any>();
+    for (const tankDoc of existingSnapshot.docs) {
+      existingById.set(tankDoc.id, { id: tankDoc.id, ...tankDoc.data() });
+    }
+
+    const batch = writeBatch(db);
+    const keepIds = new Set<string>();
+
+    const tanksList = oilTanks || [];
+    for (let index = 0; index < tanksList.length; index++) {
+      const tank = tanksList[index];
+      const existing = tank.id ? existingById.get(tank.id) : undefined;
+      const tankRef = existing?.id ? doc(db, 'oilTanks', existing.id) : doc(tanksCollection);
+      const tankId = existing?.id || tankRef.id;
+      keepIds.add(tankId);
+
+      const resolvedTankName =
+        (tank.tankName ?? '').toString().trim() ||
+        (existing?.tankName ?? '').toString().trim() ||
+        `Tank ${index + 1}`;
+
+      batch.set(
+        tankRef,
+        {
+          id: tankId,
+          branchId,
+          oilTypeId: tank.oilTypeId,
+          oilTypeName: tank.oilTypeName ?? existing?.oilTypeName ?? '',
+          capacity: Number(tank.capacity) || 0,
+          currentLevel: Number(tank.currentLevel ?? existing?.currentLevel ?? 0) || 0,
+          tankName: resolvedTankName,
+          active: tank.isActive ?? existing?.active ?? true,
+          updatedAt: new Date(),
+          createdAt: existing?.createdAt ?? new Date(),
+        },
+        { merge: true },
+      );
+    }
+
+    // Deactivate tanks that were removed in the edit UI
+    for (const tankDoc of existingSnapshot.docs) {
+      if (!keepIds.has(tankDoc.id)) {
+        batch.set(
+          tankDoc.ref,
+          {
+            active: false,
+            updatedAt: new Date(),
+          },
+          { merge: true },
+        );
+      }
+    }
+
+    await batch.commit();
+  } catch (error) {
+    console.error('Error syncing branch oil tanks:', error);
     throw error;
   }
 };

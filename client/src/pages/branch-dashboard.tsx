@@ -57,6 +57,8 @@ import {
 } from "@/lib/firebase";
 import { collection, doc, getDocs, addDoc, serverTimestamp, getDoc, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { useToast } from "@/hooks/use-toast";
+import { safeWatermarkImage } from "@/utils/watermark";
 import { PhotoCaptureButton } from "@/components/PhotoCaptureButton";
 import { ImageUploadGuidance, ImageUploadStatus } from "@/components/ImageUploadGuidance";
 
@@ -112,8 +114,6 @@ const addWatermarkToImage = async (file: File, watermarkText: string): Promise<F
     img.src = URL.createObjectURL(file);
   });
 };
-import { useToast } from "@/hooks/use-toast";
-import { safeWatermarkImage } from "@/utils/watermark";
 
 // Helper function to format complaint dates consistently
 const formatComplaintDate = (date: any, dateOnly: boolean = false) => {
@@ -163,6 +163,7 @@ interface OilTank {
   capacity: number;
   oilTypeId: string;
   oilTypeName?: string;
+  tankName?: string;
   currentLevel: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -2158,7 +2159,7 @@ export default function BranchDashboard() {
                         
                         return filteredTanks.map((tank) => (
                           <SelectItem key={tank.id} value={tank.id}>
-                            {tank.oilTypeName} - Current: {tank.currentLevel}L / {tank.capacity}L
+                            {tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : tank.oilTypeName} - Current: {tank.currentLevel}L / {tank.capacity}L
                           </SelectItem>
                         ));
                       })()}
@@ -2463,7 +2464,11 @@ export default function BranchDashboard() {
                   <h4 className="font-semibold">Review Update Details:</h4>
                   <div className="text-sm space-y-1">
                     <p><strong>Branch:</strong> {branches.find(b => b.id === selectedBranchForUpdate)?.name}</p>
-                    <p><strong>Tank:</strong> {oilTanks.find(t => t.id === selectedTankForUpdate)?.oilTypeName}</p>
+                    <p><strong>Tank:</strong> {(() => {
+                      const tank = oilTanks.find(t => t.id === selectedTankForUpdate);
+                      if (!tank) return '';
+                      return tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : (tank.oilTypeName || '');
+                    })()}</p>
                     <p><strong>New Level:</strong> {manualQuantity} Liters</p>
                     <p><strong>Gauge Photo:</strong> {gaugePhoto?.name}</p>
                     <p><strong>System Photo:</strong> {systemPhoto?.name}</p>
@@ -2504,7 +2509,11 @@ export default function BranchDashboard() {
                   <h4 className="font-medium text-green-800">Update Summary:</h4>
                   <div className="text-sm space-y-1 text-green-700">
                     <p><strong>Branch:</strong> {branches.find(b => b.id === selectedBranchForUpdate)?.name}</p>
-                    <p><strong>Tank:</strong> {oilTanks.find(t => t.id === selectedTankForUpdate)?.oilTypeName}</p>
+                    <p><strong>Tank:</strong> {(() => {
+                      const tank = oilTanks.find(t => t.id === selectedTankForUpdate);
+                      if (!tank) return '';
+                      return tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : (tank.oilTypeName || '');
+                    })()}</p>
                     <p><strong>New Level:</strong> {manualQuantity} Liters</p>
                     <p><strong>Photos:</strong> Gauge + System (2 photos captured)</p>
                     {updateNotes && <p><strong>Notes:</strong> {updateNotes}</p>}

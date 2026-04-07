@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ interface OilTank {
   capacity: number;
   oilTypeId: string;
   oilTypeName: string;
+  tankName?: string;
   currentLevel: number;
   isActive?: boolean;
 }
@@ -35,6 +36,7 @@ interface CreateOilTank {
   capacity: number;
   oilTypeId: string;
   oilTypeName: string;
+  tankName?: string;
   currentLevel: number;
   isActive?: boolean;
 }
@@ -49,10 +51,10 @@ interface CreateBranch {
 interface AdminBranchesProps {
   branches: Branch[];
   oilTypes: OilType[];
-  onAddBranch: (branch: CreateBranch) => void;
-  onUpdateBranch: (id: string, branch: Partial<Branch>) => void;
-  onDeleteBranch: (id: string) => void;
-  onToggleBranchStatus: (id: string, isActive: boolean) => void;
+  onAddBranch: (branch: CreateBranch) => Promise<void>;
+  onUpdateBranch: (id: string, branch: Partial<Branch>) => Promise<void>;
+  onDeleteBranch: (id: string) => Promise<void>;
+  onToggleBranchStatus: (id: string, isActive: boolean) => Promise<void>;
 }
 
 export default function AdminBranches({ 
@@ -107,13 +109,13 @@ export default function AdminBranches({
       }
 
       if (editingBranch) {
-        onUpdateBranch(editingBranch.id, formData);
+        await onUpdateBranch(editingBranch.id, formData);
         toast({
           title: "Success",
           description: "Branch updated successfully"
         });
       } else {
-        onAddBranch(formData);
+        await onAddBranch(formData);
         toast({
           title: "Success",
           description: "Branch added successfully"
@@ -147,11 +149,21 @@ export default function AdminBranches({
 
   const handleDelete = (id: string) => {
     if (window.confirm('Are you sure you want to delete this branch?')) {
-      onDeleteBranch(id);
-      toast({
-        title: "Success",
-        description: "Branch deleted successfully"
-      });
+      onDeleteBranch(id)
+        .then(() => {
+          toast({
+            title: "Success",
+            description: "Branch deleted successfully"
+          });
+        })
+        .catch((error) => {
+          console.error('Error deleting branch:', error);
+          toast({
+            title: "Error",
+            description: "Failed to delete branch",
+            variant: "destructive"
+          });
+        });
     }
   };
 
@@ -162,6 +174,7 @@ export default function AdminBranches({
         capacity: 0,
         oilTypeId: '',
         oilTypeName: '',
+        tankName: '',
         currentLevel: 0
       }]
     }));
@@ -174,6 +187,30 @@ export default function AdminBranches({
         i === index ? { ...tank, [field]: value } : tank
       )
     }));
+  };
+
+  const setTankOilType = (index: number, oilTypeId: string) => {
+    const selectedOilType = oilTypes.find(ot => ot.id === oilTypeId);
+    const oilTypeName = selectedOilType?.name || '';
+    setFormData(prev => {
+      const currentTank = prev.oilTanks[index];
+      const shouldSuggestName = !currentTank?.tankName?.trim();
+      const sameTypeCount = prev.oilTanks.filter((t, i) => i !== index && t.oilTypeId === oilTypeId).length;
+      const suggestedTankName = `Tank ${sameTypeCount + 1}`;
+
+      return {
+        ...prev,
+        oilTanks: prev.oilTanks.map((tank, i) => {
+          if (i !== index) return tank;
+          return {
+            ...tank,
+            oilTypeId,
+            oilTypeName,
+            tankName: shouldSuggestName ? suggestedTankName : tank.tankName
+          };
+        })
+      };
+    });
   };
 
   const removeOilTank = (index: number) => {
@@ -260,9 +297,7 @@ export default function AdminBranches({
                         <Select
                           value={tank.oilTypeId}
                           onValueChange={(value) => {
-                            const selectedOilType = oilTypes.find(ot => ot.id === value);
-                            updateOilTank(index, 'oilTypeId', value);
-                            updateOilTank(index, 'oilTypeName', selectedOilType?.name || '');
+                            setTankOilType(index, value);
                           }}
                         >
                           <SelectTrigger>
@@ -276,6 +311,14 @@ export default function AdminBranches({
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div>
+                        <Label>Tank Name</Label>
+                        <Input
+                          value={tank.tankName || ''}
+                          onChange={(e) => updateOilTank(index, 'tankName', e.target.value)}
+                          placeholder="e.g. Tank 1"
+                        />
                       </div>
                       <div>
                         <Label>Capacity (Liters)</Label>
@@ -393,7 +436,9 @@ export default function AdminBranches({
                     {branch.oilTanks.map((tank, index) => (
                       <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                         <div>
-                          <p className="text-sm font-medium">{tank.oilTypeName}</p>
+                          <p className="text-sm font-medium">
+                            {tank.tankName ? `${tank.tankName} (${tank.oilTypeName})` : tank.oilTypeName}
+                          </p>
                           <p className="text-xs text-gray-600">
                             {tank.currentLevel}L / {tank.capacity}L
                           </p>

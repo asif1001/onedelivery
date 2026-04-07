@@ -84,6 +84,7 @@ import {
   updateUserNameCascading,
   toggleBranchStatus,
   toggleTankStatus,
+  syncBranchOilTanks,
   getDrumCapacities,
   saveDrumCapacity,
   updateDrumCapacity,
@@ -1486,7 +1487,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const handleAddBranch = async (branch: CreateBranch) => {
     try {
-      await saveBranch(branch);
+      const savedBranch = await saveBranch(branch);
+      if ((branch as any)?.oilTanks) {
+        await syncBranchOilTanks((savedBranch as any).id, (branch as any).oilTanks);
+      }
       await loadData();
       toast({
         title: "Success",
@@ -1504,6 +1508,9 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
 
   const handleUpdateBranch = async (id: string, branch: Partial<Branch>) => {
     try {
+      if ((branch as any)?.oilTanks) {
+        await syncBranchOilTanks(id, (branch as any).oilTanks);
+      }
       // Check if branch name is being updated - use cascading update
       if (branch.name) {
         await updateBranchNameCascading(id, branch.name);

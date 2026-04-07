@@ -39,6 +39,9 @@ The system handles the complete oil delivery lifecycle from loading operations a
    - Assign specific oil types to branch tanks (e.g., Arad TSC gets Synthetic & Mineral)
    - Update branch information and tank capacities as needed
 
+**Note (Branch Tanks Storage):**
+Branch tank configuration is synced to the `oilTanks` collection in Firestore. If a tank name is left blank, the system will auto-generate a name like `Tank 1`, `Tank 2`, etc. The Warehouse dashboard uses `tankName` when rendering tank labels.
+
 3. **Oil Type Management**
    - Create and manage oil types (Mineral Oil, Synthetic Oil, Diesel Oil)
    - Set viscosity ratings and specifications for each oil type
@@ -174,11 +177,23 @@ The system handles the complete oil delivery lifecycle from loading operations a
 ### **Prerequisites**
 
 Before starting, ensure you have:
-- **Node.js** (v16 or higher) installed on your local machine
+- **Node.js** (v18/v20/v22 recommended) installed on your local machine
 - **Git** installed for version control
 - **GitHub account** for repository hosting
 - **Firebase account** (free tier available)
 - **Code editor** (VS Code recommended)
+
+### **Local Development**
+
+```bash
+# Install dependencies
+npm install
+
+# Start the development server
+npm run dev
+```
+
+This project uses **Vite** for local development. The dev server runs on the default Vite port (usually `http://localhost:5173`).
 
 ---
 
