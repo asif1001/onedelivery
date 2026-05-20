@@ -158,13 +158,36 @@ Branch tank configuration is synced to the `oilTanks` collection in Firestore. I
    - **Supply Planning**: Coordinate delivery schedules based on tank levels and demand
    - **Stock Trend Analysis**: Track consumption patterns across branches and oil types
 
-3. **Loading Coordination**
+3. **MAD & MOS Management**
+   - **Update MAD** (Monthly Average Demand): Upload a CSV via the **Update MAD** button (Stock Update tab) to set monthly consumption values per tank
+     - Download the MAD template → fill in the `MAD` column per branch/oil type → upload
+     - MAD values are saved to Firestore and used for stock planning
+   - **MOS** (Month of Stock): Automatically calculated as `Current Level ÷ MAD`
+     - Example: Current Level = 3000 L, MAD = 1149.33 L/month → MOS = **2.61 months**
+     - Displayed in the stock overview and included in the exported stock report
+
+4. **Stock Report Export** (`Export Current Stock` button)
+   The downloaded CSV contains the following columns:
+
+   | Column | Description |
+   |--------|-------------|
+   | Branch Name | Branch location name |
+   | Tank Name | Tank identifier (e.g. Tank 1) |
+   | Oil Type | Type of oil in the tank |
+   | Current Level (L) | Current stock in litres |
+   | Capacity (L) | Maximum tank capacity |
+   | Status | critical / low / normal / full |
+   | MAD | Monthly Average Demand (uploaded via Update MAD) |
+   | MOS | Month of Stock = Current Level ÷ MAD |
+   | Last Updated | Actual date & time of last tank level change (by driver, branch user, or warehouse) |
+
+5. **Loading Coordination**
    - **Driver Assignment**: Assign loading tasks to available drivers
    - **Loading Documentation**: Verify loading photos and meter readings
    - **Capacity Planning**: Ensure tanker capacity matches delivery requirements
    - **Quality Control**: Monitor loading procedures and compliance with safety protocols
 
-4. **Operational Analytics**
+6. **Operational Analytics**
    - **Transaction Monitoring**: Overview of all delivery transactions system-wide
    - **Performance Metrics**: Track delivery efficiency and driver performance
    - **Complaint Oversight**: Monitor complaint resolution and identify recurring issues
@@ -642,18 +665,26 @@ npm run build
 
 ## 🔄 Version History
 
-### **Current Version: 2.1**
+### **Current Version: 2.2**
+- ✅ Added **MAD column** to Export Current Stock report
+- ✅ Added **MOS column** (Month of Stock = Current Level ÷ MAD) to Export Current Stock report
+- ✅ **Last Updated** column in stock export now shows actual tank level change date/time (not export date)
+- ✅ Fixed production build script (Vite-only) to unblock Firebase Hosting auto-deployment
+- ✅ Branch tank sync (`syncBranchOilTanks`) auto-generates `Tank 1/2/3` names if left blank
+- ✅ Warehouse dashboard displays tank name labels using `tankName` from `oilTanks` collection
+
+### **Version 2.1**
 - ✅ Enhanced photo selection (camera or gallery) for branch tank updates
 - ✅ Complete GitHub Actions CI/CD pipeline integration
 - ✅ Improved Firebase hosting with automatic deployments
 - ✅ Updated README with comprehensive deployment instructions
-- ✅ Restored “Branch *” dropdown in Oil Supply Workflow to fit-to-screen (no scrollbar)
+- ✅ Restored "Branch *" dropdown in Oil Supply Workflow to fit-to-screen (no scrollbar)
 
 ### **Version 2.0**
 - ✅ Enhanced Supply workflow with two-step process
 - ✅ Branch-specific oil type filtering
 - ✅ Color-coded branch stock update tracking
-- ✅ Auto-save functionality with draft protection
+- ✅ Warehouse section expanded with MAD/MOS/Export details
 - ✅ Improved photo labeling and validation
 
 ---

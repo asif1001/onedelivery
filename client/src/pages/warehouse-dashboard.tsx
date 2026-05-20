@@ -2498,15 +2498,34 @@ export default function WarehouseDashboard() {
 
   const downloadCurrentStockTemplate = () => {
     const csvContent = [
-      ['Branch Name', 'Oil Type', 'Current Level (L)', 'Capacity (L)', 'Status', 'Last Updated'].join(','),
-      ...oilTanks.map(tank => [
-        tank.branchName,
-        tank.oilTypeName,
-        tank.currentLevel,
-        tank.capacity,
-        tank.status,
-        new Date().toLocaleDateString()
-      ].map(field => `"${field}"`).join(','))
+      ['Branch Name', 'Tank Name', 'Oil Type', 'Current Level (L)', 'Capacity (L)', 'Status', 'MAD', 'MOS', 'Last Updated'].join(','),
+      ...oilTanks.map(tank => {
+        let lastUpdatedStr = '';
+        try {
+          if (tank.lastUpdated) {
+            const d = tank.lastUpdated.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
+            if (!isNaN(d.getTime())) {
+              lastUpdatedStr = d.toLocaleString('en-GB', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+              });
+            }
+          }
+        } catch (_) {}
+        const mad = tank.dailyUsage;
+        const mos = (mad && mad > 0) ? (tank.currentLevel / mad).toFixed(2) : '';
+        return [
+          tank.branchName,
+          tank.tankName || '',
+          tank.oilTypeName,
+          tank.currentLevel,
+          tank.capacity,
+          tank.status,
+          mad !== undefined ? mad : '',
+          mos,
+          lastUpdatedStr
+        ].map(field => `"${field}"`).join(',');
+      })
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
