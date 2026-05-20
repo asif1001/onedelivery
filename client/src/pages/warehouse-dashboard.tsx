@@ -68,6 +68,7 @@ import {
 } from "firebase/firestore";
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
+import ExcelJS from "exceljs";
 
 interface Branch {
   id: string;
@@ -2496,49 +2497,329 @@ export default function WarehouseDashboard() {
     });
   };
 
-  const downloadCurrentStockTemplate = () => {
-    const csvContent = [
-      ['Branch Name', 'Tank Name', 'Oil Type', 'Current Level (L)', 'Capacity (L)', 'Status', 'MAD', 'MOS', 'Last Updated'].join(','),
-      ...oilTanks.map(tank => {
-        let lastUpdatedStr = '';
-        try {
-          if (tank.lastUpdated) {
-            const d = tank.lastUpdated.toDate ? tank.lastUpdated.toDate() : new Date(tank.lastUpdated);
-            if (!isNaN(d.getTime())) {
-              lastUpdatedStr = d.toLocaleString('en-GB', {
-                day: '2-digit', month: '2-digit', year: 'numeric',
-                hour: '2-digit', minute: '2-digit'
-              });
-            }
-          }
-        } catch (_) {}
-        const mad = tank.dailyUsage;
-        const mos = (mad && mad > 0) ? (tank.currentLevel / mad).toFixed(2) : '';
-        return [
-          tank.branchName,
-          tank.tankName || '',
-          tank.oilTypeName,
-          tank.currentLevel,
-          tank.capacity,
-          tank.status,
-          mad !== undefined ? mad : '',
-          mos,
-          lastUpdatedStr
-        ].map(field => `"${field}"`).join(',');
-      })
-    ].join('\n');
+  const downloadCurrentStockTemplate = async () => {
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'OneDelivery';
+    workbook.created = new Date();
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const now = new Date();
+    const exportDateStr = now.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    // ── Helper: format lastUpdated ──────────────────────────────────────────
+    const fmtDate = (raw: any): string => {
+      try {
+        if (!raw) return '';
+        const d = raw.toDate ? raw.toDate() : new Date(raw);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
+    };
+
+    const daysSince = (raw: any): number | string => {
+      try {
+        if (!raw) return '';
+        const d = raw.toDate ? raw.toDate() : new Date(raw);
+        if (isNaN(d.getTime())) return '';
+        return Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+      } catch { return ''; }
+    };
+
+    // ── Style helpers ───────────────────────────────────────────────────────
+    const headerFill = (argb: string): ExcelJS.FillPattern => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+    const headerFont = (color = 'FFFFFFFF'): Partial<ExcelJS.Font> => ({ bold: true, color: { argb: color }, size: 11 });
+    const border: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin' }, left: { style: 'thin' },
+      bottom: { style: 'thin' }, right: { style: 'thin' }
+    };
+    const centerAlign: Partial<ExcelJS.Alignment> = { horizontal: 'center', vertical: 'middle' };
+
+    const styleHeader = (row: ExcelJS.Row, fillArgb: string, fontColor = 'FFFFFFFF') => {
+      row.eachCell(cell => {
+        cell.fill = headerFill(fillArgb);
+        cell.font = headerFont(fontColor);
+        cell.border = border;
+        cell.alignment = centerAlign;
+      });
+      row.height = 20;
+    };
+
+    const styleDataRow = (row: ExcelJS.Row, even: boolean) => {
+      row.eachCell({ includeEmpty: true }, cell => {
+        cell.fill = headerFill(even ? 'FFF2F2F2' : 'FFFFFFFF');
+        cell.border = border;
+        cell.alignment = { vertical: 'middle' };
+      });
+      row.height = 18;
+    };
+
+    const statusColor = (status: string): string => {
+      if (status === 'critical') return 'FFFF4444';
+      if (status === 'low') return 'FFFFA500';
+      if (status === 'full') return 'FF2196F3';
+      return 'FF4CAF50';
+    };
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 1 – Stock Detail
+    // ════════════════════════════════════════════════════════════════════════
+    const sheet1 = workbook.addWorksheet('Stock Detail');
+    sheet1.columns = [
+      { header: 'Branch Name',         key: 'branch',      width: 22 },
+      { header: 'Tank Name',           key: 'tank',        width: 16 },
+      { header: 'Oil Type',            key: 'oilType',     width: 20 },
+      { header: 'Current Level (L)',   key: 'current',     width: 18 },
+      { header: 'Capacity (L)',        key: 'capacity',    width: 15 },
+      { header: 'Remaining (L)',       key: 'remaining',   width: 16 },
+      { header: '% Fill',             key: 'pct',         width: 12 },
+      { header: 'Status',             key: 'status',      width: 12 },
+      { header: 'MAD',                key: 'mad',         width: 12 },
+      { header: 'MOS',                key: 'mos',         width: 10 },
+      { header: 'Reorder?',           key: 'reorder',     width: 12 },
+      { header: 'Days Since Update',  key: 'days',        width: 18 },
+      { header: 'Last Updated',       key: 'lastUpd',     width: 20 },
+    ];
+    styleHeader(sheet1.getRow(1), 'FF1565C0');
+
+    oilTanks.forEach((tank, i) => {
+      const mad = tank.dailyUsage;
+      const mos = (mad && mad > 0) ? parseFloat((tank.currentLevel / mad).toFixed(2)) : '';
+      const pct = tank.capacity > 0 ? parseFloat(((tank.currentLevel / tank.capacity) * 100).toFixed(1)) : 0;
+      const remaining = tank.capacity - tank.currentLevel;
+      const reorder = (typeof mos === 'number' && mos < 1) ? 'YES ⚠️' : 'NO';
+      const days = daysSince(tank.lastUpdated);
+
+      const row = sheet1.addRow({
+        branch: tank.branchName,
+        tank: tank.tankName || '',
+        oilType: tank.oilTypeName,
+        current: tank.currentLevel,
+        capacity: tank.capacity,
+        remaining,
+        pct,
+        status: tank.status.toUpperCase(),
+        mad: mad ?? '',
+        mos,
+        reorder,
+        days,
+        lastUpd: fmtDate(tank.lastUpdated),
+      });
+
+      styleDataRow(row, i % 2 === 0);
+
+      // Colour status cell
+      const statusCell = row.getCell('status');
+      statusCell.fill = headerFill(statusColor(tank.status));
+      statusCell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      statusCell.alignment = centerAlign;
+
+      // Colour reorder cell
+      if (reorder.startsWith('YES')) {
+        row.getCell('reorder').fill = headerFill('FFFF4444');
+        row.getCell('reorder').font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      }
+
+      // % Fill bar (data bar style via number format)
+      row.getCell('pct').numFmt = '0.0"%"';
+    });
+
+    sheet1.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+    sheet1.autoFilter = { from: 'A1', to: 'M1' };
+    sheet1.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 2 – Oil Type Summary
+    // ════════════════════════════════════════════════════════════════════════
+    const sheet2 = workbook.addWorksheet('Oil Type Summary');
+
+    // Aggregate by oil type
+    const oilTypeMap = new Map<string, { total: number; capacity: number; tanks: number; madSum: number; madCount: number }>();
+    oilTanks.forEach(t => {
+      const existing = oilTypeMap.get(t.oilTypeName) || { total: 0, capacity: 0, tanks: 0, madSum: 0, madCount: 0 };
+      existing.total += t.currentLevel;
+      existing.capacity += t.capacity;
+      existing.tanks += 1;
+      if (t.dailyUsage && t.dailyUsage > 0) { existing.madSum += t.dailyUsage; existing.madCount++; }
+      oilTypeMap.set(t.oilTypeName, existing);
+    });
+
+    sheet2.columns = [
+      { header: 'Oil Type',              key: 'oilType',   width: 22 },
+      { header: 'No. of Tanks',          key: 'tanks',     width: 14 },
+      { header: 'Total Stock (L)',        key: 'total',     width: 18 },
+      { header: 'Total Capacity (L)',     key: 'capacity',  width: 18 },
+      { header: 'Remaining (L)',          key: 'remaining', width: 16 },
+      { header: 'Avg % Fill',            key: 'pct',       width: 14 },
+      { header: 'Avg MAD',               key: 'mad',       width: 14 },
+      { header: 'Total MOS',             key: 'mos',       width: 14 },
+      { header: 'Reorder Risk?',         key: 'risk',      width: 16 },
+    ];
+    styleHeader(sheet2.getRow(1), 'FF2E7D32');
+
+    const oilTypeRows: any[] = [];
+    let rowIdx2 = 0;
+    oilTypeMap.forEach((v, oilType) => {
+      const pct = v.capacity > 0 ? parseFloat(((v.total / v.capacity) * 100).toFixed(1)) : 0;
+      const avgMad = v.madCount > 0 ? parseFloat((v.madSum / v.madCount).toFixed(2)) : '';
+      const totalMos = (avgMad && avgMad > 0) ? parseFloat((v.total / avgMad).toFixed(2)) : '';
+      const risk = (typeof totalMos === 'number' && totalMos < 1) ? 'HIGH ⚠️' : (typeof totalMos === 'number' && totalMos < 2) ? 'MEDIUM' : 'LOW';
+      oilTypeRows.push({ oilType, tanks: v.tanks, total: v.total, capacity: v.capacity, remaining: v.capacity - v.total, pct, mad: avgMad, mos: totalMos, risk });
+      const row = sheet2.addRow(oilTypeRows[oilTypeRows.length - 1]);
+      styleDataRow(row, rowIdx2 % 2 === 0);
+      const riskCell = row.getCell('risk');
+      if (risk.startsWith('HIGH')) { riskCell.fill = headerFill('FFFF4444'); riskCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      else if (risk.startsWith('MED')) { riskCell.fill = headerFill('FFFFA500'); riskCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      else { riskCell.fill = headerFill('FF4CAF50'); riskCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      rowIdx2++;
+    });
+
+    sheet2.autoFilter = { from: 'A1', to: 'I1' };
+    sheet2.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // Bar chart – Oil Type Stock vs Capacity
+    const chart2 = workbook.addChart('bar', { twoAxisBar: false } as any);
+    const oilTypeNames = Array.from(oilTypeMap.keys());
+    (chart2 as any).setTitle({ name: 'Stock vs Capacity by Oil Type' });
+    (chart2 as any).addSeries({
+      name: 'Total Stock (L)',
+      categories: { sheet: 'Oil Type Summary', fromRow: 2, fromCol: 1, toRow: 1 + oilTypeNames.length, toCol: 1 },
+      values:     { sheet: 'Oil Type Summary', fromRow: 2, fromCol: 3, toRow: 1 + oilTypeNames.length, toCol: 3 },
+    });
+    (chart2 as any).addSeries({
+      name: 'Total Capacity (L)',
+      categories: { sheet: 'Oil Type Summary', fromRow: 2, fromCol: 1, toRow: 1 + oilTypeNames.length, toCol: 1 },
+      values:     { sheet: 'Oil Type Summary', fromRow: 2, fromCol: 4, toRow: 1 + oilTypeNames.length, toCol: 4 },
+    });
+    sheet2.addChart(chart2 as any, 'A' + (oilTypeNames.length + 4));
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 3 – Branch Summary
+    // ════════════════════════════════════════════════════════════════════════
+    const sheet3 = workbook.addWorksheet('Branch Summary');
+
+    const branchMap = new Map<string, { total: number; capacity: number; tanks: number; critical: number; low: number; mosValues: number[] }>();
+    oilTanks.forEach(t => {
+      const b = branchMap.get(t.branchName) || { total: 0, capacity: 0, tanks: 0, critical: 0, low: 0, mosValues: [] };
+      b.total += t.currentLevel;
+      b.capacity += t.capacity;
+      b.tanks += 1;
+      if (t.status === 'critical') b.critical++;
+      if (t.status === 'low') b.low++;
+      if (t.dailyUsage && t.dailyUsage > 0) b.mosValues.push(t.currentLevel / t.dailyUsage);
+      branchMap.set(t.branchName, b);
+    });
+
+    sheet3.columns = [
+      { header: 'Branch',              key: 'branch',    width: 22 },
+      { header: 'Tanks',               key: 'tanks',     width: 10 },
+      { header: 'Total Stock (L)',      key: 'total',     width: 18 },
+      { header: 'Total Capacity (L)',   key: 'capacity',  width: 18 },
+      { header: '% Fill',             key: 'pct',       width: 12 },
+      { header: 'Critical Tanks',      key: 'critical',  width: 16 },
+      { header: 'Low Tanks',           key: 'low',       width: 14 },
+      { header: 'Avg MOS',             key: 'mos',       width: 14 },
+      { header: 'Health',              key: 'health',    width: 14 },
+    ];
+    styleHeader(sheet3.getRow(1), 'FF6A1B9A');
+
+    const branchNames: string[] = [];
+    let rowIdx3 = 0;
+    branchMap.forEach((v, branchName) => {
+      const pct = v.capacity > 0 ? parseFloat(((v.total / v.capacity) * 100).toFixed(1)) : 0;
+      const avgMos = v.mosValues.length > 0 ? parseFloat((v.mosValues.reduce((a, b) => a + b, 0) / v.mosValues.length).toFixed(2)) : '';
+      const health = v.critical > 0 ? 'CRITICAL ⚠️' : v.low > 0 ? 'LOW' : 'GOOD ✅';
+      branchNames.push(branchName);
+      const row = sheet3.addRow({ branch: branchName, tanks: v.tanks, total: v.total, capacity: v.capacity, pct, critical: v.critical, low: v.low, mos: avgMos, health });
+      styleDataRow(row, rowIdx3 % 2 === 0);
+      const healthCell = row.getCell('health');
+      if (health.startsWith('CRIT')) { healthCell.fill = headerFill('FFFF4444'); healthCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      else if (health === 'LOW') { healthCell.fill = headerFill('FFFFA500'); healthCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      else { healthCell.fill = headerFill('FF4CAF50'); healthCell.font = { bold: true, color: { argb: 'FFFFFFFF' } }; }
+      rowIdx3++;
+    });
+
+    sheet3.autoFilter = { from: 'A1', to: 'I1' };
+    sheet3.views = [{ state: 'frozen', ySplit: 1 }];
+
+    // ════════════════════════════════════════════════════════════════════════
+    // SHEET 4 – Dashboard / KPI Summary
+    // ════════════════════════════════════════════════════════════════════════
+    const sheet4 = workbook.addWorksheet('Dashboard');
+
+    const totalTanks = oilTanks.length;
+    const criticalTanks = oilTanks.filter(t => t.status === 'critical').length;
+    const lowTanks = oilTanks.filter(t => t.status === 'low').length;
+    const normalTanks = oilTanks.filter(t => t.status === 'normal').length;
+    const fullTanks = oilTanks.filter(t => t.status === 'full').length;
+    const totalStock = oilTanks.reduce((s, t) => s + t.currentLevel, 0);
+    const totalCapacity = oilTanks.reduce((s, t) => s + t.capacity, 0);
+    const avgFill = totalCapacity > 0 ? ((totalStock / totalCapacity) * 100).toFixed(1) : '0';
+    const reorderCount = oilTanks.filter(t => t.dailyUsage && t.dailyUsage > 0 && (t.currentLevel / t.dailyUsage) < 1).length;
+
+    const kpis = [
+      ['📊 OneDelivery – Inventory Dashboard', ''],
+      [`Generated: ${exportDateStr}`, ''],
+      ['', ''],
+      ['KPI', 'Value'],
+      ['Total Tanks', totalTanks],
+      ['Total Stock (L)', totalStock.toLocaleString()],
+      ['Total Capacity (L)', totalCapacity.toLocaleString()],
+      ['Average Fill %', `${avgFill}%`],
+      ['Critical Tanks', criticalTanks],
+      ['Low Stock Tanks', lowTanks],
+      ['Normal Tanks', normalTanks],
+      ['Full Tanks', fullTanks],
+      ['Tanks Needing Reorder (MOS < 1)', reorderCount],
+      ['Total Branches', branchMap.size],
+      ['Total Oil Types', oilTypeMap.size],
+    ];
+
+    kpis.forEach((row, i) => {
+      const r = sheet4.addRow(row);
+      if (i === 0) { r.getCell(1).font = { bold: true, size: 14, color: { argb: 'FF1565C0' } }; r.height = 24; }
+      else if (i === 3) { styleHeader(r, 'FF1565C0'); }
+      else if (i > 3) {
+        styleDataRow(r, i % 2 === 0);
+        r.getCell(1).font = { bold: true };
+        if (row[0] === 'Critical Tanks' && (row[1] as number) > 0) r.getCell(2).font = { bold: true, color: { argb: 'FFFF4444' } };
+        if (row[0] === 'Tanks Needing Reorder (MOS < 1)' && (row[1] as number) > 0) r.getCell(2).font = { bold: true, color: { argb: 'FFFF4444' } };
+      }
+    });
+    sheet4.getColumn(1).width = 35;
+    sheet4.getColumn(2).width = 20;
+
+    // Status breakdown table for pie chart data
+    sheet4.addRow([]);
+    const statusStart = sheet4.rowCount + 1;
+    const statusHeaderRow = sheet4.addRow(['Status', 'Count']);
+    styleHeader(statusHeaderRow, 'FF37474F');
+    [['Critical', criticalTanks], ['Low', lowTanks], ['Normal', normalTanks], ['Full', fullTanks]].forEach(([label, count], i) => {
+      const r = sheet4.addRow([label, count]);
+      styleDataRow(r, i % 2 === 0);
+    });
+
+    // Pie chart – Tank status distribution
+    const pieChart = workbook.addChart('pie', {} as any);
+    (pieChart as any).setTitle({ name: 'Tank Status Distribution' });
+    (pieChart as any).addSeries({
+      name: 'Status',
+      categories: { sheet: 'Dashboard', fromRow: statusStart + 1, fromCol: 1, toRow: statusStart + 4, toCol: 1 },
+      values:     { sheet: 'Dashboard', fromRow: statusStart + 1, fromCol: 2, toRow: statusStart + 4, toCol: 2 },
+    });
+    sheet4.addChart(pieChart as any, 'D4');
+
+    // ── Write to buffer and trigger download ────────────────────────────────
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `current_stock_levels_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `OneDelivery_Stock_Report_${new Date().toISOString().split('T')[0]}.xlsx`;
     a.click();
     window.URL.revokeObjectURL(url);
-    
+
     toast({
       title: "Stock Report Downloaded",
-      description: "Current stock levels exported successfully",
+      description: "Excel workbook with 4 sheets: Stock Detail, Oil Type Summary, Branch Summary, Dashboard",
     });
   };
 
