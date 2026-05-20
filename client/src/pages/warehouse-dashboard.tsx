@@ -2565,6 +2565,7 @@ export default function WarehouseDashboard() {
         { header: 'Status',            key: 'status',    width: 12 },
         { header: 'MAD (L/month)',     key: 'mad',       width: 14 },
         { header: 'MOS (months)',      key: 'mos',       width: 14 },
+        { header: 'DOS (days)',        key: 'dos',       width: 14 },
         { header: 'Reorder?',          key: 'reorder',   width: 12 },
         { header: 'Days Since Update', key: 'days',      width: 18 },
         { header: 'Last Updated',      key: 'lastUpd',   width: 20 },
@@ -2574,9 +2575,10 @@ export default function WarehouseDashboard() {
       oilTanks.forEach((tank, i) => {
         const mad = tank.dailyUsage ?? null;
         const mos = (mad && mad > 0) ? parseFloat((tank.currentLevel / mad).toFixed(2)) : null;
+        const dos = (mad && mad > 0) ? parseFloat((tank.currentLevel / mad * 30.44).toFixed(1)) : null;
         const pct = tank.capacity > 0 ? parseFloat(((tank.currentLevel / tank.capacity) * 100).toFixed(1)) : 0;
         const remaining = tank.capacity - tank.currentLevel;
-        const reorder = (mos !== null && mos < 1) ? 'YES' : 'NO';
+        const reorder = (dos !== null && dos < 30) ? 'YES' : 'NO';
         const days = daysSince(tank.lastUpdated);
 
         const row = ws1.addRow({
@@ -2590,6 +2592,7 @@ export default function WarehouseDashboard() {
           status: tank.status.toUpperCase(),
           mad: mad ?? '',
           mos: mos ?? '',
+          dos: dos ?? '',
           reorder,
           days,
           lastUpd: fmtDate(tank.lastUpdated),
@@ -2610,7 +2613,7 @@ export default function WarehouseDashboard() {
         row.getCell('pct').numFmt = '0.0"%"';
       });
 
-      ws1.autoFilter = { from: 'A1', to: 'M1' };
+      ws1.autoFilter = { from: 'A1', to: 'N1' };
       ws1.views = [{ state: 'frozen', ySplit: 1 }];
 
       // ══════════════════════════════════════════════════════════════
