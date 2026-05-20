@@ -2611,6 +2611,22 @@ export default function WarehouseDashboard() {
           rc.alignment = ctr;
         }
         row.getCell('pct').numFmt = '0.0"%"';
+
+        // Highlight Last Updated cell by age
+        const lastUpdCell = row.getCell('lastUpd');
+        const daysNum = typeof days === 'number' ? days : null;
+        if (daysNum !== null) {
+          if (daysNum <= 3) {
+            lastUpdCell.fill = fill('FFC8E6C9'); // light green
+            lastUpdCell.font = { color: { argb: 'FF1B5E20' }, bold: true }; // dark green text
+          } else if (daysNum <= 7) {
+            lastUpdCell.fill = fill('FFFFF3CD'); // light orange/yellow
+            lastUpdCell.font = { color: { argb: 'FFE65100' }, bold: true }; // dark orange text
+          } else {
+            lastUpdCell.fill = fill('FFFFCDD2'); // light red
+            lastUpdCell.font = { color: { argb: 'FFB71C1C' }, bold: true }; // dark red text
+          }
+        }
       });
 
       ws1.autoFilter = { from: 'A1', to: 'N1' };
