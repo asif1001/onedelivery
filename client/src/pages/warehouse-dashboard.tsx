@@ -49,7 +49,7 @@ import {
   ChevronUp
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel, getAllUsers } from "@/lib/firebase";
+import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel, getAllUsers, getAllCustomerTypes } from "@/lib/firebase";
 import { 
   collection, 
   query, 
@@ -148,6 +148,7 @@ interface OilTank {
   status: 'critical' | 'low' | 'normal' | 'full';
   lastUpdated: any;
   dailyUsage?: number;
+  customerTypeName?: string;
 }
 
 interface UpdateLog {
@@ -687,6 +688,8 @@ export default function WarehouseDashboard() {
       
       // Load branches with filtering for warehouse users
       const branchesData = await getActiveBranchesOnly().catch(() => []);
+      const customerTypesData = await getAllCustomerTypes().catch(() => []);
+      const customerTypeMap = new Map(customerTypesData.map((ct: any) => [ct.id, ct.name]));
       const oilTypesData = await getAllOilTypes().catch(() => []);
       
       // Filter branches for warehouse users with assigned branches
@@ -701,7 +704,7 @@ export default function WarehouseDashboard() {
       setBranches(filteredBranches || []);
       setOilTypes(oilTypesData || []);
       
-      const oilTanksData = extractOilTanksFromBranches(filteredBranches, oilTypesData);
+      const oilTanksData = extractOilTanksFromBranches(filteredBranches, oilTypesData, customerTypeMap);
       setOilTanks(oilTanksData);
       
       console.log('⚡ Tanks ready:', oilTanksData.length);
@@ -770,7 +773,7 @@ export default function WarehouseDashboard() {
   };
 
   // Optimized function to extract oil tanks from branches
-  const extractOilTanksFromBranches = (branchesData: any[], oilTypesData: any[]) => {
+  const extractOilTanksFromBranches = (branchesData: any[], oilTypesData: any[], customerTypeMap: Map<string, string> = new Map()) => {
     const oilTypeMap = new Map(oilTypesData.map((ot: any) => [ot.id, ot.name]));
     const oilTanksData: any[] = [];
     
@@ -809,6 +812,7 @@ export default function WarehouseDashboard() {
       else if (percentage <= 25) status = 'low';
       else if (percentage >= 95) status = 'full';
       
+      const branch = branchesData.find((b: any) => b.id === tankData.branchId);
       return {
         id: tankData.id,
         branchId: tankData.branchId,
@@ -820,7 +824,8 @@ export default function WarehouseDashboard() {
         capacity: capacity,
         status: status as 'critical' | 'low' | 'normal' | 'full',
         lastUpdated: tankData.lastUpdated || Timestamp.now(),
-        dailyUsage: tankData.dailyUsage
+        dailyUsage: tankData.dailyUsage,
+        customerTypeName: customerTypeMap.get((branch as any)?.customerTypeId || '') || (branch as any)?.customerTypeName || ''
       };
     });
 
@@ -2555,9 +2560,10 @@ export default function WarehouseDashboard() {
       // ══════════════════════════════════════════════════════════════
       const ws1 = workbook.addWorksheet('Stock Detail');
       ws1.columns = [
-        { header: 'Branch Name',        key: 'branch',    width: 24 },
-        { header: 'Tank Name',          key: 'tank',      width: 16 },
-        { header: 'Oil Type',           key: 'oilType',   width: 20 },
+        { header: 'Branch Name',        key: 'branch',       width: 24 },
+        { header: 'Customer Type',       key: 'custType',     width: 18 },
+        { header: 'Tank Name',          key: 'tank',         width: 16 },
+        { header: 'Oil Type',           key: 'oilType',      width: 20 },
         { header: 'Current Level (L)',  key: 'current',   width: 18 },
         { header: 'Capacity (L)',       key: 'capacity',  width: 15 },
         { header: 'Remaining (L)',      key: 'remaining', width: 16 },
@@ -2573,16 +2579,17 @@ export default function WarehouseDashboard() {
       applyHeader(ws1.getRow(1), 'FF1565C0');
 
       oilTanks.forEach((tank, i) => {
-        const mad = tank.dailyUsage ?? null;
+        const mad = tank.dailyUsage != null ? Math.round(tank.dailyUsage) : null;
         const mos = (mad && mad > 0) ? parseFloat((tank.currentLevel / mad).toFixed(2)) : null;
-        const dos = (mad && mad > 0) ? parseFloat((tank.currentLevel / mad * 30.44).toFixed(1)) : null;
-        const pct = tank.capacity > 0 ? parseFloat(((tank.currentLevel / tank.capacity) * 100).toFixed(1)) : 0;
+        const dos = (mad && mad > 0) ? Math.round(tank.currentLevel / mad * 30.44) : null;
+        const pct = tank.capacity > 0 ? Math.round((tank.currentLevel / tank.capacity) * 100) : 0;
         const remaining = tank.capacity - tank.currentLevel;
         const reorder = (dos !== null && dos < 30) ? 'YES' : 'NO';
         const days = daysSince(tank.lastUpdated);
 
         const row = ws1.addRow({
           branch: tank.branchName,
+          custType: tank.customerTypeName || '',
           tank: tank.tankName || '',
           oilType: tank.oilTypeName,
           current: tank.currentLevel,
@@ -2610,7 +2617,7 @@ export default function WarehouseDashboard() {
           rc.font = { bold: true, color: { argb: 'FFFFFFFF' } };
           rc.alignment = ctr;
         }
-        row.getCell('pct').numFmt = '0.0"%"';
+        row.getCell('pct').numFmt = '0"%"';
 
         // Highlight Last Updated cell by age
         const lastUpdCell = row.getCell('lastUpd');
@@ -2629,7 +2636,7 @@ export default function WarehouseDashboard() {
         }
       });
 
-      ws1.autoFilter = { from: 'A1', to: 'N1' };
+      ws1.autoFilter = { from: 'A1', to: 'O1' };
       ws1.views = [{ state: 'frozen', ySplit: 1 }];
 
       // ══════════════════════════════════════════════════════════════
@@ -2662,8 +2669,8 @@ export default function WarehouseDashboard() {
 
       let ri2 = 0;
       oilTypeMap.forEach((v, oilType) => {
-        const pct = v.capacity > 0 ? parseFloat(((v.total / v.capacity) * 100).toFixed(1)) : 0;
-        const avgMad = v.madCount > 0 ? parseFloat((v.madSum / v.madCount).toFixed(2)) : null;
+        const pct = v.capacity > 0 ? Math.round((v.total / v.capacity) * 100) : 0;
+        const avgMad = v.madCount > 0 ? Math.round(v.madSum / v.madCount) : null;
         const totalMos = (avgMad && avgMad > 0) ? parseFloat((v.total / avgMad).toFixed(2)) : null;
         const risk = totalMos === null ? 'N/A' : totalMos < 1 ? 'HIGH' : totalMos < 2 ? 'MEDIUM' : 'LOW';
         const row = ws2.addRow({ oilType, tanks: v.tanks, total: v.total, capacity: v.capacity, remaining: v.capacity - v.total, pct, mad: avgMad ?? '', mos: totalMos ?? '', risk });
@@ -2716,7 +2723,7 @@ export default function WarehouseDashboard() {
 
       let ri3 = 0;
       branchMap.forEach((v, branchName) => {
-        const pct = v.capacity > 0 ? parseFloat(((v.total / v.capacity) * 100).toFixed(1)) : 0;
+        const pct = v.capacity > 0 ? Math.round((v.total / v.capacity) * 100) : 0;
         const avgMos = v.mosVals.length > 0 ? parseFloat((v.mosVals.reduce((a, b) => a + b, 0) / v.mosVals.length).toFixed(2)) : '';
         const health = v.critical > 0 ? 'CRITICAL' : v.low > 0 ? 'LOW' : 'GOOD';
         const row = ws3.addRow({ branch: branchName, tanks: v.tanks, total: v.total, capacity: v.capacity, pct, critical: v.critical, low: v.low, mos: avgMos, health });

@@ -88,7 +88,11 @@ import {
   getDrumCapacities,
   saveDrumCapacity,
   updateDrumCapacity,
-  deleteDrumCapacity
+  deleteDrumCapacity,
+  getAllCustomerTypes,
+  saveCustomerType,
+  updateCustomerType,
+  deleteCustomerType
 } from "@/lib/firebase";
 import { collection, query, orderBy, limit, getDocs, doc, getDoc, setDoc, where } from "firebase/firestore";
 import { createFirebaseUserReal } from "@/lib/firebaseUserCreation";
@@ -292,6 +296,10 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [oilTypes, setOilTypes] = useState<OilType[]>([]);
   const [drumCapacities, setDrumCapacities] = useState<DrumCapacity[]>([]);
+  const [customerTypes, setCustomerTypes] = useState<any[]>([]);
+  const [showCustomerTypeModal, setShowCustomerTypeModal] = useState(false);
+  const [editingCustomerType, setEditingCustomerType] = useState<any>(null);
+  const [customerTypeForm, setCustomerTypeForm] = useState({ name: '', description: '' });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [storageUsage, setStorageUsage] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -679,6 +687,8 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
       setBranches((branchesData || []) as Branch[]);
       setOilTypes((oilTypesData || []) as OilType[]);
       setDrumCapacities((drumCapacitiesData || []) as DrumCapacity[]);
+      const customerTypesData = await getAllCustomerTypes().catch(() => []);
+      setCustomerTypes(customerTypesData);
       setTasks((tasksData || []) as Task[]);
       setStorageUsage(storageData);
       setTransactions(transactionsData);
@@ -2313,6 +2323,17 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
                 <h3 className={`text-xs font-semibold ${themeClasses.secondaryText} uppercase tracking-wider mb-2`}>Management</h3>
                 <div className="space-y-1">
                   <button
+                    onClick={() => setActiveTab('customer-types')}
+                    className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      activeTab === 'customer-types'
+                        ? 'bg-orange-100 text-orange-900 border-r-2 border-orange-500'
+                        : `${themeClasses.text} hover:${theme === 'night' ? 'bg-gray-700' : 'bg-gray-100'}`
+                    }`}
+                  >
+                    <UserIcon className="mr-3 h-5 w-5" />
+                    Customer Types
+                  </button>
+                  <button
                     onClick={() => setActiveTab('drivers')}
                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                       activeTab === 'drivers' 
@@ -2868,6 +2889,7 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               <AdminBranches
                 branches={branches as any}
                 oilTypes={oilTypes as any}
+                customerTypes={customerTypes}
                 onAddBranch={handleAddBranch}
                 onUpdateBranch={handleUpdateBranch as any}
                 onDeleteBranch={handleDeleteBranch}
@@ -2894,7 +2916,102 @@ export default function AdminDashboard({ user }: AdminDashboardProps) {
               />
             )}
 
+            {/* Customer Types Content */}
+            {activeTab === 'customer-types' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold">Customer Types</h3>
+                    <p className="text-sm text-gray-600">Define customer categories and link them to branches for reporting and filtering</p>
+                  </div>
+                  <Button onClick={() => { setEditingCustomerType(null); setCustomerTypeForm({ name: '', description: '' }); setShowCustomerTypeModal(true); }} className="flex items-center gap-2">
+                    <PlusIcon className="h-4 w-4" />
+                    Add Customer Type
+                  </Button>
+                </div>
 
+                {customerTypes.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12 text-gray-500">
+                      <UserIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                      <p className="font-medium">No customer types yet</p>
+                      <p className="text-sm mt-1">Add your first customer type to start linking branches</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {customerTypes.map(ct => (
+                      <Card key={ct.id}>
+                        <CardHeader className="pb-2">
+                          <div className="flex justify-between items-start">
+                            <CardTitle className="text-base">{ct.name}</CardTitle>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="outline" onClick={() => { setEditingCustomerType(ct); setCustomerTypeForm({ name: ct.name, description: ct.description || '' }); setShowCustomerTypeModal(true); }}>
+                                <EditIcon className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" onClick={async () => {
+                                if (window.confirm(`Delete "${ct.name}"?`)) {
+                                  await deleteCustomerType(ct.id);
+                                  setCustomerTypes(prev => prev.filter(c => c.id !== ct.id));
+                                  toast({ title: 'Deleted', description: `"${ct.name}" removed` });
+                                }
+                              }}>
+                                <TrashIcon className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-gray-500">{ct.description || 'No description'}</p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            {branches.filter((b: any) => b.customerTypeId === ct.id).length} branch(es) linked
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add / Edit Modal */}
+                <Dialog open={showCustomerTypeModal} onOpenChange={setShowCustomerTypeModal}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>{editingCustomerType ? 'Edit Customer Type' : 'Add Customer Type'}</DialogTitle>
+                      <DialogDescription>Customer types are used to categorise branches and filter stock reports.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="ct-name">Name *</Label>
+                        <Input id="ct-name" value={customerTypeForm.name} onChange={e => setCustomerTypeForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Retail, Industrial, Government" />
+                      </div>
+                      <div>
+                        <Label htmlFor="ct-desc">Description</Label>
+                        <Textarea id="ct-desc" value={customerTypeForm.description} onChange={e => setCustomerTypeForm(f => ({ ...f, description: e.target.value }))} placeholder="Optional description" rows={2} />
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" onClick={() => setShowCustomerTypeModal(false)}>Cancel</Button>
+                        <Button onClick={async () => {
+                          if (!customerTypeForm.name.trim()) { toast({ title: 'Name required', variant: 'destructive' }); return; }
+                          if (editingCustomerType) {
+                            await updateCustomerType(editingCustomerType.id, customerTypeForm);
+                            setCustomerTypes(prev => prev.map(c => c.id === editingCustomerType.id ? { ...c, ...customerTypeForm } : c));
+                            toast({ title: 'Updated', description: `"${customerTypeForm.name}" updated` });
+                          } else {
+                            const saved = await saveCustomerType(customerTypeForm);
+                            setCustomerTypes(prev => [...prev, saved]);
+                            toast({ title: 'Added', description: `"${customerTypeForm.name}" created` });
+                          }
+                          setShowCustomerTypeModal(false);
+                        }}>
+                          <SaveIcon className="h-4 w-4 mr-2" />
+                          {editingCustomerType ? 'Update' : 'Create'}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            )}
 
             {/* Warehouse Content */}
             {activeTab === 'warehouse' && (

@@ -2919,6 +2919,50 @@ export const deleteDrumCapacity = async (id: string) => {
   }
 };
 
+// ── Customer Types ──────────────────────────────────────────────────────────
+
+export const getAllCustomerTypes = async () => {
+  try {
+    const snap = await getDocs(query(collection(db, 'customerTypes'), orderBy('name')));
+    return snap.docs
+      .map(d => ({ id: d.id, ...(d.data() as any) }))
+      .filter((d: any) => d.active !== false);
+  } catch (error) {
+    console.error('Error getting customer types:', error);
+    throw error;
+  }
+};
+
+export const saveCustomerType = async (data: { name: string; description?: string }) => {
+  try {
+    const ref = doc(collection(db, 'customerTypes'));
+    const record = { id: ref.id, name: data.name, description: data.description || '', active: true, createdAt: new Date() };
+    await setDoc(ref, record);
+    return record;
+  } catch (error) {
+    console.error('Error saving customer type:', error);
+    throw error;
+  }
+};
+
+export const updateCustomerType = async (id: string, data: { name?: string; description?: string }) => {
+  try {
+    await updateDoc(doc(db, 'customerTypes', id), { ...data, updatedAt: new Date() });
+  } catch (error) {
+    console.error('Error updating customer type:', error);
+    throw error;
+  }
+};
+
+export const deleteCustomerType = async (id: string) => {
+  try {
+    await updateDoc(doc(db, 'customerTypes', id), { active: false, deletedAt: new Date() });
+  } catch (error) {
+    console.error('Error deleting customer type:', error);
+    throw error;
+  }
+};
+
 // Save drum supply transaction - Direct to branch tanks (no tanker deduction)
 export const saveDrumSupplyTransaction = async (transactionData: any) => {
   try {

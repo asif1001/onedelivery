@@ -17,6 +17,11 @@ interface OilTank {
   isActive?: boolean;
 }
 
+interface CustomerType {
+  id: string;
+  name: string;
+}
+
 interface Branch {
   id: string;
   name: string;
@@ -24,6 +29,8 @@ interface Branch {
   contactNo: string;
   isActive?: boolean;
   oilTanks: OilTank[];
+  customerTypeId?: string;
+  customerTypeName?: string;
 }
 
 interface OilType {
@@ -46,11 +53,14 @@ interface CreateBranch {
   address: string;
   contactNo: string;
   oilTanks: CreateOilTank[];
+  customerTypeId?: string;
+  customerTypeName?: string;
 }
 
 interface AdminBranchesProps {
   branches: Branch[];
   oilTypes: OilType[];
+  customerTypes?: CustomerType[];
   onAddBranch: (branch: CreateBranch) => Promise<void>;
   onUpdateBranch: (id: string, branch: Partial<Branch>) => Promise<void>;
   onDeleteBranch: (id: string) => Promise<void>;
@@ -59,7 +69,8 @@ interface AdminBranchesProps {
 
 export default function AdminBranches({ 
   branches, 
-  oilTypes, 
+  oilTypes,
+  customerTypes = [],
   onAddBranch, 
   onUpdateBranch, 
   onDeleteBranch,
@@ -79,6 +90,8 @@ export default function AdminBranches({
     name: '',
     address: '',
     contactNo: '',
+    customerTypeId: '',
+    customerTypeName: '',
     oilTanks: [] as CreateOilTank[]
   });
   const { toast } = useToast();
@@ -88,6 +101,8 @@ export default function AdminBranches({
       name: '',
       address: '',
       contactNo: '',
+      customerTypeId: '',
+      customerTypeName: '',
       oilTanks: []
     });
     setEditingBranch(null);
@@ -142,6 +157,8 @@ export default function AdminBranches({
       name: branch.name,
       address: branch.address,
       contactNo: branch.contactNo,
+      customerTypeId: branch.customerTypeId || '',
+      customerTypeName: branch.customerTypeName || '',
       oilTanks: branch.oilTanks
     });
     setIsOpen(true);
@@ -279,6 +296,26 @@ export default function AdminBranches({
                   placeholder="Enter branch address"
                 />
               </div>
+              <div>
+                <Label htmlFor="customerType">Customer Type</Label>
+                <Select
+                  value={formData.customerTypeId || 'none'}
+                  onValueChange={(value) => {
+                    const ct = customerTypes.find(c => c.id === value);
+                    setFormData(prev => ({ ...prev, customerTypeId: value === 'none' ? '' : value, customerTypeName: ct?.name || '' }));
+                  }}
+                >
+                  <SelectTrigger id="customerType">
+                    <SelectValue placeholder="Select customer type (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">-- None --</SelectItem>
+                    {customerTypes.map(ct => (
+                      <SelectItem key={ct.id} value={ct.id}>{ct.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -392,12 +429,17 @@ export default function AdminBranches({
                   <MapPinIcon className="h-5 w-5 text-blue-600" />
                   {branch.name}
                 </CardTitle>
-                <div className="flex items-center gap-3 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     branch.isActive !== false ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                   }`}>
                     {branch.isActive !== false ? 'Active' : 'Inactive'}
                   </span>
+                  {branch.customerTypeName && (
+                    <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      {branch.customerTypeName}
+                    </span>
+                  )}
                 </div>
               </div>
               
