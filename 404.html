@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./icon-192x192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png" />
+    <meta name="theme-color" content="#f59e0b" />
+    <meta name="description" content="OILDELIVERY - Professional Oil Delivery Management System" />
+    <title>OILDELIVERY - Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script type="module" crossorigin src="./assets/index-CzIHck8-.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-Df5dXyLL.css">
+    <script>
+      // GitHub Pages SPA redirect
+      // This script takes the current URL and redirects to the homepage with the path as a query parameter
+      // The main app will handle the routing from there
+      sessionStorage.redirect = location.href;
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Redirect to homepage for client-side routing
+      if (sessionStorage.redirect) {
+        history.replaceState(null, null, '/');
+      }
+    </script>
+  </body>
+</html>
