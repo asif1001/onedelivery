@@ -55,6 +55,20 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{
+    // Step 1
+    deliveryOrderNo?: boolean;
+    branchId?: boolean;
+    oilTypeId?: boolean;
+    startMeterReading?: boolean;
+    tankerMeterPhoto?: boolean;
+    tankLevelPhoto?: boolean;
+    hoseConnectionPhoto?: boolean;
+    // Step 2
+    endMeterReading?: boolean;
+    finishMeterReadingPhoto?: boolean;
+    finalTankLevelPhoto?: boolean;
+  }>({});
   const [supplyData, setSupplyData] = useState<SupplyData>({
     deliveryOrderNo: '',
     branchId: '',
@@ -131,6 +145,66 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   const clearSupplyDraft = () => {
     localStorage.removeItem('supply_draft');
     console.log('🗑️ Supply draft cleared');
+  };
+
+  // Clear ALL old temp data to free up storage space
+  const clearOldTempData = () => {
+    try {
+      // Remove all draft-related items
+      localStorage.removeItem('supply_draft');
+      localStorage.removeItem('drum_supply_draft');
+      localStorage.removeItem('loading_draft');
+      
+      // Remove any other temp/cache data
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('draft') || key.includes('temp') || key.includes('cache') || key.includes('blob'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Clear any blob URLs from supplyData
+      setSupplyData(prev => ({
+        ...prev,
+        tankerMeterPhoto: undefined,
+        tankLevelPhoto: undefined,
+        hoseConnectionPhoto: undefined,
+        finishMeterReadingPhoto: undefined,
+        finalTankLevelPhoto: undefined
+      }));
+      
+      toast({
+        title: "Storage Cleared",
+        description: "Old temporary data has been cleared. You can now save new transactions.",
+        variant: "default"
+      });
+      
+      console.log('🧹 All old temp data cleared from localStorage');
+    } catch (error) {
+      console.error('Error clearing temp data:', error);
+      toast({
+        title: "Clear Failed",
+        description: "Could not clear storage. Please try refreshing the page.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Check localStorage usage
+  const getStorageUsage = (): string => {
+    try {
+      let total = 0;
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          total += localStorage[key].length * 2; // UTF-16 = 2 bytes per char
+        }
+      }
+      return (total / 1024 / 1024).toFixed(2); // Convert to MB
+    } catch (e) {
+      return '0';
+    }
   };
 
   // Get last finished meter reading for auto-population
@@ -244,85 +318,102 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
     }
   };
 
+  // Validation function for Step 1
+  const validateStep1 = (data: SupplyData = supplyData, showErrors = false): { isValid: boolean; errors: typeof validationErrors; missingFields: string[] } => {
+    const errors: typeof validationErrors = {};
+    const missingFields: string[] = [];
+
+    if (!data.deliveryOrderNo.trim()) {
+      errors.deliveryOrderNo = true;
+      missingFields.push("Order/Delivery Number");
+    }
+
+    if (!data.branchId) {
+      errors.branchId = true;
+      missingFields.push("Branch");
+    }
+
+    if (!data.oilTypeId) {
+      errors.oilTypeId = true;
+      missingFields.push("Oil Type");
+    }
+
+    if (!data.startMeterReading || data.startMeterReading <= 0) {
+      errors.startMeterReading = true;
+      missingFields.push("Start Meter Reading");
+    }
+
+    if (!data.tankerMeterPhoto) {
+      errors.tankerMeterPhoto = true;
+      missingFields.push("Start (Tanker Meter) Photo");
+    }
+
+    if (!data.tankLevelPhoto) {
+      errors.tankLevelPhoto = true;
+      missingFields.push("Tank Level Before Photo");
+    }
+
+    if (!data.hoseConnectionPhoto) {
+      errors.hoseConnectionPhoto = true;
+      missingFields.push("Hose Connection Photo");
+    }
+
+    if (showErrors) {
+      setValidationErrors(prev => ({ ...prev, ...errors }));
+    }
+
+    return { isValid: missingFields.length === 0, errors, missingFields };
+  };
+
+  // Validation function for Step 2
+  const validateStep2 = (data: SupplyData = supplyData, showErrors = false): { isValid: boolean; errors: typeof validationErrors; missingFields: string[] } => {
+    const errors: typeof validationErrors = {};
+    const missingFields: string[] = [];
+
+    if (!data.endMeterReading || data.endMeterReading <= 0) {
+      errors.endMeterReading = true;
+      missingFields.push("End Meter Reading");
+    } else if (data.startMeterReading > data.endMeterReading) {
+      errors.endMeterReading = true;
+      missingFields.push("End Meter (must be > Start Meter)");
+    }
+
+    if (!data.finishMeterReadingPhoto) {
+      errors.finishMeterReadingPhoto = true;
+      missingFields.push("End Reading Photo");
+    }
+
+    if (!data.finalTankLevelPhoto) {
+      errors.finalTankLevelPhoto = true;
+      missingFields.push("Tank Level After Photo");
+    }
+
+    if (showErrors) {
+      setValidationErrors(prev => ({ ...prev, ...errors }));
+    }
+
+    return { isValid: missingFields.length === 0, errors, missingFields };
+  };
+
+  // Check validation whenever supplyData changes
+  useEffect(() => {
+    if (currentStep === 1) {
+      validateStep1(supplyData, false);
+    } else if (currentStep === 2) {
+      validateStep2(supplyData, false);
+    }
+  }, [supplyData, currentStep]);
+
   const handleNextStep = () => {
-    // Clear any previous inline error
-    setInlineError(null);
-    
     // Validate Step 1 before proceeding
     if (currentStep === 1) {
-      // Check all required fields
-      if (!supplyData.deliveryOrderNo.trim()) {
-        const errorMsg = "Please enter the Order/Delivery Number";
+      const { isValid, missingFields } = validateStep1(supplyData, true);
+      
+      if (!isValid) {
+        const errorMsg = `Please complete: ${missingFields.join(", ")}`;
         setInlineError(errorMsg);
         toast({
           title: "Missing Information",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!supplyData.branchId) {
-        const errorMsg = "Please select a Branch";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Information", 
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!supplyData.oilTypeId) {
-        const errorMsg = "Please select an Oil Type";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Information",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!supplyData.startMeterReading || supplyData.startMeterReading <= 0) {
-        const errorMsg = "Please enter the Start Meter Reading";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Information",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Check all required photos
-      if (!supplyData.tankerMeterPhoto) {
-        const errorMsg = "Please take the Start (Tanker Meter) photo";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Required Photo",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!supplyData.tankLevelPhoto) {
-        const errorMsg = "Please take the Tank Level Before photo";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Required Photo", 
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!supplyData.hoseConnectionPhoto) {
-        const errorMsg = "Please take the Hose Connection photo";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Required Photo",
           description: errorMsg,
           variant: "destructive"
         });
@@ -331,6 +422,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
       // All validations passed, proceed to Step 2
       setInlineError(null);
+      setValidationErrors({});
       setCurrentStep(2);
     }
   };
@@ -365,47 +457,22 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   const handleCompleteSupply = async () => {
     if (isSubmitting) return; // Prevent double submission
 
-    // Clear any previous inline error
-    setInlineError(null);
+    // Validate Step 2
+    const { isValid, missingFields } = validateStep2(supplyData, true);
+    
+    if (!isValid) {
+      const errorMsg = `Please complete: ${missingFields.join(", ")}`;
+      setInlineError(errorMsg);
+      toast({
+        title: "Missing Information",
+        description: errorMsg,
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       setIsSubmitting(true);
-
-      // Validate required fields for Step 2
-      if (!supplyData.branchId || !supplyData.oilTypeId || !supplyData.endMeterReading) {
-        const errorMsg = "Please fill in all required fields";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Information",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate required photos for Step 2
-      if (!supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto) {
-        const errorMsg = "Please take both End Reading (Tanker Meter) and Tank Level After photos before completing";
-        setInlineError(errorMsg);
-        toast({
-          title: "Missing Required Photos",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Validate meter readings - start cannot be greater than end
-      if (supplyData.startMeterReading > supplyData.endMeterReading) {
-        const errorMsg = "Start meter reading cannot be greater than finish meter reading";
-        setInlineError(errorMsg);
-        toast({
-          title: "Invalid Meter Readings",
-          description: errorMsg,
-          variant: "destructive"
-        });
-        return;
-      }
 
       // Calculate oil supplied from meter readings
       const oilSuppliedLiters = supplyData.endMeterReading - supplyData.startMeterReading;
@@ -506,6 +573,19 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
               </div>
             ))}
           </div>
+          {/* Storage Cleanup Button - Small and subtle */}
+          <div className="mt-3 flex justify-center">
+            <button
+              onClick={clearOldTempData}
+              className="text-xs bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded flex items-center gap-1 transition-colors"
+              title="Clear old temporary data to fix storage issues"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Clear Old Data ({getStorageUsage()} MB used)
+            </button>
+          </div>
         </CardHeader>
 
         <CardContent className="p-3 sm:p-6 space-y-4 sm:space-y-6 bg-white">
@@ -535,21 +615,31 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
               <div className="space-y-4">
                 {/* Delivery Order */}
                 <div className="space-y-2">
-                  <Label htmlFor="deliveryOrder" className="text-base font-semibold text-gray-800">Order/Delivery Number</Label>
+                  <Label htmlFor="deliveryOrder" className={`text-base font-semibold ${validationErrors.deliveryOrderNo ? 'text-red-600' : 'text-gray-800'}`}>
+                    Order/Delivery Number {validationErrors.deliveryOrderNo && <span className="text-red-500">*</span>}
+                  </Label>
                   <Input
                     id="deliveryOrder"
                     type="text"
                     value={supplyData.deliveryOrderNo}
-                    onChange={(e) => setSupplyData(prev => ({ ...prev, deliveryOrderNo: e.target.value }))}
+                    onChange={(e) => {
+                      setSupplyData(prev => ({ ...prev, deliveryOrderNo: e.target.value }));
+                      if (validationErrors.deliveryOrderNo) {
+                        setValidationErrors(prev => ({ ...prev, deliveryOrderNo: false }));
+                      }
+                    }}
                     placeholder="Enter delivery order number"
                     data-testid="input-delivery-order"
-                    className="bg-white border-3 border-gray-400 focus:border-orange-500 h-12 text-lg"
+                    className={`bg-white border-3 h-12 text-lg ${validationErrors.deliveryOrderNo ? 'border-red-500 focus:border-red-500' : 'border-gray-400 focus:border-orange-500'}`}
                   />
+                  {validationErrors.deliveryOrderNo && <p className="text-xs text-red-500">Required field</p>}
                 </div>
 
                 {/* Branch Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="branch" className="text-base font-semibold text-gray-800">Branch *</Label>
+                  <Label htmlFor="branch" className={`text-base font-semibold ${validationErrors.branchId ? 'text-red-600' : 'text-gray-800'}`}>
+                    Branch {validationErrors.branchId && <span className="text-red-500">*</span>}
+                  </Label>
                   <Select 
                     value={supplyData.branchId} 
                     onValueChange={(value) => {
@@ -573,9 +663,12 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                         console.log('Step 1 - Updated supplyData:', newState);
                         return newState;
                       });
+                      if (validationErrors.branchId) {
+                        setValidationErrors(prev => ({ ...prev, branchId: false }));
+                      }
                     }}
                   >
-                    <SelectTrigger data-testid="select-branch" className="h-12 text-lg border-3 border-gray-400 focus:border-orange-500">
+                    <SelectTrigger data-testid="select-branch" className={`h-12 text-lg border-3 ${validationErrors.branchId ? 'border-red-500 focus:border-red-500' : 'border-gray-400 focus:border-orange-500'}`}>
                       <SelectValue placeholder="Select delivery branch" />
                     </SelectTrigger>
                     <SelectContent>
@@ -586,17 +679,25 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                       ))}
                     </SelectContent>
                   </Select>
+                  {validationErrors.branchId && <p className="text-xs text-red-500">Required field</p>}
                 </div>
 
                 {/* Oil Type Selection */}
                 <div className="space-y-2">
-                  <Label htmlFor="oilType" className="text-base font-semibold text-gray-800">Oil Type *</Label>
+                  <Label htmlFor="oilType" className={`text-base font-semibold ${validationErrors.oilTypeId ? 'text-red-600' : 'text-gray-800'}`}>
+                    Oil Type {validationErrors.oilTypeId && <span className="text-red-500">*</span>}
+                  </Label>
                   <Select 
                     value={supplyData.oilTypeId} 
-                    onValueChange={(value) => setSupplyData(prev => ({ ...prev, oilTypeId: value }))}
+                    onValueChange={(value) => {
+                      setSupplyData(prev => ({ ...prev, oilTypeId: value }));
+                      if (validationErrors.oilTypeId) {
+                        setValidationErrors(prev => ({ ...prev, oilTypeId: false }));
+                      }
+                    }}
                     disabled={!supplyData.branchId}
                   >
-                    <SelectTrigger data-testid="select-oil-type" className="h-12 text-lg border-3 border-gray-400 focus:border-orange-500">
+                    <SelectTrigger data-testid="select-oil-type" className={`h-12 text-lg border-3 ${validationErrors.oilTypeId ? 'border-red-500 focus:border-red-500' : 'border-gray-400 focus:border-orange-500'}`}>
                       <SelectValue placeholder="Select oil type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -610,40 +711,61 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                   {!supplyData.branchId && (
                     <p className="text-sm text-gray-500 mt-1">Select a branch first</p>
                   )}
+                  {validationErrors.oilTypeId && supplyData.branchId && <p className="text-xs text-red-500">Required field</p>}
                 </div>
 
                 {/* Start Meter Reading */}
                 <div className="space-y-2">
-                  <Label htmlFor="startMeter" className="text-base font-semibold text-gray-800">Start Meter Reading *</Label>
+                  <Label htmlFor="startMeter" className={`text-base font-semibold ${validationErrors.startMeterReading ? 'text-red-600' : 'text-gray-800'}`}>
+                    Start Meter Reading {validationErrors.startMeterReading && <span className="text-red-500">*</span>}
+                  </Label>
                   <Input
                     id="startMeter"
                     type="number"
                     value={supplyData.startMeterReading || ''}
-                    onChange={(e) => setSupplyData(prev => ({ ...prev, startMeterReading: Number(e.target.value) }))}
+                    onChange={(e) => {
+                      setSupplyData(prev => ({ ...prev, startMeterReading: Number(e.target.value) }));
+                      if (validationErrors.startMeterReading) {
+                        setValidationErrors(prev => ({ ...prev, startMeterReading: false }));
+                      }
+                    }}
                     placeholder="Auto-filled from last supply"
                     data-testid="input-start-meter"
-                    className="bg-white border-3 border-gray-400 focus:border-orange-500 h-12 text-lg"
+                    className={`bg-white border-3 h-12 text-lg ${validationErrors.startMeterReading ? 'border-red-500 focus:border-red-500' : 'border-gray-400 focus:border-orange-500'}`}
                   />
-                  <p className="text-sm text-blue-600">Auto-filled with last finished meter reading</p>
+                  <p className={`text-sm ${validationErrors.startMeterReading ? 'text-red-500' : 'text-blue-600'}`}>
+                    {validationErrors.startMeterReading ? 'Required field - must be greater than 0' : 'Auto-filled with last finished meter reading'}
+                  </p>
                 </div>
               </div>
 
               {/* Photo Capture Section for Step 1 */}
               <div className="space-y-4">
-                <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Required Photos</h4>
+                <h4 className={`text-lg font-semibold border-b pb-2 ${Object.values(validationErrors).some((e, i) => ['tankerMeterPhoto', 'tankLevelPhoto', 'hoseConnectionPhoto'][i] && e) ? 'text-red-600' : 'text-gray-800'}`}>
+                  Required Photos {Object.values(validationErrors).some((e, i) => ['tankerMeterPhoto', 'tankLevelPhoto', 'hoseConnectionPhoto'][i] && e) && <span className="text-red-500">*</span>}
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   
                   {/* Tanker Meter Photo */}
                   <div className="text-center">
-                    <PhotoCaptureButton 
-                      onCapture={(blob: Blob, timestamp: string) => handlePhotoCapture(blob, 'tankerMeter')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-3 text-sm w-full h-16"
-                      title="Start (Tanker Meter)"
-                      branchName={selectedBranchData?.name || 'No Branch Selected'}
-                    >
-                      <GaugeIcon className="w-4 h-4 mr-2" />
-                      Start (Tanker Meter)
-                    </PhotoCaptureButton>
+                    <div className={`p-2 rounded-lg ${validationErrors.tankerMeterPhoto ? 'bg-red-50 border-2 border-red-300' : ''}`}>
+                      <PhotoCaptureButton 
+                        onCapture={(blob: Blob, timestamp: string) => {
+                          handlePhotoCapture(blob, 'tankerMeter');
+                          if (validationErrors.tankerMeterPhoto) {
+                            setValidationErrors(prev => ({ ...prev, tankerMeterPhoto: false }));
+                          }
+                        }}
+                        className={`text-white px-3 py-3 text-sm w-full h-16 ${validationErrors.tankerMeterPhoto ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                        title="Start (Tanker Meter)"
+                        branchName={selectedBranchData?.name || 'No Branch Selected'}
+                      >
+                        <GaugeIcon className="w-4 h-4 mr-2" />
+                        Start (Tanker Meter)
+                        {validationErrors.tankerMeterPhoto && <span className="ml-1">*</span>}
+                      </PhotoCaptureButton>
+                      {validationErrors.tankerMeterPhoto && <p className="text-xs text-red-600 mt-1">Required photo</p>}
+                    </div>
                     {supplyData.tankerMeterPhoto && (
                       <div className="mt-2 flex flex-col items-center">
                         <div className="relative group cursor-pointer"
@@ -664,15 +786,24 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
                   {/* Tank Level Before */}
                   <div className="text-center">
-                    <PhotoCaptureButton 
-                      onCapture={(blob: Blob, timestamp: string) => handlePhotoCapture(blob, 'tankLevel')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-3 text-sm w-full h-16"
-                      title="Branch Tank Level Before"
-                      branchName={selectedBranchData?.name || 'No Branch Selected'}
-                    >
-                      <GaugeIcon className="w-4 h-4 mr-2" />
-                      Tank Level Before
-                    </PhotoCaptureButton>
+                    <div className={`p-2 rounded-lg ${validationErrors.tankLevelPhoto ? 'bg-red-50 border-2 border-red-300' : ''}`}>
+                      <PhotoCaptureButton 
+                        onCapture={(blob: Blob, timestamp: string) => {
+                          handlePhotoCapture(blob, 'tankLevel');
+                          if (validationErrors.tankLevelPhoto) {
+                            setValidationErrors(prev => ({ ...prev, tankLevelPhoto: false }));
+                          }
+                        }}
+                        className={`text-white px-3 py-3 text-sm w-full h-16 ${validationErrors.tankLevelPhoto ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                        title="Branch Tank Level Before"
+                        branchName={selectedBranchData?.name || 'No Branch Selected'}
+                      >
+                        <GaugeIcon className="w-4 h-4 mr-2" />
+                        Tank Level Before
+                        {validationErrors.tankLevelPhoto && <span className="ml-1">*</span>}
+                      </PhotoCaptureButton>
+                      {validationErrors.tankLevelPhoto && <p className="text-xs text-red-600 mt-1">Required photo</p>}
+                    </div>
                     {supplyData.tankLevelPhoto && (
                       <div className="mt-2 flex flex-col items-center">
                         <div className="relative group cursor-pointer"
@@ -693,15 +824,24 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
                   {/* Hose Connection */}
                   <div className="text-center">
-                    <PhotoCaptureButton 
-                      onCapture={(blob: Blob, timestamp: string) => handlePhotoCapture(blob, 'hoseConnection')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-3 text-sm w-full h-16"
-                      title="Hose Connection"
-                      branchName={selectedBranchData?.name || 'No Branch Selected'}
-                    >
-                      <DropletIcon className="w-4 h-4 mr-2" />
-                      Hose Connection
-                    </PhotoCaptureButton>
+                    <div className={`p-2 rounded-lg ${validationErrors.hoseConnectionPhoto ? 'bg-red-50 border-2 border-red-300' : ''}`}>
+                      <PhotoCaptureButton 
+                        onCapture={(blob: Blob, timestamp: string) => {
+                          handlePhotoCapture(blob, 'hoseConnection');
+                          if (validationErrors.hoseConnectionPhoto) {
+                            setValidationErrors(prev => ({ ...prev, hoseConnectionPhoto: false }));
+                          }
+                        }}
+                        className={`text-white px-3 py-3 text-sm w-full h-16 ${validationErrors.hoseConnectionPhoto ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                        title="Hose Connection"
+                        branchName={selectedBranchData?.name || 'No Branch Selected'}
+                      >
+                        <DropletIcon className="w-4 h-4 mr-2" />
+                        Hose Connection
+                        {validationErrors.hoseConnectionPhoto && <span className="ml-1">*</span>}
+                      </PhotoCaptureButton>
+                      {validationErrors.hoseConnectionPhoto && <p className="text-xs text-red-600 mt-1">Required photo</p>}
+                    </div>
                     {supplyData.hoseConnectionPhoto && (
                       <div className="mt-2 flex flex-col items-center">
                         <div className="relative group cursor-pointer"
@@ -722,6 +862,21 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                 </div>
               </div>
 
+              {/* Missing Fields Summary - Shows above button when incomplete */}
+              {(() => {
+                const { isValid, missingFields } = validateStep1(supplyData, false);
+                if (!isValid) {
+                  return (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+                      <p className="text-sm text-red-700 font-medium">
+                        Complete to proceed: {missingFields.join(", ")}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Action Buttons for Step 1 */}
               <div className="flex flex-col sm:flex-row justify-between gap-3 pt-4">
                 <Button 
@@ -731,14 +886,23 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                 >
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleNextStep}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 w-full sm:w-auto"
-                  data-testid="button-next-step"
-                >
-                  <ArrowRightIcon className="w-4 h-4 mr-2" />
-                  Next - Start Oil Loading
-                </Button>
+                {(() => {
+                  const { isValid, missingFields } = validateStep1(supplyData, false);
+                  return (
+                    <div className="w-full sm:w-auto">
+                      <Button 
+                        onClick={handleNextStep}
+                        disabled={!isValid}
+                        className={`w-full ${isValid ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                        data-testid="button-next-step"
+                        title={!isValid ? `Missing: ${missingFields.join(", ")}` : ""}
+                      >
+                        <ArrowRightIcon className="w-4 h-4 mr-2" />
+                        Next - Start Oil Loading
+                      </Button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -763,20 +927,34 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
               {/* End Meter Reading */}
               <div className="space-y-2">
-                <Label htmlFor="endMeter" className="text-base font-semibold text-gray-800">End Meter Reading *</Label>
+                <Label htmlFor="endMeter" className={`text-base font-semibold ${validationErrors.endMeterReading ? 'text-red-600' : 'text-gray-800'}`}>
+                  End Meter Reading {validationErrors.endMeterReading && <span className="text-red-500">*</span>}
+                </Label>
                 <Input
                   id="endMeter"
                   type="number"
                   value={supplyData.endMeterReading === 0 ? '' : supplyData.endMeterReading}
-                  onChange={(e) => setSupplyData(prev => ({ ...prev, endMeterReading: Number(e.target.value) || 0 }))}
+                  onChange={(e) => {
+                    setSupplyData(prev => ({ ...prev, endMeterReading: Number(e.target.value) || 0 }));
+                    if (validationErrors.endMeterReading) {
+                      setValidationErrors(prev => ({ ...prev, endMeterReading: false }));
+                    }
+                  }}
                   placeholder="Meter reading after supply"
                   data-testid="input-end-meter"
-                  className={supplyData.startMeterReading > supplyData.endMeterReading && supplyData.endMeterReading > 0 ? "bg-white border-3 border-red-500 h-12 text-lg" : "bg-white border-3 border-gray-400 focus:border-orange-500 h-12 text-lg"}
+                  className={`bg-white border-3 h-12 text-lg ${
+                    validationErrors.endMeterReading 
+                      ? 'border-red-500 focus:border-red-500' 
+                      : 'border-gray-400 focus:border-orange-500'
+                  }`}
                 />
-                {supplyData.startMeterReading > supplyData.endMeterReading && supplyData.endMeterReading > 0 && (
-                  <p className="text-sm text-red-600 flex items-center">
-                    ⚠️ End meter reading must be greater than start meter reading
+                {validationErrors.endMeterReading && supplyData.endMeterReading > 0 && supplyData.startMeterReading > supplyData.endMeterReading && (
+                  <p className="text-sm text-red-600">
+                    ⚠️ End meter reading must be greater than start meter reading ({supplyData.startMeterReading})
                   </p>
+                )}
+                {validationErrors.endMeterReading && (!supplyData.endMeterReading || supplyData.endMeterReading <= 0) && (
+                  <p className="text-sm text-red-500">Required field - must be greater than 0</p>
                 )}
               </div>
 
@@ -793,20 +971,31 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
               {/* Photo Capture Section for Step 2 */}
               <div className="space-y-4">
-                <h4 className="text-lg font-semibold text-gray-800 border-b pb-2">Final Photos</h4>
+                <h4 className={`text-lg font-semibold border-b pb-2 ${(validationErrors.finishMeterReadingPhoto || validationErrors.finalTankLevelPhoto) ? 'text-red-600' : 'text-gray-800'}`}>
+                  Final Photos {(validationErrors.finishMeterReadingPhoto || validationErrors.finalTankLevelPhoto) && <span className="text-red-500">*</span>}
+                </h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   
                   {/* Finish Meter Reading Photo */}
                   <div className="text-center">
-                    <PhotoCaptureButton 
-                      onCapture={(blob: Blob, timestamp: string) => handlePhotoCapture(blob, 'finishMeterReading')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-3 text-sm w-full h-16"
-                      title="End Reading (Tanker Meter)"
-                      branchName={selectedBranchData?.name || 'No Branch Selected'}
-                    >
-                      <GaugeIcon className="w-4 h-4 mr-2" />
-                      End Reading (Tanker Meter)
-                    </PhotoCaptureButton>
+                    <div className={`p-2 rounded-lg ${validationErrors.finishMeterReadingPhoto ? 'bg-red-50 border-2 border-red-300' : ''}`}>
+                      <PhotoCaptureButton 
+                        onCapture={(blob: Blob, timestamp: string) => {
+                          handlePhotoCapture(blob, 'finishMeterReading');
+                          if (validationErrors.finishMeterReadingPhoto) {
+                            setValidationErrors(prev => ({ ...prev, finishMeterReadingPhoto: false }));
+                          }
+                        }}
+                        className={`text-white px-3 py-3 text-sm w-full h-16 ${validationErrors.finishMeterReadingPhoto ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                        title="End Reading (Tanker Meter)"
+                        branchName={selectedBranchData?.name || 'No Branch Selected'}
+                      >
+                        <GaugeIcon className="w-4 h-4 mr-2" />
+                        End Reading (Tanker Meter)
+                        {validationErrors.finishMeterReadingPhoto && <span className="ml-1">*</span>}
+                      </PhotoCaptureButton>
+                      {validationErrors.finishMeterReadingPhoto && <p className="text-xs text-red-600 mt-1">Required photo</p>}
+                    </div>
                     {supplyData.finishMeterReadingPhoto && (
                       <div className="mt-2 flex flex-col items-center">
                         <div className="relative group cursor-pointer"
@@ -827,15 +1016,24 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
                   {/* Tank Level After */}
                   <div className="text-center">
-                    <PhotoCaptureButton 
-                      onCapture={(blob: Blob, timestamp: string) => handlePhotoCapture(blob, 'finalTankLevel')}
-                      className="bg-orange-500 hover:bg-orange-600 text-white px-3 py-3 text-sm w-full h-16"
-                      title="Branch Tank Level After"
-                      branchName={selectedBranchData?.name || 'No Branch Selected'}
-                    >
-                      <GaugeIcon className="w-4 h-4 mr-2" />
-                      Tank Level After
-                    </PhotoCaptureButton>
+                    <div className={`p-2 rounded-lg ${validationErrors.finalTankLevelPhoto ? 'bg-red-50 border-2 border-red-300' : ''}`}>
+                      <PhotoCaptureButton 
+                        onCapture={(blob: Blob, timestamp: string) => {
+                          handlePhotoCapture(blob, 'finalTankLevel');
+                          if (validationErrors.finalTankLevelPhoto) {
+                            setValidationErrors(prev => ({ ...prev, finalTankLevelPhoto: false }));
+                          }
+                        }}
+                        className={`text-white px-3 py-3 text-sm w-full h-16 ${validationErrors.finalTankLevelPhoto ? 'bg-red-500 hover:bg-red-600' : 'bg-orange-500 hover:bg-orange-600'}`}
+                        title="Branch Tank Level After"
+                        branchName={selectedBranchData?.name || 'No Branch Selected'}
+                      >
+                        <GaugeIcon className="w-4 h-4 mr-2" />
+                        Tank Level After
+                        {validationErrors.finalTankLevelPhoto && <span className="ml-1">*</span>}
+                      </PhotoCaptureButton>
+                      {validationErrors.finalTankLevelPhoto && <p className="text-xs text-red-600 mt-1">Required photo</p>}
+                    </div>
                     {supplyData.finalTankLevelPhoto && (
                       <div className="mt-2 flex flex-col items-center">
                         <div className="relative group cursor-pointer"
@@ -855,6 +1053,21 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                   </div>
                 </div>
               </div>
+
+              {/* Missing Fields Summary for Step 2 */}
+              {(() => {
+                const { isValid, missingFields } = validateStep2(supplyData, false);
+                if (!isValid) {
+                  return (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <p className="text-sm text-red-700 font-medium">
+                        Complete to proceed: {missingFields.join(", ")}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Action Buttons for Step 2 */}
               <div className="flex flex-col gap-3 pt-4">
@@ -878,12 +1091,16 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                     Back to Step 1
                   </Button>
                   
-                  <Button 
-                    onClick={handleCompleteSupply}
-                    disabled={isSubmitting || !supplyData.endMeterReading || !supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto}
-                    className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 w-full sm:flex-1"
-                    data-testid="button-complete-supply"
-                  >
+                  {(() => {
+                    const { isValid, missingFields } = validateStep2(supplyData, false);
+                    return (
+                      <Button 
+                        onClick={handleCompleteSupply}
+                        disabled={isSubmitting || !isValid}
+                        className={`w-full sm:flex-1 ${isValid ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                        data-testid="button-complete-supply"
+                        title={!isValid ? `Missing: ${missingFields.join(", ")}` : ""}
+                      >
                     {isSubmitting ? (
                       <>
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
@@ -896,6 +1113,8 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
                       </>
                     )}
                   </Button>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

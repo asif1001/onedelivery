@@ -127,6 +127,56 @@ export function DrumSupplyWorkflow({ onClose, onPhotoClick }: DrumSupplyWorkflow
     console.log('🗑️ Drum supply draft cleared');
   };
 
+  // Clear ALL old temp data to free up storage space
+  const clearOldTempData = () => {
+    try {
+      // Remove all draft-related items
+      localStorage.removeItem('supply_draft');
+      localStorage.removeItem('drum_supply_draft');
+      localStorage.removeItem('loading_draft');
+      
+      // Remove any other temp/cache data
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('draft') || key.includes('temp') || key.includes('cache') || key.includes('blob'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      toast({
+        title: "Storage Cleared",
+        description: "Old temporary data has been cleared. You can now save new transactions.",
+        variant: "default"
+      });
+      
+      console.log('🧹 All old temp data cleared from localStorage');
+    } catch (error) {
+      console.error('Error clearing temp data:', error);
+      toast({
+        title: "Clear Failed",
+        description: "Could not clear storage. Please try refreshing the page.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Check localStorage usage
+  const getStorageUsage = (): string => {
+    try {
+      let total = 0;
+      for (let key in localStorage) {
+        if (localStorage.hasOwnProperty(key)) {
+          total += localStorage[key].length * 2;
+        }
+      }
+      return (total / 1024 / 1024).toFixed(2);
+    } catch (e) {
+      return '0';
+    }
+  };
+
   useEffect(() => {
     restoreDrumSupplyDraft(); // Restore any saved draft
   }, []);
@@ -333,10 +383,23 @@ export function DrumSupplyWorkflow({ onClose, onPhotoClick }: DrumSupplyWorkflow
     <div className="min-h-screen bg-gray-50 p-4">
       <Card className="max-w-4xl mx-auto">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <DropletIcon className="h-6 w-6 text-blue-600" />
-            Supply by Drum
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <DropletIcon className="h-6 w-6 text-blue-600" />
+              Supply by Drum
+            </CardTitle>
+            {/* Storage Cleanup Button */}
+            <button
+              onClick={clearOldTempData}
+              className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-1 rounded flex items-center gap-1 transition-colors"
+              title="Clear old temporary data to fix storage issues"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Clear Old Data ({getStorageUsage()} MB)
+            </button>
+          </div>
           
           {/* Steps indicator */}
           <div className="flex items-center space-x-4 mt-4">
