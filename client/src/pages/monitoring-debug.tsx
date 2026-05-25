@@ -258,7 +258,7 @@ const MonitoringDebug: React.FC = () => {
               </Button>
               
               <Button
-                onClick={logout}
+                onClick={() => logout()}
                 variant="ghost" 
                 size="sm"
                 className="text-gray-600 hover:text-gray-900 flex items-center gap-1.5"
