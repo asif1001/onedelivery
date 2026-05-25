@@ -40,7 +40,10 @@ serviceAccountKey.json
 
 # Replit specific
 .replit
-replit.nixattached_assets/
-node_modules/
+replit.nix
+.local/
+.config/
+*.tar.gz
+
 attached_assets/
 node_modules/
