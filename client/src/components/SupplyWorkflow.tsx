@@ -54,6 +54,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   const [currentStep, setCurrentStep] = useState(1); // 1: Before Starting Pump, 2: After Loading Completes
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showExitConfirmDialog, setShowExitConfirmDialog] = useState(false);
+  const [inlineError, setInlineError] = useState<string | null>(null);
   const [supplyData, setSupplyData] = useState<SupplyData>({
     deliveryOrderNo: '',
     branchId: '',
@@ -244,40 +245,51 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   };
 
   const handleNextStep = () => {
+    // Clear any previous inline error
+    setInlineError(null);
+    
     // Validate Step 1 before proceeding
     if (currentStep === 1) {
       // Check all required fields
       if (!supplyData.deliveryOrderNo.trim()) {
+        const errorMsg = "Please enter the Order/Delivery Number";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Information",
-          description: "Please enter the Order/Delivery Number",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       if (!supplyData.branchId) {
+        const errorMsg = "Please select a Branch";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Information", 
-          description: "Please select a Branch",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       if (!supplyData.oilTypeId) {
+        const errorMsg = "Please select an Oil Type";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Information",
-          description: "Please select an Oil Type", 
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       if (!supplyData.startMeterReading || supplyData.startMeterReading <= 0) {
+        const errorMsg = "Please enter the Start Meter Reading";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Information",
-          description: "Please enter the Start Meter Reading",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
@@ -285,39 +297,47 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
       // Check all required photos
       if (!supplyData.tankerMeterPhoto) {
+        const errorMsg = "Please take the Start (Tanker Meter) photo";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Required Photo",
-          description: "Please take the Start (Tanker Meter) photo",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       if (!supplyData.tankLevelPhoto) {
+        const errorMsg = "Please take the Tank Level Before photo";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Required Photo", 
-          description: "Please take the Tank Level Before photo",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       if (!supplyData.hoseConnectionPhoto) {
+        const errorMsg = "Please take the Hose Connection photo";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Required Photo",
-          description: "Please take the Hose Connection photo", 
+          description: errorMsg,
           variant: "destructive"
         });
         return;
       }
 
       // All validations passed, proceed to Step 2
+      setInlineError(null);
       setCurrentStep(2);
     }
   };
 
   const handlePreviousStep = () => {
     if (currentStep > 1) {
+      setInlineError(null); // Clear any error when going back
       setCurrentStep(currentStep - 1);
     }
   };
@@ -345,14 +365,19 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
   const handleCompleteSupply = async () => {
     if (isSubmitting) return; // Prevent double submission
 
+    // Clear any previous inline error
+    setInlineError(null);
+
     try {
       setIsSubmitting(true);
 
       // Validate required fields for Step 2
       if (!supplyData.branchId || !supplyData.oilTypeId || !supplyData.endMeterReading) {
+        const errorMsg = "Please fill in all required fields";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Information",
-          description: "Please fill in all required fields",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
@@ -360,9 +385,11 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
       // Validate required photos for Step 2
       if (!supplyData.finishMeterReadingPhoto || !supplyData.finalTankLevelPhoto) {
+        const errorMsg = "Please take both End Reading (Tanker Meter) and Tank Level After photos before completing";
+        setInlineError(errorMsg);
         toast({
           title: "Missing Required Photos",
-          description: "Please take both End Reading (Tanker Meter) and Tank Level After photos before completing",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
@@ -370,9 +397,11 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
       // Validate meter readings - start cannot be greater than end
       if (supplyData.startMeterReading > supplyData.endMeterReading) {
+        const errorMsg = "Start meter reading cannot be greater than finish meter reading";
+        setInlineError(errorMsg);
         toast({
           title: "Invalid Meter Readings",
-          description: "Start meter reading cannot be greater than finish meter reading",
+          description: errorMsg,
           variant: "destructive"
         });
         return;
@@ -441,9 +470,11 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
       onClose(true); // Close and return to dashboard with completion flag
     } catch (error) {
       console.error('Supply completion error:', error);
+      const errorMsg = "Failed to complete delivery. Please try again.";
+      setInlineError(errorMsg);
       toast({
         title: "Supply Failed",
-        description: "Failed to complete delivery. Please try again.",
+        description: errorMsg,
         variant: "destructive"
       });
     } finally {
@@ -478,6 +509,21 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
         </CardHeader>
 
         <CardContent className="p-3 sm:p-6 space-y-4 sm:space-y-6 bg-white">
+          {/* Inline Error Display - Shows validation errors prominently at top of modal */}
+          {inlineError && (
+            <div className="bg-red-50 border-2 border-red-500 rounded-lg p-4 animate-pulse">
+              <div className="flex items-start gap-3">
+                <svg className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <h4 className="font-bold text-red-800 text-base">Missing Required Information</h4>
+                  <p className="text-red-700 text-sm mt-1">{inlineError}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Step 1: Before Starting the Pump */}
           {currentStep === 1 && (
             <div className="space-y-6">
