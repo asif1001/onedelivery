@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AppUser } from '@shared/schema';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthUser extends Partial<AppUser> {
   uid?: string;
@@ -23,12 +24,64 @@ export interface AuthHookResult {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: () => void;
-  logout: () => void;
+  logout: (reason?: string) => void;
+  sessionInfo: { remainingTime: string; isExpiringSoon: boolean } | null;
 }
+
+// Roles that require weekly logout
+const WEEKLY_LOGOUT_ROLES = ['driver', 'warehouse'];
+const SESSION_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
 export function useAuth() {
   const [userData, setUserData] = useState<AuthUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Check if session has expired (weekly logout for driver/warehouse)
+  const checkSessionExpiry = (user: AuthUser): boolean => {
+    const loginTime = localStorage.getItem('loginTimestamp');
+    
+    if (!loginTime || !user.role) {
+      return false;
+    }
+    
+    // Only check for driver and warehouse roles
+    if (!WEEKLY_LOGOUT_ROLES.includes(user.role)) {
+      return false;
+    }
+    
+    const loginDate = new Date(loginTime);
+    const now = new Date();
+    const elapsedMs = now.getTime() - loginDate.getTime();
+    
+    if (elapsedMs >= SESSION_TIMEOUT_MS) {
+      console.log(`🔒 Weekly logout triggered for ${user.role} user. Session expired after ${Math.floor(elapsedMs / (24 * 60 * 60 * 1000))} days`);
+      return true;
+    }
+    
+    return false;
+  };
+
+  // Format remaining time for display
+  const getRemainingTime = (user: AuthUser): string => {
+    const loginTime = localStorage.getItem('loginTimestamp');
+    if (!loginTime || !user.role || !WEEKLY_LOGOUT_ROLES.includes(user.role)) {
+      return '';
+    }
+    
+    const loginDate = new Date(loginTime);
+    const now = new Date();
+    const elapsedMs = now.getTime() - loginDate.getTime();
+    const remainingMs = SESSION_TIMEOUT_MS - elapsedMs;
+    
+    if (remainingMs <= 0) {
+      return 'Session expired';
+    }
+    
+    const remainingDays = Math.floor(remainingMs / (24 * 60 * 60 * 1000));
+    const remainingHours = Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+    
+    return `${remainingDays}d ${remainingHours}h remaining`;
+  };
 
   useEffect(() => {
     // Check for stored user session first
@@ -37,6 +90,19 @@ export function useAuth() {
       if (savedUser) {
         try {
           const parsedUser = JSON.parse(savedUser);
+          
+          // Check if session has expired for driver/warehouse users
+          if (checkSessionExpiry(parsedUser)) {
+            console.log('🚫 Session expired - forcing logout');
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('loginTimestamp');
+            setUserData(null);
+            setIsLoading(false);
+            // Show toast notification about weekly logout
+            alert('Your session has expired for security reasons. Please log in again.');
+            return true;
+          }
+          
           console.log('Using stored user session:', parsedUser);
           setUserData(parsedUser as AuthUser);
           setIsLoading(false);
@@ -44,6 +110,7 @@ export function useAuth() {
         } catch (error) {
           console.error('Error parsing stored user:', error);
           localStorage.removeItem('currentUser');
+          localStorage.removeItem('loginTimestamp');
         }
       }
       return false;
@@ -51,12 +118,26 @@ export function useAuth() {
 
     // Use stored session if available
     if (checkStoredUser()) {
-      return;
+      // Set up periodic session check for driver/warehouse users (every hour)
+      const intervalId = setInterval(() => {
+        if (userData && checkSessionExpiry(userData)) {
+          logout('weekly_session_expired');
+        }
+      }, 60 * 60 * 1000); // Check every hour
+
+      return () => clearInterval(intervalId);
     }
 
     // Check for Replit Auth session
     checkAuthStatus();
   }, []);
+  
+  // Also check when userData changes
+  useEffect(() => {
+    if (userData && checkSessionExpiry(userData)) {
+      logout('weekly_session_expired');
+    }
+  }, [userData]);
 
   const checkAuthStatus = async () => {
     try {
@@ -79,15 +160,27 @@ export function useAuth() {
     window.location.reload();
   };
 
-  const logout = () => {
-    console.log('🔓 Logging out user...');
+  const logout = (reason?: string) => {
+    console.log('🔓 Logging out user...', reason ? `Reason: ${reason}` : '');
     
     // Clear local storage
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('loginTimestamp');
     setUserData(null);
     
     // Stay within the app - just reload to trigger login page
     window.location.reload();
+  };
+  
+  // Get remaining session time (for display in UI)
+  const getSessionInfo = () => {
+    if (!userData || !userData.role || !WEEKLY_LOGOUT_ROLES.includes(userData.role)) {
+      return null;
+    }
+    return {
+      remainingTime: getRemainingTime(userData),
+      isExpiringSoon: getRemainingTime(userData).includes('0d') || getRemainingTime(userData).includes('1d')
+    };
   };
 
   return {
@@ -96,6 +189,7 @@ export function useAuth() {
     isLoading,
     isAuthenticated: !!userData,
     login,
-    logout
+    logout,
+    sessionInfo: getSessionInfo()
   };
 }

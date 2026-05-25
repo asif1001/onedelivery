@@ -28,7 +28,7 @@ interface DriverDashboardProps {
 }
 
 export default function DriverDashboard({ user }: DriverDashboardProps) {
-  const { logout } = useAuth();
+  const { logout, sessionInfo } = useAuth();
   const { toast } = useToast();
   const [isLoadingWorkflowOpen, setIsLoadingWorkflowOpen] = useState(false);
   const [isSupplyWorkflowOpen, setIsSupplyWorkflowOpen] = useState(false);
@@ -484,7 +484,20 @@ export default function DriverDashboard({ user }: DriverDashboardProps) {
                   {getUserDisplayName(userProfile) || getUserDisplayName(user)}
                 </p>
                 <p className="text-xs text-gray-500">{userProfile?.email || user.email}</p>
+                {/* Session expiry indicator for driver/warehouse */}
+                {sessionInfo && (
+                  <p className={`text-xs ${sessionInfo.isExpiringSoon ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                    Session: {sessionInfo.remainingTime}
+                  </p>
+                )}
               </div>
+              {/* Mobile session indicator */}
+              {sessionInfo && (
+                <div className="sm:hidden">
+                  <div className={`w-2 h-2 rounded-full ${sessionInfo.isExpiringSoon ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} 
+                       title={`Session: ${sessionInfo.remainingTime}`} />
+                </div>
+              )}
               <Button
                 onClick={handleLogout}
                 variant="outline"

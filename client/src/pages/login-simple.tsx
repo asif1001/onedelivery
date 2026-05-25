@@ -129,6 +129,9 @@ export default function LoginSimple() {
       // Store user session
       localStorage.setItem('currentUser', JSON.stringify(userData));
       
+      // Store login timestamp for weekly logout (driver/warehouse)
+      localStorage.setItem('loginTimestamp', new Date().toISOString());
+      
       // Show success toast
       toast({
         title: "Login Successful",

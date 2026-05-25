@@ -166,7 +166,7 @@ interface UpdateLog {
 }
 
 export default function WarehouseDashboard() {
-  const { userData: user, logout } = useAuth();
+  const { userData: user, logout, sessionInfo } = useAuth();
   
   // Core data states
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -3208,9 +3208,22 @@ export default function WarehouseDashboard() {
               <div>
                 <h1 className={`text-xl font-bold ${themeClasses.text}`}>OneDelivery Warehouse</h1>
                 <p className={`text-sm ${themeClasses.secondaryText}`}>Welcome, {user?.displayName || user?.email}</p>
+                {/* Session expiry indicator */}
+                {sessionInfo && (
+                  <p className={`text-xs ${sessionInfo.isExpiringSoon ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+                    Session: {sessionInfo.remainingTime}
+                  </p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Mobile session indicator */}
+              {sessionInfo && (
+                <div className="md:hidden">
+                  <div className={`w-2 h-2 rounded-full ${sessionInfo.isExpiringSoon ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`} 
+                       title={`Session: ${sessionInfo.remainingTime}`} />
+                </div>
+              )}
               {/* Theme Switcher */}
               <div className="flex items-center gap-1 border rounded-lg p-1 bg-gray-100 dark:bg-gray-700">
                 <button
