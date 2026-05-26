@@ -473,29 +473,41 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
 
     try {
       setIsSubmitting(true);
+      setInlineError(null); // Clear previous errors
 
       // Calculate oil supplied from meter readings
-      const oilSuppliedLiters = supplyData.endMeterReading - supplyData.startMeterReading;
+      const oilSuppliedLiters = Number(supplyData.endMeterReading) - Number(supplyData.startMeterReading);
       
+      if (isNaN(oilSuppliedLiters) || oilSuppliedLiters <= 0) {
+        throw new Error(`Invalid supply quantity: ${oilSuppliedLiters}L. Check meter readings.`);
+      }
+
       console.log(`Supplying ${oilSuppliedLiters}L calculated from meter readings (${supplyData.endMeterReading} - ${supplyData.startMeterReading})`);
 
       // Submit delivery completion directly to Firestore
       const selectedOilType = (oilTypes as any[]).find((oil: any) => oil.id === supplyData.oilTypeId);
       const selectedBranch = (branches as any[]).find((branch: any) => branch.id === supplyData.branchId);
       
+      if (!selectedBranch) {
+        console.error('Branch not found in local state:', supplyData.branchId, branches);
+      }
+      
+      const driverName = user?.name || user?.displayName || user?.username || user?.email || 'Unknown Driver';
+      const driverUid = user?.id || user?.uid || 'unknown_driver';
+
       const deliveryRecord = {
         loadSessionId: await getNextFormattedId('direct_sessions'), // Generate formatted session ID
         deliveryOrderId: supplyData.deliveryOrderNo || await getNextFormattedId('delivery_orders'),
         branchId: supplyData.branchId,
-        branchName: selectedBranch?.name || 'Unknown Branch',
+        branchName: selectedBranch?.name || selectedBranchData?.name || 'Unknown Branch',
         oilTypeId: supplyData.oilTypeId,
         oilTypeName: selectedOilType?.name || 'Unknown Oil Type',
-        oilSuppliedLiters: oilSuppliedLiters, // FIXED: Use correct field name
-        deliveredLiters: oilSuppliedLiters,   // Keep for compatibility
-        startMeterReading: supplyData.startMeterReading,
-        endMeterReading: supplyData.endMeterReading,
-        driverName: user?.displayName || user?.email || 'Unknown Driver', // Add driver name
-        driverUid: user?.uid, // Add driver UID for consistency
+        oilSuppliedLiters: oilSuppliedLiters,
+        deliveredLiters: oilSuppliedLiters,
+        startMeterReading: Number(supplyData.startMeterReading),
+        endMeterReading: Number(supplyData.endMeterReading),
+        driverName,
+        driverUid,
         
         photos: {
           tankLevelBefore: supplyData.tankLevelPhoto || null,
@@ -510,6 +522,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
         status: 'completed',
       };
 
+      console.log('Sending delivery record to completeDelivery:', deliveryRecord);
       const result = await completeDelivery(deliveryRecord);
       console.log('Delivery transaction saved to Firestore:', result);
       
@@ -535,9 +548,9 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
       setSelectedBranchData(null); // Reset branch data
       setCurrentStep(1);
       onClose(true); // Close and return to dashboard with completion flag
-    } catch (error) {
+    } catch (error: any) {
       console.error('Supply completion error:', error);
-      const errorMsg = "Failed to complete delivery. Please try again.";
+      const errorMsg = error?.message || "Failed to complete delivery. Please try again.";
       setInlineError(errorMsg);
       toast({
         title: "Supply Failed",

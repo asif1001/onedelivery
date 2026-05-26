@@ -2402,34 +2402,37 @@ export const saveTransaction = async (transactionData: any) => {
 export const completeDelivery = async (deliveryData: any) => {
   try {
     const driverUid = deliveryData.driverUid || getCurrentUserId();
-    const supplyQuantity = deliveryData.oilSuppliedLiters || deliveryData.deliveredLiters || 0;
+    const supplyQuantity = Number(deliveryData.oilSuppliedLiters || deliveryData.deliveredLiters || 0);
     const targetBranchId = deliveryData.branchId;
     
-    console.log('🚚 Starting supply operation with inventory control:', {
+    console.log('🚚 [DEBUG] completeDelivery started:', {
       driverUid,
       quantity: supplyQuantity,
       targetBranch: targetBranchId,
-      oilType: deliveryData.oilTypeName || 'Unknown'
+      oilType: deliveryData.oilTypeName || 'Unknown',
+      hasPhotos: !!deliveryData.photos
     });
     
     // 1. Get driver's tanker vehicle
+    console.log('🚚 [DEBUG] 1. Fetching tanker...');
     const tanker = await getTankerVehicle(driverUid);
+    console.log('🚚 [DEBUG] Tanker found:', tanker.driverUid, 'level:', tanker.currentLevel);
     
-    // 2. Check if tanker has enough oil (removed negative validation per user request)
-    if (tanker.currentLevel < supplyQuantity) {
-      throw new Error(`Insufficient oil in tanker. Available: ${tanker.currentLevel}L, Required: ${supplyQuantity}L`);
-    }
+    // 2. Supply quantity validation (negative check removed per user request)
+    // We allow tanker level to go negative if necessary to complete delivery
     
     // 3. Get branch data and address
     let branchAddress = '';
     let branchData = null;
     if (targetBranchId) {
+      console.log('🚚 [DEBUG] 3. Fetching branch:', targetBranchId);
       try {
         const branchDoc = await getDoc(doc(db, 'branches', targetBranchId));
         if (branchDoc.exists()) {
           branchData = branchDoc.data();
           branchAddress = branchData.address || branchData.location || '';
           
+          console.log('🚚 [DEBUG] 4. Updating branch tank...');
           // 4. Update branch tank (increase level with capacity check)
           const oilTanks = branchData.oilTanks || [];
           
@@ -2443,46 +2446,17 @@ export const completeDelivery = async (deliveryData: any) => {
           }
           
           if (selectedTankIndex === -1) {
+            console.error('❌ [DEBUG] No tank found for oil type:', deliveryData.oilTypeId, 'in branch tanks:', oilTanks);
             throw new Error(`No tank found for oil type: ${deliveryData.oilTypeName || 'Unknown'}`);
           }
           
           const targetTank = oilTanks[selectedTankIndex];
-          const beforeLevel = targetTank.currentLevel || 0;
-          
-          // CRITICAL DEBUG: Check data types and values
-          console.log('🔍 CRITICAL DEBUG - Supply calculation:', {
-            targetTank,
-            beforeLevel,
-            beforeLevelType: typeof beforeLevel,
-            supplyQuantity,
-            supplyQuantityType: typeof supplyQuantity,
-            deliveryData: {
-              oilSuppliedLiters: deliveryData.oilSuppliedLiters,
-              oilSuppliedLitersType: typeof deliveryData.oilSuppliedLiters
-            }
-          });
-          
-          // Ensure both values are numbers
-          const beforeLevelNum = Number(beforeLevel);
+          const beforeLevel = Number(targetTank.currentLevel || 0);
           const supplyQuantityNum = Number(supplyQuantity);
-          let newLevel = beforeLevelNum + supplyQuantityNum;
-          
-          console.log('🧮 SUPPLY MATH DEBUG:', {
-            beforeLevelNum,
-            supplyQuantityNum,
-            calculation: `${beforeLevelNum} + ${supplyQuantityNum} = ${newLevel}`,
-            newLevel,
-            isValidNumber: !isNaN(newLevel)
-          });
+          let newLevel = beforeLevel + supplyQuantityNum;
           
           // Apply capacity limits (cap at tank capacity if exceeded)
           if (newLevel > targetTank.capacity) {
-            console.log('⚠️ Tank capacity would be exceeded, capping at maximum:', {
-              tankCapacity: targetTank.capacity,
-              beforeLevel,
-              requestedQuantity: supplyQuantity,
-              cappedLevel: targetTank.capacity
-            });
             newLevel = targetTank.capacity; // Cap at capacity
           }
           
@@ -2498,123 +2472,68 @@ export const completeDelivery = async (deliveryData: any) => {
             oilTanks: updatedTanks,
             updatedAt: new Date()
           });
-          
-          console.log('✅ LOOSE SUPPLY: Branch tank updated successfully:', {
-            branchId: targetBranchId,
-            branchName: branchData.name || 'Unknown',
-            tankIndex: selectedTankIndex,
-            oilTypeId: deliveryData.oilTypeId,
-            oilTypeName: deliveryData.oilTypeName,
-            beforeLevel: beforeLevelNum,
-            afterLevel: newLevel,
-            quantityAdded: supplyQuantityNum,
-            calculation: `${beforeLevelNum}L + ${supplyQuantityNum}L = ${newLevel}L`,
-            tankCapacity: targetTank.capacity,
-            capped: newLevel === targetTank.capacity,
-            updatedTankObject: updatedTanks[selectedTankIndex]
-          });
-          
-          // Force immediate data refresh verification
-          console.log('🔍 VERIFICATION: Checking if update was persisted...');
-          setTimeout(async () => {
-            try {
-              const verifyDoc = await getDoc(doc(db, 'branches', targetBranchId));
-              if (verifyDoc.exists()) {
-                const verifyData = verifyDoc.data();
-                const verifyTank = verifyData.oilTanks?.[selectedTankIndex];
-                console.log('🔍 VERIFICATION RESULT:', {
-                  expectedLevel: newLevel,
-                  actualLevel: verifyTank?.currentLevel,
-                  verified: verifyTank?.currentLevel === newLevel
-                });
-              }
-            } catch (verifyError) {
-              console.error('❌ Verification failed:', verifyError);
-            }
-          }, 1000);
+          console.log('🚚 [DEBUG] Branch tank updated successfully');
         }
       } catch (error) {
-        console.error('❌ CRITICAL: Error updating branch tank:', error);
-        console.error('Branch update failed for:', {
-          branchId: targetBranchId,
-          oilTypeId: deliveryData.oilTypeId,
-          quantity: supplyQuantity,
-          errorMessage: (error as Error)?.message || 'Unknown error'
-        });
+        console.error('❌ [DEBUG] Error in branch update:', error);
         throw error;
       }
     }
     
     // 5. Update tanker vehicle (allow negative values per user request)
-    const finalTankerLevel = tanker.currentLevel - supplyQuantity;
-    console.log('🚛 LOOSE SUPPLY: Updating tanker vehicle (decrease):', {
-      driverUid,
-      beforeLevel: tanker.currentLevel,
-      supplyQuantity,
-      afterLevel: finalTankerLevel,
-      calculation: `${tanker.currentLevel}L - ${supplyQuantity}L = ${finalTankerLevel}L`,
-      allowsNegative: true
-    });
-    
+    console.log('🚚 [DEBUG] 5. Updating tanker vehicle...');
+    const finalTankerLevel = Number(tanker.currentLevel) - supplyQuantity;
     await updateTankerVehicle(driverUid, {
       currentLevel: finalTankerLevel
     });
+    console.log('🚚 [DEBUG] Tanker updated to:', finalTankerLevel);
     
-    // Verify tanker update for supply
-    console.log('🔍 SUPPLY: Verifying tanker vehicle update...');
-    setTimeout(async () => {
+    // 6. Update load session
+    if (deliveryData.loadSessionId) {
+      console.log('🚚 [DEBUG] 6. Updating load session:', deliveryData.loadSessionId);
       try {
-        const verifyTanker = await getTankerVehicle(driverUid);
-        console.log('🔍 SUPPLY TANKER VERIFICATION:', {
-          expectedLevel: finalTankerLevel,
-          actualLevel: verifyTanker.currentLevel,
-          verified: verifyTanker.currentLevel === finalTankerLevel
-        });
-      } catch (verifyError) {
-        console.error('❌ Supply tanker verification failed:', verifyError);
+        const loadSessionRef = doc(db, 'loadSessions', deliveryData.loadSessionId);
+        const loadSessionDoc = await getDoc(loadSessionRef);
+        
+        if (loadSessionDoc.exists()) {
+          const loadSessionData = loadSessionDoc.data();
+          const totalLoaded = loadSessionData.totalLoadedLiters || 0;
+          
+          // Calculate total supplied for this load session
+          const transactionsCollection = collection(db, 'transactions');
+          const sessionTransactionsQuery = query(
+            transactionsCollection,
+            where('loadSessionId', '==', deliveryData.loadSessionId)
+          );
+          const sessionTransactionsSnapshot = await getDocs(sessionTransactionsQuery);
+          
+          let totalSupplied = supplyQuantity; // Include current supply
+          sessionTransactionsSnapshot.docs.forEach(doc => {
+            const transaction = doc.data();
+            if (transaction.type === 'supply') {
+              totalSupplied += transaction.quantity || 0;
+            }
+          });
+          
+          const actualRemainingLiters = totalLoaded - totalSupplied;
+          const newStatus = actualRemainingLiters <= 0 ? 'completed' : 'active';
+          
+          await updateDoc(loadSessionRef, {
+            remainingLiters: actualRemainingLiters,
+            status: newStatus,
+            lastSupplyAt: new Date(),
+            totalSupplied: totalSupplied,
+            ...(actualRemainingLiters <= 0 && { completedAt: new Date() })
+          });
+          console.log('🚚 [DEBUG] Load session updated');
+        }
+      } catch (sessionError) {
+        console.warn('🚚 [DEBUG] Non-critical error updating load session:', sessionError);
       }
-    }, 1000);
-
-    // 6. Calculate actual remaining quantity by checking all transactions for this load session
-    const transactionsCollection = collection(db, 'transactions');
-    const sessionTransactionsQuery = query(
-      transactionsCollection,
-      where('loadSessionId', '==', deliveryData.loadSessionId)
-    );
-    const sessionTransactionsSnapshot = await getDocs(sessionTransactionsQuery);
-    
-    // Calculate total supplied for this load session
-    let totalSupplied = 0;
-    sessionTransactionsSnapshot.docs.forEach(doc => {
-      const transaction = doc.data();
-      if (transaction.type === 'supply') {
-        totalSupplied += transaction.quantity || 0;
-      }
-    });
-    
-    // Get load session and calculate actual remaining balance
-    const loadSessionRef = doc(db, 'loadSessions', deliveryData.loadSessionId);
-    const loadSessionDoc = await getDoc(loadSessionRef);
-    
-    if (loadSessionDoc.exists()) {
-      const loadSessionData = loadSessionDoc.data();
-      const totalLoaded = loadSessionData.totalLoadedLiters || 0;
-      const actualRemainingLiters = totalLoaded - totalSupplied;
-      
-      // Update status based on actual remaining balance
-      const newStatus = actualRemainingLiters <= 0 ? 'completed' : 'active';
-      await updateDoc(loadSessionRef, {
-        remainingLiters: actualRemainingLiters,
-        status: newStatus,
-        lastSupplyAt: new Date(),
-        totalSupplied: totalSupplied,
-        ...(actualRemainingLiters <= 0 && { completedAt: new Date() })
-      });
-      
-      console.log(`Load session ${deliveryData.loadSessionId} updated: ${totalLoaded}L loaded - ${totalSupplied}L supplied = ${actualRemainingLiters}L remaining, status: ${newStatus}`);
     }
 
     // 7. Save delivery record
+    console.log('🚚 [DEBUG] 7. Saving delivery record...');
     const deliveryRef = doc(collection(db, 'deliveries'));
     const deliveryWithId = {
       ...deliveryData,
@@ -2626,11 +2545,13 @@ export const completeDelivery = async (deliveryData: any) => {
     };
     
     await setDoc(deliveryRef, deliveryWithId);
+    console.log('🚚 [DEBUG] Delivery record saved');
     
-    // 8. Save to transactions collection with inventory tracking
+    // 8. Save to transactions collection
+    console.log('🚚 [DEBUG] 8. Saving transaction...');
     await saveTransaction({
       type: 'supply',
-      supplyType: 'loose', // Loose oil supply
+      supplyType: 'loose',
       loadSessionId: deliveryData.loadSessionId,
       deliveryOrderId: deliveryData.deliveryOrderId,
       branchId: deliveryData.branchId,
@@ -2638,30 +2559,21 @@ export const completeDelivery = async (deliveryData: any) => {
       branchAddress,
       oilTypeId: deliveryData.oilTypeId,
       oilTypeName: deliveryData.oilTypeName,
-      quantity: deliveryData.deliveredLiters,
-      startMeterReading: deliveryData.startMeterReading,
-      endMeterReading: deliveryData.endMeterReading,
+      quantity: supplyQuantity,
+      startMeterReading: Number(deliveryData.startMeterReading),
+      endMeterReading: Number(deliveryData.endMeterReading),
       photos: deliveryData.photos,
-      timestamp: new Date(),
       driverUid: driverUid,
-      driverName: deliveryData.driverName, // Add missing driver name
-      // Inventory tracking fields
-      tankerBefore: tanker.currentLevel,
-      tankerAfter: Math.max(0, tanker.currentLevel - supplyQuantity),
-      branchTankBefore: branchData ? (branchData.oilTanks?.find((t: any) => t.oilTypeId === deliveryData.oilTypeId)?.currentLevel || 0) : 0,
-      branchTankAfter: branchData ? Math.min((branchData.oilTanks?.find((t: any) => t.oilTypeId === deliveryData.oilTypeId)?.currentLevel || 0) + supplyQuantity, branchData.oilTanks?.find((t: any) => t.oilTypeId === deliveryData.oilTypeId)?.capacity || 9999) : supplyQuantity,
+      driverName: deliveryData.driverName,
+      tankerBefore: Number(tanker.currentLevel),
+      tankerAfter: finalTankerLevel,
       inventoryUpdated: true
     });
+    console.log('🚚 [DEBUG] Transaction saved successfully');
     
-    console.log('✅ Delivery completed with inventory control:', {
-      loadSessionId: deliveryData.loadSessionId,
-      tankerBefore: tanker.currentLevel,
-      tankerAfter: Math.max(0, tanker.currentLevel - supplyQuantity),
-      inventoryUpdated: true
-    });
     return deliveryWithId;
   } catch (error) {
-    console.error('❌ Error completing delivery with inventory control:', error);
+    console.error('❌ [DEBUG] Error in completeDelivery:', error);
     throw error;
   }
 };
@@ -2704,10 +2616,8 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
     // 1. Get driver's tanker vehicle
     const tanker = await getTankerVehicle(driverUid);
     
-    // 2. Check if tanker has enough oil
-    if (tanker.currentLevel < supplyQuantity) {
-      throw new Error(`Insufficient oil in tanker. Available: ${tanker.currentLevel}L, Required: ${supplyQuantity}L`);
-    }
+    // 2. Supply quantity validation (negative check removed per user request)
+    // We allow tanker level to go negative if necessary to complete delivery
     
     // 3. Get branch data and update tank levels
     let branchAddress = '';
