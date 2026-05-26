@@ -492,7 +492,7 @@ export function SupplyWorkflow({ onClose, onPhotoClick }: SupplyWorkflowProps) {
         console.error('Branch not found in local state:', supplyData.branchId, branches);
       }
       
-      const driverName = user?.name || user?.displayName || user?.username || user?.email || 'Unknown Driver';
+      const driverName = user?.displayName || (user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.firstName || user?.email || 'Unknown Driver');
       const driverUid = user?.id || user?.uid || 'unknown_driver';
 
       const deliveryRecord = {
