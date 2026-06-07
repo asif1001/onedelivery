@@ -9,13 +9,34 @@
 The system handles the complete oil delivery lifecycle from loading operations at depots to final delivery at customer branches, featuring:
 
 - **Multi-role dashboards** with role-based access control
-- **Mobile-optimized workflows** for field operations  
+- **Mobile-optimized workflows** for field operations with enhanced network resilience
+- **Automated Inventory Management** with real-time stock deduction and addition
 - **Comprehensive photo documentation** with automatic watermarking
-- **Real-time meter readings** and transaction tracking
+- **Real-time meter readings** and transaction tracking with detailed audit trails
 - **Advanced analytics** and reporting capabilities
 - **Complaint management** system with photo evidence
 - **Branch stock level monitoring** with update tracking
 - **Two-step supply workflow** with validation and auto-save
+- **Smart Retry System** for handling transient network failures on mobile devices
+
+---
+
+## 🛠️ Technical Resilience & Mobile Optimization
+
+### **Mobile-First Network Resilience**
+Field operations often occur in areas with intermittent or weak mobile data. To ensure transaction integrity, the system implements:
+- **Exponential Backoff Retry Logic**: Database operations automatically retry up to 3 times with increasing delays when network timeouts occur.
+- **Atomic-Like Operations**: Core business logic is wrapped in resilient wrappers to prevent partial failures.
+- **Non-Critical Failure Isolation**: Secondary tasks (like background logging or photo re-watermarking) are isolated so they don't block the primary transaction if they fail.
+
+### **Inventory Integrity & Audit Trail**
+The system maintains a strict audit trail for every drop of oil moved:
+- **Bi-Directional Inventory Tracking**: 
+  - **Loading**: Automatically deducts inventory from the source branch tank and adds it to the tanker vehicle.
+  - **Supply**: Deducts from the tanker vehicle and adds to the destination branch tank.
+- **Snapshot-Based Logging**: Every transaction records a "Before" and "After" snapshot of both the tanker and branch tank levels.
+- **Negative Level Support**: To match physical reality in the field, the system allows inventory to reflect actual physical drops even if it results in temporary negative balances in the database, preventing blocked workflows.
+- **Auto-Provisioning**: If a driver supplies an oil type to a branch that doesn't have a dedicated tank, the system automatically creates a new tank record to ensure no oil goes untracked.
 
 ---
 
@@ -63,11 +84,13 @@ Branch tank configuration is synced to the `oilTanks` collection in Firestore. I
 #### **Core Responsibilities:**
 
 ##### **Loading Process**
-- **Accept Loading Tasks**: Receive loading assignments from warehouse staff
+- **Accept Loading Tasks**: Receive loading assignments from warehouse staff or select loading location
+- **Inventory Source Selection**: Select source branch (e.g., Main Depot or other branches)
 - **Record Meter Readings**: Document initial tanker meter readings before loading
 - **Photo Documentation**: Capture photos of meter readings and loading equipment
 - **Capacity Verification**: Confirm tanker capacity and oil type being loaded
 - **Loading Completion**: Update system when loading is complete with final readings
+- **Automated Stock Deduction**: System automatically deducts loaded quantity from the source branch's inventory and adds it to the tanker vehicle's current level
 
 ##### **Supply Process (Two-Step Workflow)**
 - **Step 1 - Before Starting Pump**:
@@ -84,6 +107,7 @@ Branch tank configuration is synced to the `oilTanks` collection in Firestore. I
   - Capture final photos: End Reading (Tanker Meter), Tank Level After
   - Review all transaction details for accuracy
   - Submit complete delivery record with automatic photo watermarking
+  - **Automated Stock Addition**: System automatically adds supplied quantity to the destination branch's inventory and deducts it from the tanker vehicle's current level
 
 ##### **Complaint Management**
 - **Raise Complaint**: Report delivery issues, equipment problems, or safety concerns
