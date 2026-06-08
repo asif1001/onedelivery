@@ -120,15 +120,30 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
     }
   }, [availableTanks, loadingData.oilTypeId]);
 
-  // Default load location to "Main Tanks Plaza" when branches load (user can change)
+  // Default load location: Prioritize last saved branch, then "Main Tanks Plaza"
   useEffect(() => {
     if (!loadingData.loadLocationId && Array.isArray(branches) && branches.length > 0) {
+      // 1. Check localStorage for last selected branch
+      const lastBranchId = localStorage.getItem('last_loading_branch_id');
+      if (lastBranchId && branches.some((b: any) => b.id === lastBranchId)) {
+        setLoadingData(prev => ({ ...prev, loadLocationId: lastBranchId }));
+        return;
+      }
+
+      // 2. Fallback to default branch name
       const defaultBranch = branches.find((b: any) => (b.name || '').toLowerCase() === 'main tanks plaza');
       if (defaultBranch?.id) {
         setLoadingData(prev => ({ ...prev, loadLocationId: defaultBranch.id }));
       }
     }
   }, [branches]);
+
+  // Save selected branch to localStorage for next time
+  useEffect(() => {
+    if (loadingData.loadLocationId) {
+      localStorage.setItem('last_loading_branch_id', loadingData.loadLocationId);
+    }
+  }, [loadingData.loadLocationId]);
 
   const steps: LoadingStep[] = [
     { id: 1, title: 'Complete Tank Loading', status: currentStep === 1 ? 'active' : currentStep > 1 ? 'completed' : 'pending' },
@@ -222,13 +237,14 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
         description: `Successfully loaded ${loadingData.totalLoadedLiters}L of ${loadSessionData.oilTypeName}. Session ID: ${loadSession.loadSessionId}`
       });
       
-      // Reset form
+      // Reset form but keep the current location for convenience
       setLoadingData({
         deliveryOrderNo: '',
         oilTypeId: '',
+        tankIndex: undefined,
         totalLoadedLiters: 0,
         loadMeterReading: 0,
-        loadLocationId: '',
+        loadLocationId: loadingData.loadLocationId, // Persist location within session
       });
       setCurrentStep(1);
       onClose(); // Close and return to dashboard
