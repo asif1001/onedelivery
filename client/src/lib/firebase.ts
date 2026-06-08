@@ -2713,6 +2713,9 @@ export const completeDelivery = async (deliveryData: any) => {
     console.error("❌ Critical error in concurrent-safe completeDelivery:", error);
     // Log failure attempt
     try {
+      const supplyQuantityFallback = Number(
+        deliveryData.oilSuppliedLiters || deliveryData.deliveredLiters || 0
+      );
       await saveTransaction({
         type: "supply_failed",
         reason: error.message || "CRITICAL_ERROR",
@@ -2720,7 +2723,7 @@ export const completeDelivery = async (deliveryData: any) => {
         branchId: deliveryData.branchId,
         oilTypeId: deliveryData.oilTypeId,
         oilTypeName: deliveryData.oilTypeName,
-        attemptedQuantity: supplyQuantity,
+        attemptedQuantity: supplyQuantityFallback,
         timestamp: new Date(),
         outcome: "failure",
       });
