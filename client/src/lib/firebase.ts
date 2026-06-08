@@ -2284,7 +2284,7 @@ export const createLoadSession = async (loadSessionData: any) => {
       
       let tankerData;
       if (tankerSnap.exists()) {
-        tankerData = tankerSnap.get(); // Using .get() for consistency
+        tankerData = tankerSnap.data(); // Use .data() to get document fields
       } else {
         tankerData = {
           driverUid,
