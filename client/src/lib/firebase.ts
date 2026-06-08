@@ -2265,39 +2265,54 @@ export const createLoadSession = async (loadSessionData: any) => {
     const loadingQuantity = Number(loadSessionData.totalLoadedLiters || 0);
     const sourceLocationId = loadSessionData.loadLocationId;
 
-    console.log("🚛 Starting loading operation with inventory control:", {
+    console.log("🚛 Starting loading operation with concurrent-safe inventory control:", {
       driverUid,
       quantity: loadingQuantity,
       sourceLocation: sourceLocationId,
       oilType: loadSessionData.oilTypeName,
     });
 
-    // 1. Get driver's tanker vehicle with retry
-    const tanker = await withRetry(() => getTankerVehicle(driverUid));
+    // Generate IDs before transaction
+    const loadSessionRef = doc(collection(db, "loadSessions"));
+    const loadSessionId = await getNextFormattedId("load_sessions");
 
-    // 2. Check if tanker has capacity
-    const capacityLimit = tanker.capacity || 20000;
-    if (tanker.currentLevel + loadingQuantity > capacityLimit) {
-      console.warn(
-        `Tanker capacity logic bypass: ${
-          tanker.currentLevel + loadingQuantity
-        }L exceeds ${capacityLimit}L. Proceeding anyway per mobile requirement.`
-      );
-    }
+    // Use a transaction for the entire loading operation to ensure consistency
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. Get driver's tanker vehicle
+      const tankerRef = doc(db, 'tankerVehicles', driverUid);
+      const tankerSnap = await transaction.get(tankerRef);
+      
+      let tankerData;
+      if (tankerSnap.exists()) {
+        tankerData = tankerSnap.get(); // Using .get() for consistency
+      } else {
+        tankerData = {
+          driverUid,
+          capacity: 10000,
+          currentLevel: 0,
+          oilTypeId: null,
+          oilTypeName: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        transaction.set(tankerRef, tankerData);
+      }
 
-    // 3. If loading from a branch (not main depot), decrease branch tank level
-    let branchTankBefore = null;
-    let branchTankAfter = null;
-    let branchTankId = null;
+      const tankerBefore = Number(tankerData.currentLevel || 0);
+      const newTankerLevel = tankerBefore + loadingQuantity;
 
-    if (sourceLocationId && sourceLocationId !== "main-depot") {
-      try {
+      // 2. Branch update (if loading from a branch)
+      let branchTankBefore = null;
+      let branchTankAfter = null;
+      let branchTankId = null;
+
+      if (sourceLocationId && sourceLocationId !== "main-depot") {
         const branchRef = doc(db, "branches", sourceLocationId);
-        const branchSnap = await withRetry(() => getDoc(branchRef));
+        const branchSnap = await transaction.get(branchRef);
 
         if (branchSnap.exists()) {
           const branchData = branchSnap.data();
-          const oilTanks = branchData.oilTanks || [];
+          const oilTanks = [...(branchData.oilTanks || [])];
 
           // Find tank with matching oil type
           let selectedTankIndex = -1;
@@ -2308,71 +2323,68 @@ export const createLoadSession = async (loadSessionData: any) => {
             }
           }
 
-          if (selectedTankIndex === -1) {
-            console.warn(
-              `❌ LOADING ERROR: No tank found for oil type ${loadSessionData.oilTypeName} at branch ${sourceLocationId}`
-            );
-            // Log failed attempt
-            await saveTransaction({
-              type: "loading_failed",
-              reason: "NO_MATCHING_TANK",
-              driverUid,
-              branchId: sourceLocationId,
-              oilTypeId: loadSessionData.oilTypeId,
-              oilTypeName: loadSessionData.oilTypeName,
-              attemptedQuantity: loadingQuantity,
-              timestamp: new Date(),
-              outcome: "failure",
-            });
-          } else {
-            const updatedTanks = [...oilTanks];
-            branchTankBefore = Number(updatedTanks[selectedTankIndex].currentLevel || 0);
+          if (selectedTankIndex !== -1) {
+            branchTankBefore = Number(oilTanks[selectedTankIndex].currentLevel || 0);
             branchTankId = `tank-${selectedTankIndex}`;
             
-            // Deduct the quantity (allow negative as requested by workflow)
-            updatedTanks[selectedTankIndex].currentLevel = branchTankBefore - loadingQuantity;
-            updatedTanks[selectedTankIndex].lastUpdated = new Date();
-            branchTankAfter = updatedTanks[selectedTankIndex].currentLevel;
+            // Deduct quantity
+            branchTankAfter = branchTankBefore - loadingQuantity;
+            oilTanks[selectedTankIndex] = {
+              ...oilTanks[selectedTankIndex],
+              currentLevel: branchTankAfter,
+              lastUpdated: new Date()
+            };
 
-            await withRetry(() =>
-              updateDoc(branchRef, {
-                oilTanks: updatedTanks,
-                updatedAt: new Date(),
-              })
-            );
+            transaction.update(branchRef, {
+              oilTanks: oilTanks,
+              updatedAt: new Date()
+            });
 
-            console.log("✅ LOADING: Branch tank inventory deducted:", {
+            // Create a tank update log for the warehouse/branch dashboards
+            const logRef = doc(collection(db, 'tankUpdateLogs'));
+            transaction.set(logRef, {
+              branchId: sourceLocationId,
+              branchName: branchData.name || "Unknown Branch",
+              oilTypeId: loadSessionData.oilTypeId,
+              oilTypeName: loadSessionData.oilTypeName,
+              previousLevel: branchTankBefore,
+              newLevel: branchTankAfter,
+              levelDifference: -loadingQuantity,
+              updatedBy: loadSessionData.driverName || "Driver",
+              updatedAt: new Date(),
+              notes: `Auto-deducted via Oil Loading session ${loadSessionId}`,
+              updateType: 'loading',
+              sessionId: loadSessionId
+            });
+
+            console.log("✅ TRANSACTION: Branch tank inventory deducted and logged:", {
               branchId: sourceLocationId,
               tankIndex: selectedTankIndex,
               before: branchTankBefore,
-              deducted: loadingQuantity,
               after: branchTankAfter,
             });
           }
         }
-      } catch (branchError) {
-        console.error(
-          "⚠️ Error updating branch tank during loading:",
-          branchError
-        );
       }
-    }
 
-    // 4. Update tanker vehicle (increase level)
-    const tankerBefore = tanker.currentLevel;
-    const newTankerLevel = tankerBefore + loadingQuantity;
-    await withRetry(() =>
-      updateTankerVehicle(driverUid, {
+      // 3. Update tanker vehicle in transaction
+      transaction.update(tankerRef, {
         currentLevel: newTankerLevel,
         oilTypeId: loadSessionData.oilTypeId,
         oilTypeName: loadSessionData.oilTypeName,
-      })
-    );
+        updatedAt: new Date()
+      });
 
-    // 5. Create load session with robust ID generation
-    const loadSessionRef = doc(collection(db, "loadSessions"));
-    const loadSessionId = await getNextFormattedId("load_sessions");
+      return {
+        tankerBefore,
+        newTankerLevel,
+        branchTankBefore,
+        branchTankAfter,
+        branchTankId
+      };
+    });
 
+    // 4. Create load session and save transaction record (non-transactional but with retry)
     const loadSessionWithId = {
       ...loadSessionData,
       id: loadSessionRef.id,
@@ -2387,7 +2399,7 @@ export const createLoadSession = async (loadSessionData: any) => {
 
     await withRetry(() => setDoc(loadSessionRef, loadSessionWithId));
 
-    // 6. Save to transactions collection with retry
+    // Save to transactions collection
     try {
       await saveTransaction({
         type: "loading",
@@ -2408,29 +2420,22 @@ export const createLoadSession = async (loadSessionData: any) => {
           meterReadingPhoto: loadSessionData.meterReadingPhoto,
         },
         timestamp: new Date(),
-        tankerBefore: tankerBefore,
-        tankerAfter: newTankerLevel,
-        branchTankId: branchTankId,
-        branchTankBefore: branchTankBefore,
-        branchTankAfter: branchTankAfter,
+        tankerBefore: result.tankerBefore,
+        tankerAfter: result.newTankerLevel,
+        branchTankId: result.branchTankId,
+        branchTankBefore: result.branchTankBefore,
+        branchTankAfter: result.branchTankAfter,
         inventoryUpdated: true,
         outcome: "success",
       });
     } catch (transactionError) {
-      console.error(
-        "⚠️ Non-critical error saving loading transaction record:",
-        transactionError
-      );
+      console.warn("⚠️ Non-critical error saving loading transaction record:", transactionError);
     }
 
     return loadSessionWithId;
   } catch (error: any) {
-    console.error(
-      "❌ Critical error creating load session with inventory control:",
-      error
-    );
-    
-    // Log critical failure attempt
+    console.error("❌ Critical error in concurrent-safe createLoadSession:", error);
+    // Log failure attempt
     try {
       await saveTransaction({
         type: "loading_failed",
@@ -2442,7 +2447,6 @@ export const createLoadSession = async (loadSessionData: any) => {
         outcome: "failure",
       });
     } catch (e) {}
-    
     throw error;
   }
 };
@@ -2473,26 +2477,47 @@ export const completeDelivery = async (deliveryData: any) => {
     );
     const targetBranchId = deliveryData.branchId;
 
-    console.log("🚚 completeDelivery started:", {
+    console.log("🚚 Starting completeDelivery with concurrent-safe inventory control:", {
       driverUid,
       quantity: supplyQuantity,
       targetBranch: targetBranchId,
       oilType: deliveryData.oilTypeName || "Unknown",
     });
 
-    // 1. Get driver's tanker vehicle with retry
-    const tanker = await withRetry(() => getTankerVehicle(driverUid));
+    // Use a transaction for the entire supply operation
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. Get driver's tanker vehicle
+      const tankerRef = doc(db, 'tankerVehicles', driverUid);
+      const tankerSnap = await transaction.get(tankerRef);
+      
+      let tankerData;
+      if (tankerSnap.exists()) {
+        tankerData = tankerSnap.data();
+      } else {
+        tankerData = {
+          driverUid,
+          capacity: 10000,
+          currentLevel: 0,
+          oilTypeId: null,
+          oilTypeName: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        transaction.set(tankerRef, tankerData);
+      }
 
-    // 2. Branch update (non-critical, wrap in try-catch)
-    let branchAddress = "";
-    let branchTankBefore = null;
-    let branchTankAfter = null;
-    let branchTankId = null;
+      const tankerBefore = Number(tankerData.currentLevel || 0);
+      const finalTankerLevel = tankerBefore - supplyQuantity;
 
-    if (targetBranchId) {
-      try {
+      // 2. Branch update
+      let branchAddress = "";
+      let branchTankBefore = null;
+      let branchTankAfter = null;
+      let branchTankId = null;
+
+      if (targetBranchId) {
         const branchRef = doc(db, "branches", targetBranchId);
-        const branchDoc = await withRetry(() => getDoc(branchRef));
+        const branchDoc = await transaction.get(branchRef);
 
         if (branchDoc.exists()) {
           const branchData = branchDoc.data();
@@ -2512,43 +2537,46 @@ export const completeDelivery = async (deliveryData: any) => {
             const targetTank = oilTanks[selectedTankIndex];
             branchTankBefore = Number(targetTank.currentLevel || 0);
             branchTankId = `tank-${selectedTankIndex}`;
-            let newLevel = branchTankBefore + supplyQuantity;
+            branchTankAfter = branchTankBefore + supplyQuantity;
 
-            // Log attempt if over capacity
-            if (newLevel > targetTank.capacity) {
-              console.warn(
-                `⚠️ SUPPLY: Destination tank over-capacity. Attempted: ${newLevel}L, Capacity: ${targetTank.capacity}L`
-              );
-              // We will cap at capacity but log the full attempt
-              newLevel = targetTank.capacity;
+            // Cap at capacity only if explicitly required, otherwise allow overfill to match reality
+            // User requested: "it should also except that" (referring to modified levels)
+            const capacityLimit = targetTank.capacity || 10000;
+            if (branchTankAfter > capacityLimit) {
+              console.warn(`⚠️ SUPPLY: Destination tank over-capacity. Level: ${branchTankAfter}L, Capacity: ${capacityLimit}L. Proceeding per user requirement.`);
             }
 
             oilTanks[selectedTankIndex] = {
               ...targetTank,
-              currentLevel: newLevel,
+              currentLevel: branchTankAfter,
               lastUpdated: new Date(),
             };
-            branchTankAfter = newLevel;
 
-            await withRetry(() =>
-              updateDoc(branchRef, {
-                oilTanks: oilTanks,
-                updatedAt: new Date(),
-              })
-            );
+            transaction.update(branchRef, {
+              oilTanks: oilTanks,
+              updatedAt: new Date(),
+            });
 
-            console.log("✅ SUPPLY: Branch tank inventory added:", {
+            // Create a tank update log for the warehouse/branch dashboards
+            const logRef = doc(collection(db, 'tankUpdateLogs'));
+            transaction.set(logRef, {
               branchId: targetBranchId,
-              tankIndex: selectedTankIndex,
-              before: branchTankBefore,
-              added: supplyQuantity,
-              after: branchTankAfter,
+              branchName: branchData.name || "Unknown Branch",
+              oilTypeId: deliveryData.oilTypeId,
+              oilTypeName: deliveryData.oilTypeName,
+              previousLevel: branchTankBefore,
+              newLevel: branchTankAfter,
+              levelDifference: supplyQuantity,
+              updatedBy: deliveryData.driverName || "Driver",
+              updatedAt: new Date(),
+              notes: `Auto-added via Oil Supply session ${deliveryData.loadSessionId || 'direct'}`,
+              updateType: 'supply',
+              sessionId: deliveryData.loadSessionId || 'direct',
+              deliveryOrderId: deliveryData.deliveryOrderId || ''
             });
           } else {
-            // No matching tank found - create one to ensure inventory is tracked
-            console.log(
-              `🔧 SUPPLY: No matching tank found at branch. Creating new tank for oil type ${deliveryData.oilTypeName}`
-            );
+            // No matching tank found - create one
+            console.log(`🔧 SUPPLY: No matching tank found at branch. Creating new tank for oil type ${deliveryData.oilTypeName}`);
             branchTankBefore = 0;
             branchTankAfter = supplyQuantity;
             branchTankId = `tank-new`;
@@ -2556,68 +2584,81 @@ export const completeDelivery = async (deliveryData: any) => {
             const newTank = {
               oilTypeId: deliveryData.oilTypeId,
               oilTypeName: deliveryData.oilTypeName,
-              currentLevel: supplyQuantity,
+              currentLevel: branchTankAfter,
               capacity: 10000, // Default capacity
               lastUpdated: new Date(),
             };
             oilTanks.push(newTank);
 
-            await withRetry(() =>
-              updateDoc(branchRef, {
-                oilTanks: oilTanks,
-                updatedAt: new Date(),
-              })
-            );
+            transaction.update(branchRef, {
+              oilTanks: oilTanks,
+              updatedAt: new Date(),
+            });
+
+            // Create a tank update log for the new tank
+            const logRef = doc(collection(db, 'tankUpdateLogs'));
+            transaction.set(logRef, {
+              branchId: targetBranchId,
+              branchName: branchData.name || "Unknown Branch",
+              oilTypeId: deliveryData.oilTypeId,
+              oilTypeName: deliveryData.oilTypeName,
+              previousLevel: 0,
+              newLevel: branchTankAfter,
+              levelDifference: supplyQuantity,
+              updatedBy: deliveryData.driverName || "Driver",
+              updatedAt: new Date(),
+              notes: `Created new tank and added inventory via Oil Supply session ${deliveryData.loadSessionId || 'direct'}`,
+              updateType: 'supply',
+              sessionId: deliveryData.loadSessionId || 'direct'
+            });
           }
         }
-      } catch (branchError) {
-        console.warn("⚠️ Non-critical branch update failure:", branchError);
       }
-    }
 
-    // 3. Update tanker vehicle with retry
-    const tankerBefore = Number(tanker.currentLevel);
-    const finalTankerLevel = tankerBefore - supplyQuantity;
-    await withRetry(() =>
-      updateTankerVehicle(driverUid, {
+      // 3. Update tanker vehicle in transaction
+      transaction.update(tankerRef, {
         currentLevel: finalTankerLevel,
-      })
-    );
+        updatedAt: new Date()
+      });
 
-    // 4. Update load session (non-critical)
+      return {
+        tankerBefore,
+        finalTankerLevel,
+        branchAddress,
+        branchTankBefore,
+        branchTankAfter,
+        branchTankId
+      };
+    });
+
+    // 4. Update load session (non-transactional but with retry)
     if (deliveryData.loadSessionId) {
       try {
-        const loadSessionRef = doc(
-          db,
-          "loadSessions",
-          deliveryData.loadSessionId
-        );
-        const loadSessionDoc = await withRetry(() => getDoc(loadSessionRef));
-
-        if (loadSessionDoc.exists()) {
-          const lsData = loadSessionDoc.data();
-          const currentRemaining = Number(lsData.remainingLiters || 0);
-          const newRemaining = currentRemaining - supplyQuantity;
-
-          await withRetry(() =>
-            updateDoc(loadSessionRef, {
+        const loadSessionRef = doc(db, "loadSessions", deliveryData.loadSessionId);
+        await withRetry(async () => {
+          const lsSnap = await getDoc(loadSessionRef);
+          if (lsSnap.exists()) {
+            const lsData = lsSnap.data();
+            const currentRemaining = Number(lsData.remainingLiters || 0);
+            const newRemaining = currentRemaining - supplyQuantity;
+            await updateDoc(loadSessionRef, {
               remainingLiters: newRemaining,
               status: newRemaining <= 0 ? "completed" : "active",
               lastSupplyAt: new Date(),
               ...(newRemaining <= 0 && { completedAt: new Date() }),
-            })
-          );
-        }
+            });
+          }
+        });
       } catch (lsError) {
         console.warn("⚠️ Non-critical load session update failure:", lsError);
       }
     }
 
-    // 5. Save delivery record with retry
+    // 5. Save delivery record
     const deliveryRef = doc(collection(db, "deliveries"));
     const deliveryWithId = {
       ...deliveryData,
-      branchAddress,
+      branchAddress: result.branchAddress,
       id: deliveryRef.id,
       completedAt: new Date(),
       timestamp: new Date(),
@@ -2626,7 +2667,7 @@ export const completeDelivery = async (deliveryData: any) => {
 
     await withRetry(() => setDoc(deliveryRef, deliveryWithId));
 
-    // 6. Save transaction with retry
+    // 6. Save transaction record
     try {
       await saveTransaction({
         type: "supply",
@@ -2635,18 +2676,18 @@ export const completeDelivery = async (deliveryData: any) => {
         deliveryOrderId: deliveryData.deliveryOrderId,
         branchId: deliveryData.branchId,
         branchName: deliveryData.branchName,
-        branchAddress,
+        branchAddress: result.branchAddress,
         oilTypeId: deliveryData.oilTypeId,
         oilTypeName: deliveryData.oilTypeName,
         quantity: supplyQuantity,
         photos: deliveryData.photos,
         driverUid: driverUid,
         driverName: deliveryData.driverName,
-        tankerBefore: tankerBefore,
-        tankerAfter: finalTankerLevel,
-        branchTankId: branchTankId,
-        branchTankBefore: branchTankBefore,
-        branchTankAfter: branchTankAfter,
+        tankerBefore: result.tankerBefore,
+        tankerAfter: result.finalTankerLevel,
+        branchTankId: result.branchTankId,
+        branchTankBefore: result.branchTankBefore,
+        branchTankAfter: result.branchTankAfter,
         inventoryUpdated: true,
         outcome: "success",
       });
@@ -2656,8 +2697,7 @@ export const completeDelivery = async (deliveryData: any) => {
 
     return deliveryWithId;
   } catch (error: any) {
-    console.error("❌ Critical error in completeDelivery:", error);
-    
+    console.error("❌ Critical error in concurrent-safe completeDelivery:", error);
     // Log failure attempt
     try {
       await saveTransaction({
@@ -2667,14 +2707,11 @@ export const completeDelivery = async (deliveryData: any) => {
         branchId: deliveryData.branchId,
         oilTypeId: deliveryData.oilTypeId,
         oilTypeName: deliveryData.oilTypeName,
-        attemptedQuantity: Number(
-          deliveryData.oilSuppliedLiters || deliveryData.deliveredLiters || 0
-        ),
+        attemptedQuantity: supplyQuantity,
         timestamp: new Date(),
         outcome: "failure",
       });
     } catch (e) {}
-    
     throw error;
   }
 };
@@ -2705,29 +2742,50 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
     const supplyQuantity = drumSupplyData.quantity || 0;
     const targetBranchId = drumSupplyData.branchId;
 
-    console.log("🥁 Starting drum supply operation:", {
+    console.log("🥁 Starting concurrent-safe drum supply operation:", {
       driverUid,
       quantity: supplyQuantity,
       targetBranch: targetBranchId,
       oilType: drumSupplyData.oilTypeName || "Unknown",
     });
 
-    // 1. Get tanker with retry
-    const tanker = await withRetry(() => getTankerVehicle(driverUid));
+    // Use a transaction for the entire drum supply operation
+    const result = await runTransaction(db, async (transaction) => {
+      // 1. Get tanker with transaction
+      const tankerRef = doc(db, 'tankerVehicles', driverUid);
+      const tankerSnap = await transaction.get(tankerRef);
+      
+      let tankerData;
+      if (tankerSnap.exists()) {
+        tankerData = tankerSnap.data();
+      } else {
+        tankerData = {
+          driverUid,
+          capacity: 10000,
+          currentLevel: 0,
+          oilTypeId: null,
+          oilTypeName: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        transaction.set(tankerRef, tankerData);
+      }
 
-    // 2. Branch update (non-critical)
-    let branchAddress = "";
-    let branchTankBefore = null;
-    let branchTankAfter = null;
-    let branchTankId = null;
+      const tankerBefore = Number(tankerData.currentLevel || 0);
+      const finalTankerLevel = tankerBefore - supplyQuantity;
 
-    if (targetBranchId) {
-      try {
+      // 2. Branch update
+      let branchAddress = "";
+      let branchTankBefore = null;
+      let branchTankAfter = null;
+      let branchTankId = null;
+
+      if (targetBranchId) {
         const branchRef = doc(db, "branches", targetBranchId);
-        const branchSnap = await withRetry(() => getDoc(branchRef));
+        const branchDoc = await transaction.get(branchRef);
 
-        if (branchSnap.exists()) {
-          const branchData = branchSnap.data();
+        if (branchDoc.exists()) {
+          const branchData = branchDoc.data();
           branchAddress = branchData.address || branchData.location || "";
 
           const oilTanks = [...(branchData.oilTanks || [])];
@@ -2743,31 +2801,46 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
             const targetTank = oilTanks[selectedTankIndex];
             branchTankBefore = Number(targetTank.currentLevel || 0);
             branchTankId = `tank-${selectedTankIndex}`;
-            let newLevel = branchTankBefore + supplyQuantity;
+            branchTankAfter = branchTankBefore + supplyQuantity;
 
-            if (newLevel > targetTank.capacity) {
-              newLevel = targetTank.capacity;
+            // Allow overfill for drums too
+            const capacityLimit = targetTank.capacity || 10000;
+            if (branchTankAfter > capacityLimit) {
+              console.warn(`⚠️ DRUM SUPPLY: Destination tank over-capacity. Level: ${branchTankAfter}L, Capacity: ${capacityLimit}L.`);
             }
-            branchTankAfter = newLevel;
 
             oilTanks[selectedTankIndex] = {
               ...targetTank,
-              currentLevel: newLevel,
+              currentLevel: branchTankAfter,
               lastUpdated: new Date(),
             };
 
-            await withRetry(() =>
-              updateDoc(branchRef, {
-                oilTanks: oilTanks,
-                updatedAt: new Date(),
-              })
-            );
-            console.log("✅ DRUM SUPPLY: Branch tank updated");
+            transaction.update(branchRef, {
+              oilTanks: oilTanks,
+              updatedAt: new Date(),
+            });
+
+            // Log the drum supply activity
+            const logRef = doc(collection(db, 'tankUpdateLogs'));
+            transaction.set(logRef, {
+              branchId: targetBranchId,
+              branchName: branchData.name || "Unknown Branch",
+              oilTypeId: drumSupplyData.oilTypeId,
+              oilTypeName: drumSupplyData.oilTypeName,
+              previousLevel: branchTankBefore,
+              newLevel: branchTankAfter,
+              levelDifference: supplyQuantity,
+              updatedBy: drumSupplyData.driverName || "Driver",
+              updatedAt: new Date(),
+              notes: `Drum supply: ${drumSupplyData.numberOfDrums} drums of ${drumSupplyData.drumCapacity}L`,
+              updateType: 'supply',
+              deliveryOrderId: drumSupplyData.deliveryOrderNo || ''
+            });
+
+            console.log("✅ DRUM SUPPLY TRANSACTION: Branch tank updated and logged");
           } else {
             // Create tank if missing
-            console.log(
-              `🔧 DRUM SUPPLY: Creating new tank for ${drumSupplyData.oilTypeName}`
-            );
+            console.log(`🔧 DRUM SUPPLY TRANSACTION: Creating new tank for ${drumSupplyData.oilTypeName}`);
             branchTankBefore = 0;
             branchTankAfter = supplyQuantity;
             branchTankId = "tank-new";
@@ -2775,34 +2848,52 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
             oilTanks.push({
               oilTypeId: drumSupplyData.oilTypeId,
               oilTypeName: drumSupplyData.oilTypeName,
-              currentLevel: supplyQuantity,
+              currentLevel: branchTankAfter,
               capacity: 10000,
               lastUpdated: new Date(),
             });
 
-            await withRetry(() =>
-              updateDoc(branchRef, {
-                oilTanks: oilTanks,
-                updatedAt: new Date(),
-              })
-            );
+            transaction.update(branchRef, {
+              oilTanks: oilTanks,
+              updatedAt: new Date(),
+            });
+
+            // Log the new tank creation from drum supply
+            const logRef = doc(collection(db, 'tankUpdateLogs'));
+            transaction.set(logRef, {
+              branchId: targetBranchId,
+              branchName: branchData.name || "Unknown Branch",
+              oilTypeId: drumSupplyData.oilTypeId,
+              oilTypeName: drumSupplyData.oilTypeName,
+              previousLevel: 0,
+              newLevel: branchTankAfter,
+              levelDifference: supplyQuantity,
+              updatedBy: drumSupplyData.driverName || "Driver",
+              updatedAt: new Date(),
+              notes: `New tank created via Drum supply: ${drumSupplyData.numberOfDrums} drums`,
+              updateType: 'supply'
+            });
           }
         }
-      } catch (branchError) {
-        console.warn("⚠️ Non-critical drum branch update failure:", branchError);
       }
-    }
 
-    // 3. Update tanker vehicle with retry
-    const tankerBefore = tanker.currentLevel;
-    const finalTankerLevel = tankerBefore - supplyQuantity;
-    await withRetry(() =>
-      updateTankerVehicle(driverUid, {
+      // 3. Update tanker vehicle in transaction
+      transaction.update(tankerRef, {
         currentLevel: finalTankerLevel,
-      })
-    );
+        updatedAt: new Date()
+      });
 
-    // 4. Save transaction with retry
+      return {
+        tankerBefore,
+        finalTankerLevel,
+        branchAddress,
+        branchTankBefore,
+        branchTankAfter,
+        branchTankId
+      };
+    });
+
+    // 4. Save transaction record
     const transactionData = {
       type: "supply",
       supplyType: "drum",
@@ -2810,7 +2901,7 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
       driverName: drumSupplyData.driverName,
       branchId: drumSupplyData.branchId,
       branchName: drumSupplyData.branchName,
-      branchAddress: branchAddress,
+      branchAddress: result.branchAddress,
       oilTypeId: drumSupplyData.oilTypeId,
       oilTypeName: drumSupplyData.oilTypeName,
       deliveryOrderId: drumSupplyData.deliveryOrderNo,
@@ -2822,11 +2913,11 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
       createdAt: new Date(),
       status: "completed",
       inventoryUpdated: true,
-      tankerBefore: tankerBefore,
-      tankerAfter: finalTankerLevel,
-      branchTankId: branchTankId,
-      branchTankBefore: branchTankBefore,
-      branchTankAfter: branchTankAfter,
+      tankerBefore: result.tankerBefore,
+      tankerAfter: result.finalTankerLevel,
+      branchTankId: result.branchTankId,
+      branchTankBefore: result.branchTankBefore,
+      branchTankAfter: result.branchTankAfter,
       outcome: "success",
     };
 
@@ -2835,7 +2926,7 @@ export const completeDrumSupply = async (drumSupplyData: any) => {
 
     return transactionData;
   } catch (error) {
-    console.error("❌ Error completing drum supply:", error);
+    console.error("❌ Error completing concurrent-safe drum supply:", error);
     throw error;
   }
 };

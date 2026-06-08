@@ -32,11 +32,12 @@ Field operations often occur in areas with intermittent or weak mobile data. To 
 ### **Inventory Integrity & Audit Trail**
 The system maintains a strict audit trail for every drop of oil moved:
 - **Bi-Directional Inventory Tracking**: 
-  - **Loading**: Automatically deducts inventory from the source branch tank and adds it to the tanker vehicle.
-  - **Supply**: Deducts from the tanker vehicle and adds to the destination branch tank.
+  - **Loading**: Automatically deducts inventory from the source branch tank and adds it to the tanker vehicle using concurrent-safe Firestore transactions.
+  - **Supply**: Deducts from the tanker vehicle and adds to the destination branch tank, with automatic tank provisioning for new oil types.
+- **Concurrent-Safe Operations**: All inventory updates (Loading, Supply, and Manual) use **Firestore Transactions** to prevent race conditions and ensure data consistency even when multiple users operate simultaneously.
+- **Integrated Activity Logs**: Every automated inventory change (from drivers) is automatically logged in the same `tankUpdateLogs` collection used for manual updates, providing a unified view for warehouse and branch managers.
 - **Snapshot-Based Logging**: Every transaction records a "Before" and "After" snapshot of both the tanker and branch tank levels.
-- **Negative Level Support**: To match physical reality in the field, the system allows inventory to reflect actual physical drops even if it results in temporary negative balances in the database, preventing blocked workflows.
-- **Auto-Provisioning**: If a driver supplies an oil type to a branch that doesn't have a dedicated tank, the system automatically creates a new tank record to ensure no oil goes untracked.
+- **Flexible Capacity Limits**: To match physical reality in the field, the system allows inventory levels to exceed theoretical capacity if physically possible, ensuring data accuracy over strict database constraints.
 
 ---
 
