@@ -2314,12 +2314,25 @@ export const createLoadSession = async (loadSessionData: any) => {
           const branchData = branchSnap.data();
           const oilTanks = [...(branchData.oilTanks || [])];
 
-          // Find tank with matching oil type
+          // Determine which tank to use
           let selectedTankIndex = -1;
-          for (let i = 0; i < oilTanks.length; i++) {
-            if (oilTanks[i].oilTypeId === loadSessionData.oilTypeId) {
-              selectedTankIndex = i;
-              break;
+          
+          // If a specific tank index was provided from the UI, use it
+          if (loadSessionData.tankIndex !== undefined && loadSessionData.tankIndex >= 0 && loadSessionData.tankIndex < oilTanks.length) {
+            // Verify it matches the oil type just in case
+            if (oilTanks[loadSessionData.tankIndex].oilTypeId === loadSessionData.oilTypeId) {
+              selectedTankIndex = loadSessionData.tankIndex;
+              console.log(`🎯 Using specific tank index ${selectedTankIndex} as requested`);
+            }
+          }
+          
+          // Fallback: Find first tank with matching oil type if no index or invalid index provided
+          if (selectedTankIndex === -1) {
+            for (let i = 0; i < oilTanks.length; i++) {
+              if (oilTanks[i].oilTypeId === loadSessionData.oilTypeId) {
+                selectedTankIndex = i;
+                break;
+              }
             }
           }
 

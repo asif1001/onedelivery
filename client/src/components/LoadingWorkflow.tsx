@@ -26,6 +26,7 @@ import { useAuth } from '@/hooks/useAuth';
 interface LoadingData {
   deliveryOrderNo: string;
   oilTypeId: string;
+  tankIndex?: number;
   totalLoadedLiters: number;
   loadMeterReading: number;
   loadLocationId?: string;
@@ -51,6 +52,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
   const [loadingData, setLoadingData] = useState<LoadingData>({
     deliveryOrderNo: '',
     oilTypeId: '',
+    tankIndex: undefined,
     totalLoadedLiters: 0,
     loadMeterReading: 0,
     loadLocationId: '',
@@ -66,7 +68,59 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
     queryFn: getActiveBranchesOnly 
   });
 
-  // Default load location to "CV Plaza" when branches load (user can change)
+  // Filter oil types based on selected branch
+  const availableOilTypes = (() => {
+    if (!loadingData.loadLocationId || !branches.length) return oilTypes;
+    
+    const selectedBranch = branches.find((b: any) => b.id === loadingData.loadLocationId);
+    if (!selectedBranch || !selectedBranch.oilTanks) return oilTypes;
+    
+    // Get unique oil type IDs from branch tanks
+    const branchOilTypeIds = [...new Set(selectedBranch.oilTanks.map((tank: any) => tank.oilTypeId))];
+    
+    // Filter global oil types to only show those present in the branch
+    return (oilTypes as any[]).filter(type => branchOilTypeIds.includes(type.id));
+  })();
+
+  // Filter specific tanks based on selected branch and oil type
+  const availableTanks = (() => {
+    if (!loadingData.loadLocationId || !loadingData.oilTypeId || !branches.length) return [];
+    
+    const selectedBranch = branches.find((b: any) => b.id === loadingData.loadLocationId);
+    if (!selectedBranch || !selectedBranch.oilTanks) return [];
+    
+    // Find all tanks that match the selected oil type
+    return (selectedBranch.oilTanks as any[])
+      .map((tank, index) => ({ ...tank, originalIndex: index }))
+      .filter(tank => tank.oilTypeId === loadingData.oilTypeId);
+  })();
+
+  // Reset oil type and tank index if they are no longer available when branch/oil type changes
+  useEffect(() => {
+    if (loadingData.oilTypeId && availableOilTypes.length > 0) {
+      const isStillAvailable = availableOilTypes.some((type: any) => type.id === loadingData.oilTypeId);
+      if (!isStillAvailable) {
+        setLoadingData(prev => ({ ...prev, oilTypeId: '', tankIndex: undefined }));
+      }
+    }
+  }, [loadingData.loadLocationId, availableOilTypes]);
+
+  // Handle auto-selection of tank if only one is available
+  useEffect(() => {
+    if (availableTanks.length === 1 && loadingData.tankIndex === undefined) {
+      setLoadingData(prev => ({ ...prev, tankIndex: availableTanks[0].originalIndex }));
+    } else if (availableTanks.length === 0) {
+      setLoadingData(prev => ({ ...prev, tankIndex: undefined }));
+    } else if (availableTanks.length > 1 && loadingData.tankIndex !== undefined) {
+      // Verify the selected tank still matches the oil type
+      const isValid = availableTanks.some(t => t.originalIndex === loadingData.tankIndex);
+      if (!isValid) {
+        setLoadingData(prev => ({ ...prev, tankIndex: undefined }));
+      }
+    }
+  }, [availableTanks, loadingData.oilTypeId]);
+
+  // Default load location to "Main Tanks Plaza" when branches load (user can change)
   useEffect(() => {
     if (!loadingData.loadLocationId && Array.isArray(branches) && branches.length > 0) {
       const defaultBranch = branches.find((b: any) => (b.name || '').toLowerCase() === 'main tanks plaza');
@@ -151,6 +205,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
         deliveryOrderNo: loadingData.deliveryOrderNo || '',
         oilTypeId: loadingData.oilTypeId,
         oilTypeName: oilTypeName,
+        tankIndex: loadingData.tankIndex, // Pass the specific tank index
         totalLoadedLiters: loadingData.totalLoadedLiters,
         loadMeterReading: loadingData.loadMeterReading,
         loadLocationId: loadingData.loadLocationId || 'main-depot',
@@ -190,7 +245,10 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
   };
 
   const canCompleteLoading = () => {
-    return loadingData.oilTypeId && loadingData.totalLoadedLiters > 0 && 
+    return loadingData.loadLocationId && 
+           loadingData.oilTypeId && 
+           loadingData.tankIndex !== undefined &&
+           loadingData.totalLoadedLiters > 0 && 
            loadingData.loadMeterReading > 0 && 
            loadingData.meterReadingPhoto;
   };
@@ -258,26 +316,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
             </div>
 
             <div>
-              <Label htmlFor="oilType">Oil Type *</Label>
-              <Select 
-                value={loadingData.oilTypeId} 
-                onValueChange={(value) => setLoadingData(prev => ({ ...prev, oilTypeId: value }))}
-              >
-                <SelectTrigger data-testid="select-oil-type">
-                  <SelectValue placeholder="Select oil type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {oilTypes.map((type: any) => (
-                    <SelectItem key={type.id} value={type.id} data-testid={`oil-type-${type.id}`}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="loadLocation">Load Location (Optional)</Label>
+              <Label htmlFor="loadLocation">Load Location *</Label>
               <Select 
                 value={loadingData.loadLocationId} 
                 onValueChange={(value) => setLoadingData(prev => ({ ...prev, loadLocationId: value }))}
@@ -294,6 +333,53 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <Label htmlFor="oilType">Oil Type *</Label>
+              <Select 
+                value={loadingData.oilTypeId} 
+                onValueChange={(value) => setLoadingData(prev => ({ ...prev, oilTypeId: value }))}
+                disabled={!loadingData.loadLocationId}
+              >
+                <SelectTrigger data-testid="select-oil-type">
+                  <SelectValue placeholder={!loadingData.loadLocationId ? "Select branch first" : "Select oil type"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOilTypes.map((type: any) => (
+                    <SelectItem key={type.id} value={type.id} data-testid={`oil-type-${type.id}`}>
+                      {type.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!loadingData.loadLocationId && (
+                 <p className="text-xs text-orange-600 mt-1">Please select a load location first</p>
+               )}
+             </div>
+
+            {availableTanks.length > 0 && (
+              <div>
+                <Label htmlFor="tankSelection">Select Tank *</Label>
+                <Select 
+                  value={loadingData.tankIndex?.toString()} 
+                  onValueChange={(value) => setLoadingData(prev => ({ ...prev, tankIndex: parseInt(value) }))}
+                >
+                  <SelectTrigger data-testid="select-tank">
+                    <SelectValue placeholder="Select specific tank" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTanks.map((tank: any) => (
+                      <SelectItem key={tank.originalIndex} value={tank.originalIndex.toString()}>
+                        {tank.tankName || `Tank ${tank.originalIndex + 1}`} ({tank.currentLevel}L available)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {availableTanks.length > 1 && (
+                  <p className="text-xs text-blue-600 mt-1">Multiple tanks found for this oil type. Please pick one.</p>
+                )}
+              </div>
+            )}
 
             <div>
               <Label htmlFor="totalLiters">Total Loaded (Liters) *</Label>
