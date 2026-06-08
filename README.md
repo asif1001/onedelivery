@@ -84,14 +84,14 @@ Branch tank configuration is synced to the `oilTanks` collection in Firestore. I
 
 #### **Core Responsibilities:**
 
-##### **Loading Process**
-- **Accept Loading Tasks**: Receive loading assignments from warehouse staff or select loading location
-- **Inventory Source Selection**: Select source branch (e.g., Main Depot or other branches)
-- **Record Meter Readings**: Document initial tanker meter readings before loading
-- **Photo Documentation**: Capture photos of meter readings and loading equipment
-- **Capacity Verification**: Confirm tanker capacity and oil type being loaded
-- **Loading Completion**: Update system when loading is complete with final readings
-- **Automated Stock Deduction**: System automatically deducts loaded quantity from the source branch's inventory and adds it to the tanker vehicle's current level
+##### **Loading Process (Mobile-Optimized)**
+- **Intelligent Branch Selection**: Form defaults to your last used loading branch (saved in local storage) for faster workflow.
+- **Dynamic Oil Filtering**: Selecting a branch automatically filters the oil types to only show what's physically available at that location.
+- **Specific Tank Selection**: If a branch has multiple tanks for the same oil type, the driver is prompted to select the specific source tank with real-time level visibility.
+- **Mobile-First Layout**: Fully responsive interface with large touch targets, optimized for field use on smartphones.
+- **Record Meter Readings**: Document initial tanker meter readings before loading.
+- **Photo Documentation**: Capture high-quality photos of meter readings with automatic watermarking.
+- **Automated Stock Deduction**: Concurrent-safe transactions automatically deduct loaded quantity from the specific source branch tank and add it to the tanker vehicle.
 
 ##### **Supply Process (Two-Step Workflow)**
 - **Step 1 - Before Starting Pump**:
@@ -690,7 +690,16 @@ npm run build
 
 ## 🔄 Version History
 
-### **Current Version: 2.2**
+### **Current Version: 2.3**
+- ✅ **Enhanced Tank Loading Process**: Reordered form to select Branch before Oil Type.
+- ✅ **Intelligent Filtering**: Oil types are now dynamically filtered based on selected branch.
+- ✅ **Multi-Tank Support**: Added specific tank selection for branches with multiple tanks of the same oil type.
+- ✅ **Mobile UI Optimization**: Redesigned Loading workflow with a mobile-fit layout and high-contrast touch targets.
+- ✅ **Persistent Preferences**: Last selected loading branch is now remembered across sessions via local storage.
+- ✅ **Transaction Reliability**: Fixed data fetching bugs in concurrent-safe inventory transactions.
+- ✅ **Unified Audit Trail**: Automated driver transactions now generate integrated entries in the centralized activity logs.
+
+### **Version 2.2**
 - ✅ Added **MAD column** to Export Current Stock report
 - ✅ Added **MOS column** (Month of Stock = Current Level ÷ MAD) to Export Current Stock report
 - ✅ **Last Updated** column in stock export now shows actual tank level change date/time (not export date)
