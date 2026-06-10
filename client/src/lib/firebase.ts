@@ -2427,6 +2427,8 @@ export const createLoadSession = async (loadSessionData: any) => {
         loadLocationName: loadSessionData.loadLocationName,
         meterReading: loadSessionData.loadMeterReading,
         loadMeterReading: loadSessionData.loadMeterReading,
+        startMeterReading: loadSessionData.loadMeterReading, // Set for display in details modal
+        endMeterReading: loadSessionData.loadMeterReading,   // Set for display in details modal
         driverName: loadSessionData.driverName,
         driverUid: driverUid,
         photos: {
@@ -2692,6 +2694,8 @@ export const completeDelivery = async (deliveryData: any) => {
         branchAddress: result.branchAddress,
         oilTypeId: deliveryData.oilTypeId,
         oilTypeName: deliveryData.oilTypeName,
+        startMeterReading: deliveryData.startMeterReading,
+        endMeterReading: deliveryData.endMeterReading,
         quantity: supplyQuantity,
         photos: deliveryData.photos,
         driverUid: driverUid,
