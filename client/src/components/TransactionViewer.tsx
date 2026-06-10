@@ -752,23 +752,30 @@ export function TransactionViewer({ onClose }: TransactionViewerProps) {
               </div>
 
               {/* Meter Readings & Quantities */}
-              {(selectedTransaction.startMeterReading || selectedTransaction.endMeterReading || selectedTransaction.oilSuppliedLiters) && (
+              {(selectedTransaction.startMeterReading !== undefined || 
+                selectedTransaction.endMeterReading !== undefined || 
+                selectedTransaction.loadMeterReading !== undefined ||
+                selectedTransaction.oilSuppliedLiters || 
+                selectedTransaction.totalLoadedLiters) && (
                 <div className="space-y-2">
                   <Label className="font-semibold">Measurements</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                    {selectedTransaction.startMeterReading && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                    {selectedTransaction.startMeterReading !== undefined && (
                       <div><span className="font-medium">Start Meter:</span> {selectedTransaction.startMeterReading}</div>
                     )}
-                    {selectedTransaction.endMeterReading && (
+                    {selectedTransaction.endMeterReading !== undefined && (
                       <div><span className="font-medium">End Meter:</span> {selectedTransaction.endMeterReading}</div>
                     )}
-                    {selectedTransaction.oilSuppliedLiters && (
+                    {selectedTransaction.loadMeterReading !== undefined && (
+                      <div><span className="font-medium">Load Meter:</span> {selectedTransaction.loadMeterReading}</div>
+                    )}
+                    {selectedTransaction.oilSuppliedLiters !== undefined && (
                       <div><span className="font-medium">Oil Supplied:</span> {selectedTransaction.oilSuppliedLiters}L</div>
                     )}
-                    {selectedTransaction.totalLoadedLiters && (
+                    {selectedTransaction.totalLoadedLiters !== undefined && (
                       <div><span className="font-medium">Total Loaded:</span> {selectedTransaction.totalLoadedLiters}L</div>
                     )}
-                    {selectedTransaction.actualDeliveredLiters && (
+                    {selectedTransaction.actualDeliveredLiters !== undefined && (
                       <div><span className="font-medium">Delivered:</span> {selectedTransaction.actualDeliveredLiters}L</div>
                     )}
                   </div>
