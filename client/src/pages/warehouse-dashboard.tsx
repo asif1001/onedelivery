@@ -46,7 +46,8 @@ import {
   User,
   Clock,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  FileText
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { auth, getAllBranches, getActiveBranchesOnly, getAllOilTypes, getAllTransactions, getUserData, updateOilTankLevel, getAllUsers, getAllCustomerTypes } from "@/lib/firebase";
@@ -69,6 +70,9 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { db } from "@/lib/firebase";
 import ExcelJS from "exceljs";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 interface Branch {
   id: string;
@@ -284,6 +288,9 @@ export default function WarehouseDashboard() {
     searchText: ''
   });
   const [transactionEndDate, setTransactionEndDate] = useState('');
+  
+  // Multi-branch selection for report
+  const [selectedReportBranches, setSelectedReportBranches] = useState<string[]>([]);
   
   // Date range search states
   const [searchStartDate, setSearchStartDate] = useState('');
@@ -2358,6 +2365,417 @@ export default function WarehouseDashboard() {
   // Keep legacy function name for compatibility
   const downloadTransactionData = downloadInventoryTransactionReport;
 
+  // Utility to convert image URL to base64 for PDF/Excel
+  const getBase64ImageFromUrl = async (imageUrl: string): Promise<{dataUrl: string, width: number, height: number}> => {
+    if (!imageUrl) return { dataUrl: '', width: 0, height: 0 };
+    
+    // Check if it's already a base64 or data URL
+    if (imageUrl.startsWith('data:')) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ dataUrl: imageUrl, width: img.width, height: img.height });
+        img.onerror = () => resolve({ dataUrl: imageUrl, width: 0, height: 0 });
+        img.src = imageUrl;
+      });
+    }
+    
+    return new Promise((resolve) => {
+      // Use the method from Transaction Detail Modal (CORS-friendly Image object)
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      // Add a cache-busting parameter to bypass potential cached CORS errors
+      const proxyUrl = imageUrl + (imageUrl.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
+      const timeout = setTimeout(() => {
+        console.warn(`Image fetch timed out for ${imageUrl}`);
+        resolve({ dataUrl: '', width: 0, height: 0 });
+      }, 10000); // 10s timeout
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0);
+            // Higher quality for "Full Image" requirement
+            const dataURL = canvas.toDataURL('image/jpeg', 0.9); 
+            resolve({ dataUrl: dataURL, width: img.width, height: img.height });
+          } else {
+            resolve({ dataUrl: '', width: 0, height: 0 });
+          }
+        } catch (e) {
+          console.warn('Canvas conversion failed:', e);
+          resolve({ dataUrl: '', width: 0, height: 0 });
+        }
+      };
+
+      img.onerror = (err) => {
+        clearTimeout(timeout);
+        console.warn(`Failed to load image for report: ${imageUrl}`, err);
+        resolve({ dataUrl: '', width: 0, height: 0 }); 
+      };
+
+      img.src = proxyUrl;
+    });
+  };
+
+  const generateCSVReport = (reportData: any[]) => {
+    try {
+      const csvContent = [
+        ['Sr No', 'Branch Name', 'Oil Type', 'Tank Name', 'Update Date & Time', 'Updated By', 'Gauge Photo URL', 'System Photo URL'].join(','),
+        ...reportData.map(item => [
+          item.srNo,
+          item.branchName,
+          item.oilType,
+          item.tankName,
+          item.updatedAt.toLocaleString(),
+          item.updatedBy,
+          item.gaugePhoto,
+          item.systemPhoto
+        ].map(field => `"${field || ''}"`).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_report_${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "CSV Report Downloaded",
+        description: "Report generated successfully"
+      });
+    } catch (e: any) {
+      console.error('CSV Export failed:', e);
+      toast({
+        title: "CSV Export Failed",
+        description: e.message || "Unknown error",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const generatePDFReport = async (reportData: any[]) => {
+    try {
+      console.log('📄 Starting PDF generation for', reportData.length, 'items');
+      const doc = new jsPDF('l', 'mm', 'a4'); // Landscape A4
+      const pageWidth = doc.internal.pageSize.getWidth();
+      
+      // Header
+      doc.setFontSize(18);
+      doc.setTextColor(40);
+      doc.text(`Inventory Status Report`, pageWidth / 2, 15, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.text(`Generated on: ${new Date().toLocaleString()}`, pageWidth / 2, 22, { align: 'center' });
+
+      // Group by branch for the table header info
+      const branchesInReport = Array.from(new Set(reportData.map(item => item.branchName)));
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      const branchesText = `Branches: ${branchesInReport.join(', ')}`;
+      const splitBranchesText = doc.splitTextToSize(branchesText, pageWidth - 30);
+      doc.text(splitBranchesText, 15, 28);
+
+      // Pre-fetch all images to avoid async issues during table drawing
+      console.log('🖼️ Pre-fetching images for PDF...');
+      const gaugeImages = await Promise.all(reportData.map(item => getBase64ImageFromUrl(item.gaugePhoto)));
+      const systemImages = await Promise.all(reportData.map(item => getBase64ImageFromUrl(item.systemPhoto)));
+      console.log('✅ Images pre-fetched');
+
+      // Table data preparation
+      const tableData = reportData.map((item) => [
+        item.srNo,
+        item.branchName,
+        item.oilType,
+        item.tankName,
+        '', // Space for Gauge Photo (Col 4)
+        '', // Space for System Photo (Col 5)
+        item.updatedAt.toLocaleString(),
+        item.updatedBy
+      ]);
+
+      autoTable(doc, {
+        startY: 35 + (splitBranchesText.length * 5),
+        head: [['Sr No', 'Branch Name', 'Oil Type', 'Tank Name', 'Gauge Photo', 'System Photo', 'Update Date/Time', 'Updated By']],
+        body: tableData,
+        theme: 'grid',
+        headStyles: { fillColor: [128, 0, 128], textColor: 255, fontSize: 9 }, // Purple theme
+        styles: { fontSize: 8, cellPadding: 2, overflow: 'linebreak' },
+        columnStyles: {
+          0: { cellWidth: 12 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 30 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 40, minCellHeight: 35 }, // Space for image
+          5: { cellWidth: 40, minCellHeight: 35 }, // Space for image
+          6: { cellWidth: 35 },
+          7: { cellWidth: 30 }
+        },
+        didDrawCell: (data) => {
+          if (data.section === 'body' && (data.column.index === 4 || data.column.index === 5)) {
+            const rowIndex = data.row.index;
+            const isGauge = data.column.index === 4;
+            const imgData = isGauge ? gaugeImages[rowIndex] : systemImages[rowIndex];
+            
+            if (imgData && imgData.dataUrl && imgData.dataUrl.startsWith('data:')) {
+              try {
+                // Calculate dimensions to maintain aspect ratio within the cell
+                const padding = 2;
+                const maxWidth = data.cell.width - (padding * 2);
+                const maxHeight = data.cell.height - (padding * 2);
+                
+                let imgWidth = imgData.width;
+                let imgHeight = imgData.height;
+                
+                const ratio = Math.min(maxWidth / imgWidth, maxHeight / imgHeight);
+                const finalWidth = imgWidth * ratio;
+                const finalHeight = imgHeight * ratio;
+                
+                // Center the image in the cell
+                const xOffset = (data.cell.width - finalWidth) / 2;
+                const yOffset = (data.cell.height - finalHeight) / 2;
+
+                doc.addImage(
+                  imgData.dataUrl, 
+                  'JPEG', 
+                  data.cell.x + xOffset, 
+                  data.cell.y + yOffset, 
+                  finalWidth, 
+                  finalHeight,
+                  undefined,
+                  'FAST'
+                );
+              } catch (e) {
+                console.warn('Error adding image to PDF table:', e);
+              }
+            } else {
+              doc.setFontSize(7);
+              doc.setTextColor(150);
+              doc.text('No Image', data.cell.x + data.cell.width / 2, data.cell.y + data.cell.height / 2, { align: 'center' });
+            }
+          }
+        }
+      });
+
+      doc.save(`inventory_report_${new Date().toISOString().split('T')[0]}.pdf`);
+      
+      toast({
+        title: "PDF Report Downloaded",
+        description: "Comprehensive report generated successfully"
+      });
+    } catch (pdfError: any) {
+      console.error('Critical PDF generation error:', pdfError);
+      throw new Error(`PDF generation failed: ${pdfError.message || 'Check console for details'}`);
+    }
+  };
+
+  const generateExcelReport = async (reportData: any[]) => {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet('Inventory Status');
+      
+      sheet.columns = [
+        { header: 'Sr No', key: 'srNo', width: 8 },
+        { header: 'Branch Name', key: 'branchName', width: 25 },
+        { header: 'Oil Type', key: 'oilType', width: 20 },
+        { header: 'Tank Name', key: 'tankName', width: 20 },
+        { header: 'Gauge Photo', key: 'gaugePhoto', width: 30 },
+        { header: 'System Photo', key: 'systemPhoto', width: 30 },
+        { header: 'Update Date/Time', key: 'updatedAt', width: 25 },
+        { header: 'Updated By', key: 'updatedBy', width: 20 }
+      ];
+
+      // Format Header
+      sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF800080' } };
+      sheet.getRow(1).alignment = { horizontal: 'center', vertical: 'middle' };
+
+      for (let i = 0; i < reportData.length; i++) {
+        const item = reportData[i];
+        const rowIndex = i + 2;
+        const row = sheet.addRow({
+          srNo: item.srNo,
+          branchName: item.branchName,
+          oilType: item.oilType,
+          tankName: item.tankName,
+          updatedAt: item.updatedAt.toLocaleString(),
+          updatedBy: item.updatedBy
+        });
+        row.height = 80; // Make row tall for images
+        row.alignment = { vertical: 'middle' };
+
+        // Add Gauge Photo
+        if (item.gaugePhoto) {
+          const imgData = await getBase64ImageFromUrl(item.gaugePhoto);
+          if (imgData.dataUrl) {
+            const imageId = workbook.addImage({
+              base64: imgData.dataUrl.split(',')[1],
+              extension: 'jpeg',
+            });
+            sheet.addImage(imageId, {
+              tl: { col: 4, row: rowIndex - 1 },
+              ext: { width: 100, height: 100 }
+            });
+          }
+        }
+
+        // Add System Photo
+        if (item.systemPhoto) {
+          const imgData = await getBase64ImageFromUrl(item.systemPhoto);
+          if (imgData.dataUrl) {
+            const imageId = workbook.addImage({
+              base64: imgData.dataUrl.split(',')[1],
+              extension: 'jpeg',
+            });
+            sheet.addImage(imageId, {
+              tl: { col: 5, row: rowIndex - 1 },
+              ext: { width: 100, height: 100 }
+            });
+          }
+        }
+      }
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `inventory_status_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Excel Report Downloaded",
+        description: "Status report with embedded photos generated successfully"
+      });
+    } catch (error: any) {
+      console.error('Excel generation error:', error);
+      toast({
+        title: "Excel Export Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const downloadBranchReport = async (branchIds: string[], format: 'pdf' | 'csv' | 'excel') => {
+    if (!branchIds || branchIds.length === 0) {
+      toast({
+        title: "Selection Required",
+        description: "Please select at least one branch to generate the report.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setIsSearchingLogs(true);
+      console.log('🚀 Starting downloadBranchReport for branches:', branchIds);
+
+      const reportData: any[] = [];
+      let srNo = 1;
+
+      // Fetch data for each selected branch
+      for (const branchId of branchIds) {
+        const selectedBranch = branches.find(b => b.id === branchId);
+        if (!selectedBranch) continue;
+
+        console.log(`📡 Fetching logs for branch: ${selectedBranch.name} (${branchId})`);
+        
+        const tankUpdateLogsRef = collection(db, 'tankUpdateLogs');
+        const q = query(
+          tankUpdateLogsRef, 
+          where('branchId', '==', branchId),
+          orderBy('updatedAt', 'desc')
+        );
+        
+        let snapshot;
+        try {
+          snapshot = await getDocs(q);
+        } catch (queryError: any) {
+          console.error(`❌ Firestore query failed for branch ${branchId}:`, queryError);
+          const fallbackQ = query(
+            tankUpdateLogsRef, 
+            where('branchId', '==', branchId)
+          );
+          snapshot = await getDocs(fallbackQ);
+        }
+        
+        const allLogs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+        console.log(`✅ Fetched ${allLogs.length} logs for ${selectedBranch.name}`);
+
+        if (allLogs.length === 0) continue;
+
+        // Group by tank and take the latest
+        const latestUpdatesByTank = new Map<string, any>();
+        
+        if (!allLogs[0]?.updatedAt?.toDate && allLogs.length > 1) {
+          allLogs.sort((a, b) => {
+            const timeA = a.updatedAt?.toDate ? a.updatedAt.toDate().getTime() : new Date(a.updatedAt || 0).getTime();
+            const timeB = b.updatedAt?.toDate ? b.updatedAt.toDate().getTime() : new Date(b.updatedAt || 0).getTime();
+            return timeB - timeA;
+          });
+        }
+
+        allLogs.forEach(log => {
+          const tankId = log.tankId || 'unknown-tank';
+          if (!latestUpdatesByTank.has(tankId)) {
+            latestUpdatesByTank.set(tankId, log);
+          }
+        });
+
+        Array.from(latestUpdatesByTank.values()).forEach((log) => {
+          const tankConfig = selectedBranch.oilTanks?.find(t => t.id === log.tankId);
+          reportData.push({
+            srNo: srNo++,
+            branchName: selectedBranch.name,
+            oilType: log.oilTypeName || 'N/A',
+            tankName: log.tankName || tankConfig?.tankName || 'N/A',
+            gaugePhoto: log.photos?.gaugePhoto || log.tankGaugePhoto || '',
+            systemPhoto: log.photos?.systemPhoto || log.systemScreenPhoto || '',
+            updatedAt: log.updatedAt?.toDate ? log.updatedAt.toDate() : new Date(log.updatedAt || Date.now()),
+            updatedBy: log.updatedBy || 'N/A'
+          });
+        });
+      }
+
+      if (reportData.length === 0) {
+        toast({
+          title: "No Data Found",
+          description: "No update logs found for the selected branches.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      console.log('📊 Compiled report data:', reportData.length, 'entries');
+
+      if (format === 'csv') {
+        generateCSVReport(reportData);
+      } else if (format === 'excel') {
+        await generateExcelReport(reportData);
+      } else {
+        await generatePDFReport(reportData);
+      }
+
+    } catch (error: any) {
+      console.error('❌ Error in downloadBranchReport:', error);
+      toast({
+        title: "Report Error",
+        description: `Error: ${error.message || 'Unknown error occurred while generating the report.'}`,
+        variant: "destructive"
+      });
+    } finally {
+      setIsSearchingLogs(false);
+    }
+  };
 
   const downloadLogData = async (startDate?: string, endDate?: string) => {
     // Fetch ALL tank update logs directly from Firebase for CSV export (not limited to display data)
@@ -5253,6 +5671,109 @@ export default function WarehouseDashboard() {
                         Export CSV ({searchLogs.length})
                       </Button>
                     )}
+                  </div>
+
+                  {/* Branch Report Generation Section */}
+                  <div className="p-4 bg-orange-50 rounded-lg border border-orange-200 mt-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h4 className="text-sm font-bold text-orange-900 flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Branch Inventory Status Report
+                        </h4>
+                        <p className="text-xs text-orange-700 mt-1">
+                          Generate a comprehensive status report showing the latest updates for all tanks in a specific branch.
+                        </p>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative group">
+                          <button 
+                            className="text-sm border rounded px-3 py-2 bg-white min-w-[250px] text-left flex justify-between items-center focus:ring-2 focus:ring-orange-500 focus:outline-none"
+                            onClick={(e) => {
+                              // Toggle focus manually if needed, though group-focus-within usually handles it
+                              const dropdown = e.currentTarget.nextElementSibling;
+                              dropdown?.classList.toggle('hidden');
+                            }}
+                          >
+                            <span className="truncate">
+                              {selectedReportBranches.length === 0 
+                                ? 'Select Branches for Report...' 
+                                : `${selectedReportBranches.length} Branches Selected`}
+                            </span>
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          
+                          <div 
+                            className="absolute z-50 left-0 top-full mt-1 w-full bg-white border rounded shadow-lg max-h-60 overflow-y-auto hidden group-focus-within:block"
+                            onMouseDown={(e) => e.preventDefault()} // Prevents loss of focus when clicking scrollbar
+                          >
+                            <div className="sticky top-0 p-2 border-b bg-gray-50 flex justify-between items-center z-10">
+                              <span className="text-xs font-bold">Select Multiple</span>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-6 text-[10px] px-1"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  setSelectedReportBranches([]);
+                                }}
+                              >
+                                Clear All
+                              </Button>
+                            </div>
+                            {branches.map((branch) => (
+                              <label key={branch.id} className="flex items-center gap-2 px-3 py-2 hover:bg-orange-50 cursor-pointer text-sm">
+                                <input 
+                                  type="checkbox"
+                                  checked={selectedReportBranches.includes(branch.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedReportBranches(prev => [...prev, branch.id]);
+                                    } else {
+                                      setSelectedReportBranches(prev => prev.filter(id => id !== branch.id));
+                                    }
+                                  }}
+                                />
+                                {branch.name}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <Button
+                          size="sm"
+                          onClick={() => downloadBranchReport(selectedReportBranches, 'pdf')}
+                          disabled={selectedReportBranches.length === 0 || isSearchingLogs}
+                          className="bg-orange-600 hover:bg-orange-700 text-white"
+                        >
+                          <FileText className="h-4 w-4 mr-2" />
+                          Download PDF
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadBranchReport(selectedReportBranches, 'excel')}
+                          disabled={selectedReportBranches.length === 0 || isSearchingLogs}
+                          className="border-green-300 text-green-700 hover:bg-green-100"
+                        >
+                          <DownloadIcon className="h-4 w-4 mr-2" />
+                          Download Excel
+                        </Button>
+                        
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadBranchReport(selectedReportBranches, 'csv')}
+                          disabled={selectedReportBranches.length === 0 || isSearchingLogs}
+                          className="border-orange-300 text-orange-700 hover:bg-orange-100"
+                        >
+                          <DownloadIcon className="h-4 w-4 mr-2" />
+                          Download CSV
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
