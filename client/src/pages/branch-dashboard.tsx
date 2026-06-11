@@ -48,6 +48,7 @@ import {
   getAllComplaints,
   createComplaint,
   uploadPhoto,
+  uploadPhotoToFirebaseStorage,
   getAllTransactions,
   updateOilTankLevel,
   getOilTanksForBranches,
@@ -1105,62 +1106,56 @@ export default function BranchDashboard() {
   const userName = (currentUser as any)?.displayName || currentUser.email;
       const sessionId = `${currentUser.uid}_${Date.now()}`;
       
-      // PARALLEL WATERMARKING - Process both photos simultaneously with fallback
+      // WATERMARKING - Match the working SupplyWorkflow pattern (no aggressive timeout)
+      // safeWatermarkImage already has internal fallback to original photo on failure
       const watermarkStartTime = performance.now();
-      const [watermarkedGaugePhoto, watermarkedSystemPhoto] = await Promise.race([
-        Promise.all([
-          safeWatermarkImage(gaugePhoto, {
-            branchName,
-            timestamp: new Date(),
-            extraLine1: `Tank: ${tankName}`,
-            extraLine2: `Updated by: ${userName}`
-          }).catch(error => {
-            console.error('❌ Gauge photo watermarking failed:', error);
-            toast({
-              title: "Photo Processing Warning",
-              description: `Gauge photo watermarking failed (${error.message}). Using original photo.`,
-              variant: "destructive"
-            });
-            return gaugePhoto; // Use original photo as fallback
-          }),
-          safeWatermarkImage(systemPhoto, {
-            branchName,
-            timestamp: new Date(),
-            extraLine1: `Tank: ${tankName}`,
-            extraLine2: `Level Update: ${manualQuantity}L`
-          }).catch(error => {
-            console.error('❌ System photo watermarking failed:', error);
-            toast({
-              title: "Photo Processing Warning", 
-              description: `System photo watermarking failed (${error.message}). Using original photo.`,
-              variant: "destructive"
-            });
-            return systemPhoto; // Use original photo as fallback
-          })
-        ]),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Photo watermarking timeout (8s)')), 8000)
-        )
-      ]);
+      setUpdateProgress('Processing gauge photo...');
+      const watermarkedGaugePhoto = await safeWatermarkImage(gaugePhoto, {
+        branchName,
+        timestamp: new Date(),
+        extraLine1: `Tank: ${tankName}`,
+        extraLine2: `Updated by: ${userName}`
+      });
+
+      setUpdateProgress('Processing system photo...');
+      const watermarkedSystemPhoto = await safeWatermarkImage(systemPhoto, {
+        branchName,
+        timestamp: new Date(),
+        extraLine1: `Tank: ${tankName}`,
+        extraLine2: `Level Update: ${manualQuantity}L`
+      });
       
       const watermarkTime = performance.now() - watermarkStartTime;
       console.log(`⚡ Photo watermarking completed in ${watermarkTime.toFixed(0)}ms`);
 
-      // PARALLEL UPLOAD - Upload both photos simultaneously with optimized paths
-      setUpdateProgress('Uploading photos...');
-      console.log('☁️ Uploading photos to Firebase Storage (parallel)...');
+      // Upload photos sequentially with retry (matches working SupplyWorkflow pattern)
+      console.log('☁️ Uploading photos to Firebase Storage...');
       const uploadStartTime = performance.now();
       const uploadBasePath = `tank-updates/${selectedTankForUpdate}/${sessionId}`;
-      
-      const [gaugePhotoUrl, systemPhotoUrl] = await Promise.race([
-        Promise.all([
-          uploadPhoto(watermarkedGaugePhoto, `${uploadBasePath}_gauge`),
-          uploadPhoto(watermarkedSystemPhoto, `${uploadBasePath}_system`)
-        ]),
-        new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Photo upload timeout (12s)')), 12000)
-        )
-      ]);
+
+      // Helper: upload with one retry on failure
+      const uploadWithRetry = async (file: File | Blob, path: string, label: string): Promise<string> => {
+        try {
+          setUpdateProgress(`Uploading ${label}...`);
+          return await uploadPhotoToFirebaseStorage(file, path);
+        } catch (firstError) {
+          console.warn(`⚠️ ${label} upload failed, retrying...`, firstError);
+          setUpdateProgress(`Retrying ${label} upload...`);
+          return await uploadPhotoToFirebaseStorage(file, path);
+        }
+      };
+
+      const gaugePhotoUrl = await uploadWithRetry(
+        watermarkedGaugePhoto,
+        `${uploadBasePath}/gauge`,
+        'gauge photo'
+      );
+
+      const systemPhotoUrl = await uploadWithRetry(
+        watermarkedSystemPhoto,
+        `${uploadBasePath}/system`,
+        'system photo'
+      );
       
       const uploadTime = performance.now() - uploadStartTime;
       console.log(`⚡ Photo uploads completed in ${uploadTime.toFixed(0)}ms`);
