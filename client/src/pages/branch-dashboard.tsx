@@ -1106,8 +1106,6 @@ export default function BranchDashboard() {
   const userName = (currentUser as any)?.displayName || currentUser.email;
       const sessionId = `${currentUser.uid}_${Date.now()}`;
       
-      // WATERMARKING - Match the working SupplyWorkflow pattern (no aggressive timeout)
-      // safeWatermarkImage already has internal fallback to original photo on failure
       const watermarkStartTime = performance.now();
       setUpdateProgress('Processing gauge photo...');
       const watermarkedGaugePhoto = await safeWatermarkImage(gaugePhoto, {
@@ -1128,20 +1126,18 @@ export default function BranchDashboard() {
       const watermarkTime = performance.now() - watermarkStartTime;
       console.log(`⚡ Photo watermarking completed in ${watermarkTime.toFixed(0)}ms`);
 
-      // Upload photos sequentially with retry (matches working SupplyWorkflow pattern)
       console.log('☁️ Uploading photos to Firebase Storage...');
       const uploadStartTime = performance.now();
       const uploadBasePath = `tank-updates/${selectedTankForUpdate}/${sessionId}`;
 
-      // Helper: upload with one retry on failure
       const uploadWithRetry = async (file: File | Blob, path: string, label: string): Promise<string> => {
         try {
           setUpdateProgress(`Uploading ${label}...`);
-          return await uploadPhotoToFirebaseStorage(file, path);
+          return await uploadPhotoToFirebaseStorage(file, path, { quality: 0.75, maxDimension: 1000 });
         } catch (firstError) {
           console.warn(`⚠️ ${label} upload failed, retrying...`, firstError);
           setUpdateProgress(`Retrying ${label} upload...`);
-          return await uploadPhotoToFirebaseStorage(file, path);
+          return await uploadPhotoToFirebaseStorage(file, path, { quality: 0.7, maxDimension: 800 });
         }
       };
 

@@ -870,43 +870,74 @@ export const getActiveBranchesOnly = async (): Promise<any[]> => {
  * @returns Promise<string> - The download URL of the uploaded image
  */
 // Compress image before upload to reduce storage size while maintaining quality
-const compressImage = async (file: Blob, quality: number = 0.8, maxWidth: number = 1200): Promise<Blob> => {
+const compressImage = async (file: Blob, quality: number = 0.8, maxDimension: number = 1200): Promise<Blob> => {
   return new Promise((resolve) => {
+    const originalBlob = file;
     const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d');
     const img = new Image();
-    
-    img.onload = () => {
-      // Calculate new dimensions while maintaining aspect ratio
-      let { width, height } = img;
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      }
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      // Draw and compress
-      ctx.drawImage(img, 0, 0, width, height);
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        }
-      }, 'image/jpeg', quality);
+    const objectUrl = URL.createObjectURL(file);
+    const timeout = window.setTimeout(() => {
+      try { URL.revokeObjectURL(objectUrl); } catch {}
+      resolve(originalBlob);
+    }, 12000);
+
+    const finish = (blob: Blob) => {
+      window.clearTimeout(timeout);
+      try { URL.revokeObjectURL(objectUrl); } catch {}
+      resolve(blob);
     };
-    
-    img.src = URL.createObjectURL(file);
+
+    img.onload = () => {
+      try {
+        if (!ctx) return finish(originalBlob);
+
+        let width = img.width;
+        let height = img.height;
+
+        const scale = Math.min(1, maxDimension / Math.max(width, height));
+        width = Math.max(1, Math.round(width * scale));
+        height = Math.max(1, Math.round(height * scale));
+
+        canvas.width = width;
+        canvas.height = height;
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            finish(blob);
+          } else {
+            finish(originalBlob);
+          }
+        }, 'image/jpeg', quality);
+      } catch {
+        finish(originalBlob);
+      }
+    };
+
+    img.onerror = () => {
+      finish(originalBlob);
+    };
+
+    img.src = objectUrl;
   });
 };
 
 // Original working photo upload function - restored to working state
-export const uploadPhotoToFirebaseStorage = async (file: File | Blob, folder: string = 'photos'): Promise<string> => {
+export const uploadPhotoToFirebaseStorage = async (
+  file: File | Blob,
+  folder: string = 'photos',
+  options?: { quality?: number; maxDimension?: number }
+): Promise<string> => {
   try {
     console.log('📷 Starting photo upload to folder:', folder);
     
     // Compress image before upload to reduce storage size
-    const compressedFile = await compressImage(file, 0.8, 1200);
+    const compressedFile = await compressImage(
+      file,
+      options?.quality ?? 0.8,
+      options?.maxDimension ?? 1200
+    );
     
     // Generate unique filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');

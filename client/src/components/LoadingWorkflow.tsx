@@ -76,7 +76,7 @@ export function LoadingWorkflow({ onClose, onPhotoClick }: LoadingWorkflowProps)
     if (!selectedBranch || !selectedBranch.oilTanks) return oilTypes;
     
     // Get unique oil type IDs from branch tanks
-    const branchOilTypeIds = [...new Set(selectedBranch.oilTanks.map((tank: any) => tank.oilTypeId))];
+    const branchOilTypeIds = Array.from(new Set(selectedBranch.oilTanks.map((tank: any) => tank.oilTypeId)));
     
     // Filter global oil types to only show those present in the branch
     return (oilTypes as any[]).filter(type => branchOilTypeIds.includes(type.id));
